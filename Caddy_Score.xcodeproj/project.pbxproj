@@ -1,0 +1,435 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		F82AA8AB304F47F5004066B3 /* Intents.intentdefinition in Sources */ = {isa = PBXBuildFile; fileRef = F82AA8AA304F47F5004066B3 /* Intents.intentdefinition */; };
+		F82AA8AD304F4852004066B3 /* IntentHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = F82AA8AC304F4852004066B3 /* IntentHandler.swift */; };
+		F82AA8AF304F4871004066B3 /* ScoreManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = F82AA8AE304F4871004066B3 /* ScoreManager.swift */; };
+		F82AA8B1304F48AC004066B3 /* GolfScoreRecordSpecialMarker .swift in Sources */ = {isa = PBXBuildFile; fileRef = F82AA8B0304F48AC004066B3 /* GolfScoreRecordSpecialMarker .swift */; };
+		F82AA8E0304F5E7B004066B3 /* SiriMatchManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = F82AA8DF304F5E7B004066B3 /* SiriMatchManager.swift */; };
+		F82AA8E2304F6029004066B3 /* GolfScoreRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = F82AA8E1304F6029004066B3 /* GolfScoreRecord.swift */; };
+		F8A1001A2F43000100A1B2C3 /* Caddy_Score/Caddy_ScoreApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8A100102F43000100A1B2C3 /* Caddy_Score/Caddy_ScoreApp.swift */; };
+		F8A1001B2F43000100A1B2C3 /* Caddy_Score/ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8A100112F43000100A1B2C3 /* Caddy_Score/ContentView.swift */; };
+		F8A1001C2F43000100A1B2C3 /* Caddy_Score/MatchManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8A100122F43000100A1B2C3 /* Caddy_Score/MatchManager.swift */; };
+		F8A1001D2F43000100A1B2C3 /* Caddy_Score/OpenAIService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8A100132F43000100A1B2C3 /* Caddy_Score/OpenAIService.swift */; };
+		F8A1001E2F43000100A1B2C3 /* Caddy_Score/VoiceRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8A100142F43000100A1B2C3 /* Caddy_Score/VoiceRecorder.swift */; };
+		F8A1001F2F43000100A1B2C3 /* Caddy_Score/EventModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8A100152F43000100A1B2C3 /* Caddy_Score/EventModels.swift */; };
+		F8A100202F43000100A1B2C3 /* Caddy_Score/Persistence.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8A100162F43000100A1B2C3 /* Caddy_Score/Persistence.swift */; };
+		F8A100342F43000100A1B2C3 /* Caddy_Score/Interpreter.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8A100332F43000100A1B2C3 /* Caddy_Score/Interpreter.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXBuildRule section */
+		F846F7DF302161FC0037E6A1 /* PBXBuildRule */ = {
+			isa = PBXBuildRule;
+			compilerSpec = com.apple.compilers.proxy.script;
+			fileType = pattern.proxy;
+			inputFiles = (
+			);
+			isEditable = 1;
+			outputFiles = (
+			);
+			script = "# Type a script or drag a script file from your workspace to insert its path.\n";
+		};
+/* End PBXBuildRule section */
+
+/* Begin PBXFileReference section */
+		F82AA8AA304F47F5004066B3 /* Intents.intentdefinition */ = {isa = PBXFileReference; lastKnownFileType = file.intentdefinition; path = Intents.intentdefinition; sourceTree = "<group>"; };
+		F82AA8AC304F4852004066B3 /* IntentHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntentHandler.swift; sourceTree = "<group>"; };
+		F82AA8AE304F4871004066B3 /* ScoreManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScoreManager.swift; sourceTree = "<group>"; };
+		F82AA8B0304F48AC004066B3 /* GolfScoreRecordSpecialMarker .swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "GolfScoreRecordSpecialMarker .swift"; sourceTree = "<group>"; };
+		F82AA8DF304F5E7B004066B3 /* SiriMatchManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SiriMatchManager.swift; sourceTree = "<group>"; };
+		F82AA8E1304F6029004066B3 /* GolfScoreRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GolfScoreRecord.swift; sourceTree = "<group>"; };
+		F82AA8E3304F63F2004066B3 /* CaddySiriExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = CaddySiriExtension.entitlements; sourceTree = "<group>"; };
+		F8667F592F413A6400F2F850 /* Caddy_Score.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Caddy_Score.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		F8A100102F43000100A1B2C3 /* Caddy_Score/Caddy_ScoreApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Caddy_Score/Caddy_ScoreApp.swift; sourceTree = "<group>"; };
+		F8A100112F43000100A1B2C3 /* Caddy_Score/ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Caddy_Score/ContentView.swift; sourceTree = "<group>"; };
+		F8A100122F43000100A1B2C3 /* Caddy_Score/MatchManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Caddy_Score/MatchManager.swift; sourceTree = "<group>"; };
+		F8A100132F43000100A1B2C3 /* Caddy_Score/OpenAIService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Caddy_Score/OpenAIService.swift; sourceTree = "<group>"; };
+		F8A100142F43000100A1B2C3 /* Caddy_Score/VoiceRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Caddy_Score/VoiceRecorder.swift; sourceTree = "<group>"; };
+		F8A100152F43000100A1B2C3 /* Caddy_Score/EventModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Caddy_Score/EventModels.swift; sourceTree = "<group>"; };
+		F8A100162F43000100A1B2C3 /* Caddy_Score/Persistence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Caddy_Score/Persistence.swift; sourceTree = "<group>"; };
+		F8A100332F43000100A1B2C3 /* Caddy_Score/Interpreter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Caddy_Score/Interpreter.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		F8667F5B2F413A6400F2F850 /* Caddy_Score */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = Caddy_Score;
+			sourceTree = "<group>";
+		};
+/* End PBXFileSystemSynchronizedRootGroup section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		F8667F562F413A6400F2F850 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		F8667F502F413A6400F2F850 = {
+			isa = PBXGroup;
+			children = (
+				F82AA8AA304F47F5004066B3 /* Intents.intentdefinition */,
+				F82AA8AC304F4852004066B3 /* IntentHandler.swift */,
+				F82AA8AE304F4871004066B3 /* ScoreManager.swift */,
+				F82AA8B0304F48AC004066B3 /* GolfScoreRecordSpecialMarker .swift */,
+				F8667F5B2F413A6400F2F850 /* Caddy_Score */,
+				F8667F5A2F413A6400F2F850 /* Products */,
+				F8EE8C7B2F43D23900EA096F /* Recovered References */,
+				F82AA8DF304F5E7B004066B3 /* SiriMatchManager.swift */,
+				F82AA8E1304F6029004066B3 /* GolfScoreRecord.swift */,
+				F82AA8E3304F63F2004066B3 /* CaddySiriExtension.entitlements */,
+			);
+			sourceTree = "<group>";
+		};
+		F8667F5A2F413A6400F2F850 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				F8667F592F413A6400F2F850 /* Caddy_Score.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		F8EE8C7B2F43D23900EA096F /* Recovered References */ = {
+			isa = PBXGroup;
+			children = (
+				F8A100102F43000100A1B2C3 /* Caddy_Score/Caddy_ScoreApp.swift */,
+				F8A100112F43000100A1B2C3 /* Caddy_Score/ContentView.swift */,
+				F8A100122F43000100A1B2C3 /* Caddy_Score/MatchManager.swift */,
+				F8A100132F43000100A1B2C3 /* Caddy_Score/OpenAIService.swift */,
+				F8A100142F43000100A1B2C3 /* Caddy_Score/VoiceRecorder.swift */,
+				F8A100152F43000100A1B2C3 /* Caddy_Score/EventModels.swift */,
+				F8A100162F43000100A1B2C3 /* Caddy_Score/Persistence.swift */,
+				F8A100332F43000100A1B2C3 /* Caddy_Score/Interpreter.swift */,
+			);
+			name = "Recovered References";
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		F8667F582F413A6400F2F850 /* Caddy_Score */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = F8667F802F413A6400F2F850 /* Build configuration list for PBXNativeTarget "Caddy_Score" */;
+			buildPhases = (
+				F8667F692F413A6400F2F850 /* Sources */,
+				F8667F562F413A6400F2F850 /* Frameworks */,
+			);
+			buildRules = (
+				F846F7DF302161FC0037E6A1 /* PBXBuildRule */,
+			);
+			dependencies = (
+			);
+			name = Caddy_Score;
+			packageProductDependencies = (
+			);
+			productName = Caddy_Score;
+			productReference = F8667F592F413A6400F2F850 /* Caddy_Score.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		F8667F512F413A6400F2F850 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 2620;
+				LastUpgradeCheck = 2620;
+				TargetAttributes = {
+					F8667F582F413A6400F2F850 = {
+						CreatedOnToolsVersion = 26.2;
+					};
+				};
+			};
+			buildConfigurationList = F8667F542F413A6400F2F850 /* Build configuration list for PBXProject "Caddy_Score" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = F8667F502F413A6400F2F850;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = F8667F5A2F413A6400F2F850 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				F8667F582F413A6400F2F850 /* Caddy_Score */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXSourcesBuildPhase section */
+		F8667F692F413A6400F2F850 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				F82AA8B1304F48AC004066B3 /* GolfScoreRecordSpecialMarker .swift in Sources */,
+				F8A1001A2F43000100A1B2C3 /* Caddy_Score/Caddy_ScoreApp.swift in Sources */,
+				F8A1001B2F43000100A1B2C3 /* Caddy_Score/ContentView.swift in Sources */,
+				F82AA8E2304F6029004066B3 /* GolfScoreRecord.swift in Sources */,
+				F8A1001C2F43000100A1B2C3 /* Caddy_Score/MatchManager.swift in Sources */,
+				F82AA8AB304F47F5004066B3 /* Intents.intentdefinition in Sources */,
+				F82AA8E0304F5E7B004066B3 /* SiriMatchManager.swift in Sources */,
+				F8A1001D2F43000100A1B2C3 /* Caddy_Score/OpenAIService.swift in Sources */,
+				F8A1001E2F43000100A1B2C3 /* Caddy_Score/VoiceRecorder.swift in Sources */,
+				F82AA8AD304F4852004066B3 /* IntentHandler.swift in Sources */,
+				F8A1001F2F43000100A1B2C3 /* Caddy_Score/EventModels.swift in Sources */,
+				F8A100202F43000100A1B2C3 /* Caddy_Score/Persistence.swift in Sources */,
+				F82AA8AF304F4871004066B3 /* ScoreManager.swift in Sources */,
+				F8A100342F43000100A1B2C3 /* Caddy_Score/Interpreter.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		F8667F812F413A6400F2F850 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = Caddy_Score/Caddy_Score.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 3;
+				DEVELOPMENT_TEAM = RYLP3WV2WQ;
+				ENABLE_PREVIEWS = YES;
+				EXCLUDED_SOURCE_FILE_NAMES = (
+					"Caddy_ScoreTests/*",
+					"Caddy_ScoreUITests/*",
+				);
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = "Caddy-Score-Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = "";
+				INFOPLIST_KEY_LSApplicationCategoryType = "";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Necesitamos el micrófono para registrar golpes por voz.";
+				INFOPLIST_KEY_OPENAI_API_KEY = MISSING;
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UIBackgroundModes = "remote-notification";
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UIRequiresFullScreen = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = UIInterfaceOrientationPortrait;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = UIInterfaceOrientationPortrait;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0.2;
+				PRODUCT_BUNDLE_IDENTIFIER = "comDOG.Caddy-Score";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		F8667F822F413A6400F2F850 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = Caddy_Score/Caddy_Score.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 3;
+				DEVELOPMENT_TEAM = RYLP3WV2WQ;
+				ENABLE_PREVIEWS = YES;
+				EXCLUDED_SOURCE_FILE_NAMES = (
+					"Caddy_ScoreTests/*",
+					"Caddy_ScoreUITests/*",
+				);
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = "Caddy-Score-Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = "";
+				INFOPLIST_KEY_LSApplicationCategoryType = "";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Necesitamos el micrófono para registrar golpes por voz.";
+				INFOPLIST_KEY_OPENAI_API_KEY = MISSING;
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UIBackgroundModes = "remote-notification";
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UIRequiresFullScreen = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = UIInterfaceOrientationPortrait;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = UIInterfaceOrientationPortrait;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0.2;
+				PRODUCT_BUNDLE_IDENTIFIER = "comDOG.Caddy-Score";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		F8667F832F413A6400F2F850 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = RYLP3WV2WQ;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		F8667F842F413A6400F2F850 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = RYLP3WV2WQ;
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		F8667F542F413A6400F2F850 /* Build configuration list for PBXProject "Caddy_Score" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				F8667F832F413A6400F2F850 /* Debug */,
+				F8667F842F413A6400F2F850 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		F8667F802F413A6400F2F850 /* Build configuration list for PBXNativeTarget "Caddy_Score" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				F8667F812F413A6400F2F850 /* Debug */,
+				F8667F822F413A6400F2F850 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = F8667F512F413A6400F2F850 /* Project object */;
+}
