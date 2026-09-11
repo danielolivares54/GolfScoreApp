@@ -292,7 +292,6 @@ class MatchManager: ObservableObject {
         setupDefaultBets()
         setupDefaultBetCatalogV2()
         seedDefaultAliasSynonyms()
-        loadExcelFixtureM5()
         rebuildBetInstances()
     }
     
@@ -520,81 +519,6 @@ class MatchManager: ObservableObject {
                 dependsOn: []
             )
         ]
-    }
-
-    // Fixture de prueba cargado desde Caddy _scores-v2t.xlsx (Sheet1)
-    private func loadExcelFixtureM5() {
-        gameStartTime = Date()
-        roundId = "M5"
-        dateString = "2026-03-20"
-        let course = CourseCatalog.default
-        courseId = course.id
-        courseName = course.name
-        holes = course.holes
-        startHole = 1
-
-        var seeded: [PlayerModel] = [
-            PlayerModel(alias: "DAN", name: "DAN", strokesVsBase: 0),
-            PlayerModel(alias: "ANS", name: "ANS", strokesVsBase: 0),
-            PlayerModel(alias: "ROB", name: "ROB", strokesVsBase: 8),
-            PlayerModel(alias: "RIC", name: "RIC", strokesVsBase: 10),
-            PlayerModel(alias: "DOA", name: "DOA", strokesVsBase: 0)
-        ]
-
-        let rows: [(hole: Int, values: [(gross: Int, putts: Int)])] = [
-            (1,  [(4,2),(4,1),(6,2),(5,2),(4,1)]),
-            (2,  [(5,2),(5,2),(5,1),(6,2),(4,2)]),
-            (3,  [(4,1),(3,1),(4,2),(5,2),(3,1)]),
-            (4,  [(5,2),(5,2),(6,2),(4,1),(5,2)]),
-            (5,  [(4,1),(4,2),(5,2),(4,1),(3,1)]),
-            (6,  [(6,3),(5,2),(7,2),(6,2),(5,2)]),
-            (7,  [(3,1),(4,2),(3,1),(4,2),(3,1)]),
-            (8,  [(4,2),(4,1),(5,2),(5,2),(4,2)]),
-            (9,  [(5,2),(4,2),(6,2),(5,1),(4,2)]),
-            (10, [(4,1),(5,2),(4,1),(5,2),(4,1)]),
-            (11, [(5,2),(4,1),(5,2),(6,2),(5,2)]),
-            (12, [(3,1),(3,1),(4,2),(3,1),(4,2)]),
-            (13, [(6,2),(5,2),(6,2),(5,2),(6,2)]),
-            (14, [(4,1),(4,2),(5,2),(4,1),(4,1)]),
-            (15, [(5,2),(4,1),(5,2),(5,2),(4,1)]),
-            (16, [(4,2),(5,2),(4,1),(4,2),(5,2)]),
-            (17, [(3,1),(3,1),(4,2),(3,1),(3,1)]),
-            (18, [(5,2),(4,2),(5,2),(5,2),(4,2)])
-        ]
-
-        for row in rows {
-            for playerIndex in 0..<seeded.count {
-                let score = row.values[playerIndex]
-                seeded[playerIndex].scores[row.hole] = (gross: score.gross, putts: score.putts)
-            }
-        }
-
-        players = seeded
-        yoAlias = "DAN"
-        baseTeamAliases = ["DAN", "ANS"]
-        rebuildLanesFromBase()
-        // Escenario fijo de prueba pedido:
-        // DAN+ANS vs ROB+RIC, strokes de pareja 3 y los lleva ANS.
-        setLaneStrokesForMatch(base: ["DAN", "ANS"], opp: ["ROB", "RIC"], value: 3)
-        setLaneCarrierForMatch(base: ["DAN", "ANS"], opp: ["ROB", "RIC"], carrier: "ANS")
-        addUnitEvent(hole: 3, alias: "DAN", code: "SANDY_PAR", units: 1, note: "Sandy par")
-        // Escenario OYES de prueba (histórico por hoyo).
-        setOyesRanks(
-            hole: 3,
-            ranksByAlias: ["DAN": 1, "ROB": 2, "ANS": 3, "RIC": 4, "DOA": 5],
-            individualUnit: 1,
-            pairUnit: 1
-        )
-        setOyesRanks(
-            hole: 5,
-            ranksByAlias: ["ROB": 1, "DAN": 2, "DOA": 3, "RIC": 4, "ANS": 5],
-            individualUnit: 1,
-            pairUnit: 1
-        )
-        vueltaValue = 50
-        presionValue = 50
-        matchValue = 50
-        unitValue = 25
     }
 
     func setVueltaValue(_ value: Int) {

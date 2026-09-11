@@ -67,6 +67,10 @@ struct TextUtils {
         Set(a).intersection(Set(b)).isEmpty
     }
 
+    static func hasAnyWord(_ text: String, _ words: [String]) -> Bool {
+        words.contains { hasWord(text, $0) }
+    }
+
     static var bannedNameTokens: Set<String> {
         ["el","la","los","las","un","una","unos","unas","de","del","al","por","para","con","sin","y","e","o","u",
          "yo","mi","mis","mio","mia","tu","tus","su","sus","nosotros","ustedes",

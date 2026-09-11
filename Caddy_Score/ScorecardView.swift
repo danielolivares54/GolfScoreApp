@@ -44,7 +44,7 @@ struct CardView: View {
                 }
                 chip("SI \(si)")
             }
-            if !transcript.isEmpty { Text(""\(transcript)"").font(.subheadline) }
+            if !transcript.isEmpty { Text("\"\(transcript)\"").font(.subheadline) }
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
                     statBox(title: "Hoyo", value: holeNumber > 0 ? "\(holeNumber)" : "—")

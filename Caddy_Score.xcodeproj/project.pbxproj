@@ -7,10 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		F82AA8AB304F47F5004066B3 /* Intents.intentdefinition in Sources */ = {isa = PBXBuildFile; fileRef = F82AA8AA304F47F5004066B3 /* Intents.intentdefinition */; };
-		F82AA8AD304F4852004066B3 /* IntentHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = F82AA8AC304F4852004066B3 /* IntentHandler.swift */; };
 		F82AA8AF304F4871004066B3 /* ScoreManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = F82AA8AE304F4871004066B3 /* ScoreManager.swift */; };
-		F82AA8B1304F48AC004066B3 /* GolfScoreRecordSpecialMarker .swift in Sources */ = {isa = PBXBuildFile; fileRef = F82AA8B0304F48AC004066B3 /* GolfScoreRecordSpecialMarker .swift */; };
 		F82AA8E0304F5E7B004066B3 /* SiriMatchManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = F82AA8DF304F5E7B004066B3 /* SiriMatchManager.swift */; };
 		F82AA8E2304F6029004066B3 /* GolfScoreRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = F82AA8E1304F6029004066B3 /* GolfScoreRecord.swift */; };
 		F8A1001A2F43000100A1B2C3 /* Caddy_Score/Caddy_ScoreApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8A100102F43000100A1B2C3 /* Caddy_Score/Caddy_ScoreApp.swift */; };
@@ -38,13 +35,9 @@
 /* End PBXBuildRule section */
 
 /* Begin PBXFileReference section */
-		F82AA8AA304F47F5004066B3 /* Intents.intentdefinition */ = {isa = PBXFileReference; lastKnownFileType = file.intentdefinition; path = Intents.intentdefinition; sourceTree = "<group>"; };
-		F82AA8AC304F4852004066B3 /* IntentHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntentHandler.swift; sourceTree = "<group>"; };
 		F82AA8AE304F4871004066B3 /* ScoreManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScoreManager.swift; sourceTree = "<group>"; };
-		F82AA8B0304F48AC004066B3 /* GolfScoreRecordSpecialMarker .swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "GolfScoreRecordSpecialMarker .swift"; sourceTree = "<group>"; };
 		F82AA8DF304F5E7B004066B3 /* SiriMatchManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SiriMatchManager.swift; sourceTree = "<group>"; };
 		F82AA8E1304F6029004066B3 /* GolfScoreRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GolfScoreRecord.swift; sourceTree = "<group>"; };
-		F82AA8E3304F63F2004066B3 /* CaddySiriExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = CaddySiriExtension.entitlements; sourceTree = "<group>"; };
 		F8667F592F413A6400F2F850 /* Caddy_Score.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Caddy_Score.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		F8A100102F43000100A1B2C3 /* Caddy_Score/Caddy_ScoreApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Caddy_Score/Caddy_ScoreApp.swift; sourceTree = "<group>"; };
 		F8A100112F43000100A1B2C3 /* Caddy_Score/ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Caddy_Score/ContentView.swift; sourceTree = "<group>"; };
@@ -56,9 +49,44 @@
 		F8A100332F43000100A1B2C3 /* Caddy_Score/Interpreter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Caddy_Score/Interpreter.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		F89643EB3054933F0019564E /* Exceptions for "Caddy_Score" folder in "Caddy_Score" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				BetCatalog.swift,
+				BetZoomView.swift,
+				Caddy_Score.xcdatamodeld,
+				CoursePickerView.swift,
+				FuzzyReviewView.swift,
+				GuidedSetupView.swift,
+				IntentTestView.swift,
+				MatchSummaryView.swift,
+				MoneyTrackerView.swift,
+				ScorecardView.swift,
+				SetupWizardView.swift,
+				TextUtils.swift,
+			);
+			target = F8667F582F413A6400F2F850 /* Caddy_Score */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
+/* Begin PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet section */
+		F89643EC3054933F0019564E /* Exceptions for "Caddy_Score" folder in "Compile Sources" phase from "Caddy_Score" target */ = {
+			isa = PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet;
+			buildPhase = F8667F692F413A6400F2F850 /* Sources */;
+			membershipExceptions = (
+				Caddy_Score.entitlements,
+			);
+		};
+/* End PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		F8667F5B2F413A6400F2F850 /* Caddy_Score */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				F89643EB3054933F0019564E /* Exceptions for "Caddy_Score" folder in "Caddy_Score" target */,
+				F89643EC3054933F0019564E /* Exceptions for "Caddy_Score" folder in "Compile Sources" phase from "Caddy_Score" target */,
+			);
 			path = Caddy_Score;
 			sourceTree = "<group>";
 		};
@@ -78,16 +106,12 @@
 		F8667F502F413A6400F2F850 = {
 			isa = PBXGroup;
 			children = (
-				F82AA8AA304F47F5004066B3 /* Intents.intentdefinition */,
-				F82AA8AC304F4852004066B3 /* IntentHandler.swift */,
 				F82AA8AE304F4871004066B3 /* ScoreManager.swift */,
-				F82AA8B0304F48AC004066B3 /* GolfScoreRecordSpecialMarker .swift */,
 				F8667F5B2F413A6400F2F850 /* Caddy_Score */,
 				F8667F5A2F413A6400F2F850 /* Products */,
 				F8EE8C7B2F43D23900EA096F /* Recovered References */,
 				F82AA8DF304F5E7B004066B3 /* SiriMatchManager.swift */,
 				F82AA8E1304F6029004066B3 /* GolfScoreRecord.swift */,
-				F82AA8E3304F63F2004066B3 /* CaddySiriExtension.entitlements */,
 			);
 			sourceTree = "<group>";
 		};
@@ -175,17 +199,14 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				F82AA8B1304F48AC004066B3 /* GolfScoreRecordSpecialMarker .swift in Sources */,
 				F8A1001A2F43000100A1B2C3 /* Caddy_Score/Caddy_ScoreApp.swift in Sources */,
 				F8A1001B2F43000100A1B2C3 /* Caddy_Score/ContentView.swift in Sources */,
+				F8A1001F2F43000100A1B2C3 /* Caddy_Score/EventModels.swift in Sources */,
 				F82AA8E2304F6029004066B3 /* GolfScoreRecord.swift in Sources */,
 				F8A1001C2F43000100A1B2C3 /* Caddy_Score/MatchManager.swift in Sources */,
-				F82AA8AB304F47F5004066B3 /* Intents.intentdefinition in Sources */,
 				F82AA8E0304F5E7B004066B3 /* SiriMatchManager.swift in Sources */,
 				F8A1001D2F43000100A1B2C3 /* Caddy_Score/OpenAIService.swift in Sources */,
 				F8A1001E2F43000100A1B2C3 /* Caddy_Score/VoiceRecorder.swift in Sources */,
-				F82AA8AD304F4852004066B3 /* IntentHandler.swift in Sources */,
-				F8A1001F2F43000100A1B2C3 /* Caddy_Score/EventModels.swift in Sources */,
 				F8A100202F43000100A1B2C3 /* Caddy_Score/Persistence.swift in Sources */,
 				F82AA8AF304F4871004066B3 /* ScoreManager.swift in Sources */,
 				F8A100342F43000100A1B2C3 /* Caddy_Score/Interpreter.swift in Sources */,
