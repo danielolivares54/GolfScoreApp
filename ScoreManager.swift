@@ -52,6 +52,18 @@ class ScoreManager {
         return scores[player]?[hole]
     }
 
+    // MARK: - Todos los records aplanados (para sync con MatchManager)
+
+    func allRecords() -> [GolfScoreRecord] {
+        var out: [GolfScoreRecord] = []
+        for (_, holes) in scores {
+            for (_, record) in holes {
+                out.append(record)
+            }
+        }
+        return out
+    }
+
     // MARK: - Obtener todos los puntajes de un jugador
 
     func getScoresForPlayer(_ player: String) -> [GolfScoreRecord] {

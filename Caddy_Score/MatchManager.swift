@@ -8,12 +8,22 @@
 import Foundation
 import Combine
 
+enum CellOverride: String, Codable {
+    case none
+    case penaltyStroke   // diagonal sobre la celda
+    case lostHole        // Cruz ✕
+    case noShow          // Cruz ✕
+    case disqualified    // Cruz ✕
+    case conceded        // Cruz ✕
+}
+
 struct PlayerModel: Identifiable {
     let id = UUID()
     let alias: String
     let name: String
     var strokesVsBase: Double
     var scores: [Int: (gross: Int, putts: Int?)] = [:]
+    var cellOverrides: [Int: CellOverride] = [:]
 }
 
 struct HoleModel {
@@ -293,6 +303,14 @@ class MatchManager: ObservableObject {
         setupDefaultBetCatalogV2()
         seedDefaultAliasSynonyms()
         rebuildBetInstances()
+
+        NotificationCenter.default.addObserver(
+            forName: .siriRecordPending,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.syncFromScoreManager()
+        }
     }
     
     func generateRoundId() {
@@ -2230,5 +2248,53 @@ class MatchManager: ObservableObject {
 
     private var ambiguousAliasTokens: Set<String> {
         return ["dan"]
+    }
+
+    // MARK: - Cell overrides & unit badges (Bloque 3)
+
+    func cellOverride(alias: String, hole: Int) -> CellOverride {
+        players.first(where: { $0.alias == alias })?.cellOverrides[hole] ?? .none
+    }
+
+    func setCellOverride(alias: String, hole: Int, override value: CellOverride) {
+        guard let idx = players.firstIndex(where: { $0.alias == alias }) else { return }
+        if value == .none {
+            players[idx].cellOverrides.removeValue(forKey: hole)
+        } else {
+            players[idx].cellOverrides[hole] = value
+        }
+        objectWillChange.send()
+    }
+
+    // Lee ScoreManager desde disco y aplica los records al estado en memoria.
+    // Se dispara cuando Siri anota o cuando la app vuelve a foreground.
+    func syncFromScoreManager() {
+        ScoreManager.shared.loadFromDisk()
+        let records = ScoreManager.shared.allRecords()
+        for record in records {
+            // Acepta alias ("DAN") o nombre completo ("Daniel") — cubre Siri y el test manual
+            guard let idx = players.firstIndex(where: {
+                $0.alias == record.player || $0.name == record.player
+            }) else { continue }
+            players[idx].scores[record.hole] = (gross: record.strokes, putts: record.putts)
+        }
+        objectWillChange.send()
+    }
+
+    func unitBadges(alias: String, hole: Int) -> [String] {
+        let manual = unitEventsByHole[hole]?.filter { $0.alias == alias } ?? []
+        let calculated = calculatedUnitEventsForHole(hole).filter { $0.alias == alias }
+        var badges: [String] = []
+        for event in manual + calculated {
+            switch event.code {
+            case "SANDY_PAR": badges.append("S")
+            case "UP_DOWN":   badges.append("↕")
+            case "CHIP_IN":   badges.append("◎")
+            case "HIO":       badges.append("1○")
+            case "ALB":       badges.append("A")
+            default: break
+            }
+        }
+        return badges
     }
 }

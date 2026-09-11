@@ -28,8 +28,10 @@ class SiriMatchManager {
 
     // MARK: - Accessors
 
-    func getClubName() -> String { clubName }
-    func getPlayers() -> [String] { players }
+    func getClubName() -> String { clubName.isEmpty ? "Club de Golf México" : clubName }
+    func getPlayers() -> [String] {
+        players.isEmpty ? ["Daniel", "Anselmo", "Roberto", "Ricardo", "Fernando"] : players
+    }
     func getMatchId() -> String { matchId }
     func getStartingHole() -> Int { startingHole }
     func getBetType() -> String { betType }
