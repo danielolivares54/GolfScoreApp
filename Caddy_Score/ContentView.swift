@@ -50,7 +50,7 @@ struct ContentView: View {
             }
         }
         .sheet(isPresented: $showRescueCapture) {
-            IntentTestView(matchManager: matchManager)  // TEMPORAL: Mini-Bloque 3.5 test
+            IntentTestView(matchManager: matchManager)
         }
     }
 
@@ -105,7 +105,7 @@ struct ContentView: View {
         .background(Color(.systemBackground).ignoresSafeArea(edges: .top))
     }
 
-    // MARK: - Hole Summary Bar (placeholder — Bloque 3)
+    // MARK: - Hole Summary Bar
 
     private var holeSummaryBar: some View {
         HStack(spacing: 8) {
@@ -113,8 +113,6 @@ struct ContentView: View {
             Text("HOYO \(matchManager.expectedNextHole())")
                 .font(.caption.bold())
             Spacer()
-            Text("Resumen · Bloque 3")
-                .font(.caption2).foregroundColor(.secondary)
         }
         .padding(.horizontal, 12).padding(.vertical, 8)
         .background(Color(.secondarySystemBackground))
@@ -152,21 +150,7 @@ struct ContentView: View {
         .foregroundColor(.primary)
     }
 
-    private func loadB3Test() {
-        guard matchManager.players.count < 2 else { return }
-        matchManager.setPlayers(names: ["Daniel","Anselmo","Roberto","Ricardo","DOA"])
-        let h = matchManager.startHole
-        zip(matchManager.players.map(\.alias), [5,3,4,6,7]).forEach { alias, strokes in
-            matchManager.applyHoleEntry(HoleEntryData(hole_number: h, player_alias: alias, strokes: strokes, putts: 2, units: nil, tags: nil))
-        }
-        if let a0 = matchManager.players.first?.alias { matchManager.setCellOverride(alias: a0, hole: h, override: .lostHole) }
-        if matchManager.players.count > 1 {
-            let a1 = matchManager.players[1].alias; let h2 = (h % 18) + 1
-            matchManager.applyHoleEntry(HoleEntryData(hole_number: h2, player_alias: a1, strokes: 5, putts: 2, units: nil, tags: nil))
-            matchManager.setCellOverride(alias: a1, hole: h2, override: .penaltyStroke)
-        }
-        if matchManager.players.count > 2 { matchManager.upsertUnitEvent(hole: h, alias: matchManager.players[2].alias, code: "SANDY_PAR", units: 1) }
-    }
+
 }
 
 // MARK: - Utilities

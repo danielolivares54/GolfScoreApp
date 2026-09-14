@@ -8,7 +8,6 @@ struct IntentTestView: View {
     @State private var strokes = 4
     @State private var putts = 0
     @State private var resultMessage = ""
-    @State private var isRunning = false
 
     var body: some View {
         NavigationView {
@@ -48,15 +47,14 @@ struct IntentTestView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) { Button("Cerrar") { dismiss() } }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button(isRunning ? "Anotando…" : "Anotar") { runIntent() }
-                        .disabled(selectedAlias.isEmpty || isRunning)
+                    Button("Anotar") { runIntent() }
+                        .disabled(selectedAlias.isEmpty)
                 }
             }
         }
     }
 
     private func runIntent() {
-        isRunning = true
         resultMessage = ""
 
         let playerName = matchManager.players
@@ -77,6 +75,5 @@ struct IntentTestView: View {
         } else {
             resultMessage = "❌ No se pudo guardar el puntaje"
         }
-        isRunning = false
     }
 }
