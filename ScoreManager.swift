@@ -193,4 +193,11 @@ class ScoreManager {
             print("❌ Error cargando puntajes: \(error)")
         }
     }
+
+    // MARK: - Cerrar ronda: borra todo lo persistido (único punto que borra datos)
+
+    func clearAll() {
+        scores.removeAll()
+        saveToDisk()
+    }
 }

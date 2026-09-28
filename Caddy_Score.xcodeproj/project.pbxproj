@@ -54,11 +54,13 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				BetCatalog.swift,
-				BetZoomView.swift,
 				Caddy_Score.xcdatamodeld,
+				CatalogoEventos.swift,
 				CoursePickerView.swift,
 				FuzzyReviewView.swift,
+				GuidedCaptureView.swift,
 				GuidedSetupView.swift,
+				HoleAuditView.swift,
 				IntentTestView.swift,
 				MatchSummaryView.swift,
 				MoneyTrackerView.swift,
@@ -71,22 +73,11 @@
 		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
-/* Begin PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet section */
-		F89643EC3054933F0019564E /* Exceptions for "Caddy_Score" folder in "Compile Sources" phase from "Caddy_Score" target */ = {
-			isa = PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet;
-			buildPhase = F8667F692F413A6400F2F850 /* Sources */;
-			membershipExceptions = (
-				Caddy_Score.entitlements,
-			);
-		};
-/* End PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet section */
-
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		F8667F5B2F413A6400F2F850 /* Caddy_Score */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
 				F89643EB3054933F0019564E /* Exceptions for "Caddy_Score" folder in "Caddy_Score" target */,
-				F89643EC3054933F0019564E /* Exceptions for "Caddy_Score" folder in "Compile Sources" phase from "Caddy_Score" target */,
 			);
 			path = Caddy_Score;
 			sourceTree = "<group>";
@@ -251,6 +242,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0.2;
+				NEW_SETTING = "";
 				PRODUCT_BUNDLE_IDENTIFIER = "comDOG.Caddy-Score";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -298,6 +290,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0.2;
+				NEW_SETTING = "";
 				PRODUCT_BUNDLE_IDENTIFIER = "comDOG.Caddy-Score";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";

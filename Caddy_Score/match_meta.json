@@ -1,5 +1,5 @@
 {
-  "matchId": "2026-09-07-CGM-Match1",
+  "matchId": "2026-09-23-CGM-Match1",
   "club": {
     "name": "Club de Golf México",
     "location": "Ciudad de México"
@@ -7,17 +7,17 @@
   "course": {
     "totalHoles": 18,
     "holeOrder": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18],
-    "pars": [4, 5, 3, 4, 3, 5, 4, 4, 4, 4, 5, 4, 4, 3, 4, 3, 4, 4],
-    "handicap": [13, 3, 17, 1, 15, 5, 9, 7, 6, 4, 10, 14, 16, 8, 18, 2, 12, 12]
+    "pars": [4, 5, 3, 4, 3, 5, 4, 4, 4, 4, 5, 4, 4, 3, 4, 3, 5, 4],
+    "handicap": [13, 3, 17, 1, 15, 5, 11, 9, 7, 6, 4, 10, 18, 16, 8, 14, 2, 12]
   },
   "players": [
-    { "name": "Daniel", "position": 1, "isUser": true, "handicap": 0 },
-    { "name": "Anselmo", "position": 2, "isUser": false, "handicap": 0 },
-    { "name": "Roberto", "position": 3, "isUser": false, "handicap": 0 },
-    { "name": "Ricardo", "position": 4, "isUser": false, "handicap": 0 },
-    { "name": "Fernando", "position": 5, "isUser": false, "handicap": 0 }
+    { "name": "Daniel",    "position": 1, "isUser": true,  "handicap": 0 },
+    { "name": "Armando",   "position": 2, "isUser": false, "handicap": 9 },
+    { "name": "Jose Luis", "position": 3, "isUser": false, "handicap": 9 },
+    { "name": "Roberto",   "position": 4, "isUser": false, "handicap": 9 },
+    { "name": "Ricardo",   "position": 5, "isUser": false, "handicap": 9 }
   ],
-  "startingHole": 13,
+  "startingHole": 1,
   "betType": "VPCM",
-  "createdAt": "2026-09-07T10:00:00Z"
+  "createdAt": "2026-09-23T10:00:00Z"
 }

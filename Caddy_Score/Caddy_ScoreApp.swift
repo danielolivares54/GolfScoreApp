@@ -34,49 +34,80 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
     ) -> Bool {
         loadMatchMeta()
+        // Re-register Siri shortcuts on every launch so phrase changes take effect immediately
+        Caddy_ScoreAppShortcuts.updateAppShortcutParameters()
         return true
     }
 
     func applicationWillEnterForeground(_ application: UIApplication) {
+        // If Siri set the guided-capture flag, relay it now that ContentView is active
+        if UserDefaults.standard.bool(forKey: "pendingOpenRecorder") {
+            UserDefaults.standard.removeObject(forKey: "pendingOpenRecorder")
+            NotificationCenter.default.post(name: .openCaddyRecorder, object: nil)
+        }
         NotificationCenter.default.post(name: .siriRecordPending, object: nil)
     }
 
     private func loadMatchMeta() {
-        guard let url = Bundle.main.url(forResource: "match_meta", withExtension: "json") else {
-            print("❌ match_meta.json no encontrado")
+        // Try bundle first (if file was added to resources), otherwise fall back to embedded default
+        if let url = Bundle.main.url(forResource: "match_meta", withExtension: "json"),
+           let data = try? Data(contentsOf: url),
+           (try? SiriMatchManager.shared.loadMatch(from: data)) != nil {
+            print("✅ Match cargado desde bundle: \(SiriMatchManager.shared.getClubName())")
             return
         }
-        do {
-            let data = try Data(contentsOf: url)
-            try SiriMatchManager.shared.loadMatch(from: data)
-            print("✅ Match cargado: \(SiriMatchManager.shared.getClubName())")
-        } catch {
-            print("❌ Error cargando match: \(error)")
+        // Embedded default — keeps the app working without bundle resource setup
+        let embedded = """
+        {
+          "matchId": "2026-09-07-CGM-Match1",
+          "club": { "name": "Club de Golf México", "location": "Ciudad de México" },
+          "course": {
+            "totalHoles": 18,
+            "holeOrder": [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18],
+            "pars": [4,5,3,4,3,5,4,4,4,4,5,4,4,3,4,3,4,4],
+            "handicap": [13,3,17,1,15,5,9,7,6,4,10,14,16,8,18,2,12,12]
+          },
+          "players": [
+            {"name":"Daniel","position":1,"isUser":true,"handicap":0},
+            {"name":"Anselmo","position":2,"isUser":false,"handicap":0},
+            {"name":"Roberto","position":3,"isUser":false,"handicap":0},
+            {"name":"Ricardo","position":4,"isUser":false,"handicap":0},
+            {"name":"Fernando","position":5,"isUser":false,"handicap":0}
+          ],
+          "startingHole": 1,
+          "betType": "VPCM",
+          "createdAt": "2026-09-07T10:00:00Z"
+        }
+        """
+        if let data = embedded.data(using: .utf8),
+           (try? SiriMatchManager.shared.loadMatch(from: data)) != nil {
+            print("✅ Match cargado desde embedded: \(SiriMatchManager.shared.getClubName())")
         }
     }
 
+    static var pendingFileURL: URL? {
+        FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first?
+            .appendingPathComponent(pendingRecordFile)
+    }
+
     static func readPendingRecord() -> GolfScoreRecord? {
-        guard let containerURL = FileManager.default.containerURL(
-            forSecurityApplicationGroupIdentifier: appGroupId
-        ) else { return nil }
-        let fileURL = containerURL.appendingPathComponent(pendingRecordFile)
-        guard FileManager.default.fileExists(atPath: fileURL.path),
+        guard let fileURL = pendingFileURL,
+              FileManager.default.fileExists(atPath: fileURL.path),
               let data = try? Data(contentsOf: fileURL) else { return nil }
         return try? JSONDecoder().decode(GolfScoreRecord.self, from: data)
     }
 
     static func clearPendingRecord() {
-        guard let containerURL = FileManager.default.containerURL(
-            forSecurityApplicationGroupIdentifier: appGroupId
-        ) else { return }
-        try? FileManager.default.removeItem(at: containerURL.appendingPathComponent(pendingRecordFile))
+        guard let fileURL = pendingFileURL else { return }
+        try? FileManager.default.removeItem(at: fileURL)
     }
 }
 
 // MARK: - Notification Names
 
 extension Notification.Name {
-    static let siriRecordPending = Notification.Name("siriRecordPending")
+    static let siriRecordPending  = Notification.Name("siriRecordPending")
+    static let openCaddyRecorder  = Notification.Name("openCaddyRecorder")
 }
 
 // MARK: - App Intent: Log Golf Score
@@ -111,24 +142,26 @@ struct LogGolfScoreIntent: AppIntent {
         }
 
         let players = SiriMatchManager.shared.getPlayers()
-        guard players.contains(player) else {
+        let matchedPlayer = players.first { $0.lowercased() == player.lowercased() }
+        guard let resolvedPlayer = matchedPlayer else {
             throw NSError(domain: "Caddy_Score", code: 2,
-                          userInfo: [NSLocalizedDescriptionKey: "Jugador '\(player)' no encontrado"])
+                          userInfo: [NSLocalizedDescriptionKey: "Jugador '\(player)' no reconocido. Jugadores: \(players.joined(separator: ", "))"])
         }
+
+        let record = GolfScoreRecord(
+            player: resolvedPlayer, hole: hole,
+            strokes: strokes, putts: putts,
+            penalties: penalties, specialMark: .none
+        )
 
         let success: Bool
         if isEdit {
             success = ScoreManager.shared.editScore(
-                player: player, hole: hole,
+                player: resolvedPlayer, hole: hole,
                 newStrokes: strokes, newPutts: putts,
                 newPenalties: penalties, newSpecialMark: .none
             )
         } else {
-            let record = GolfScoreRecord(
-                player: player, hole: hole,
-                strokes: strokes, putts: putts,
-                penalties: penalties, specialMark: .none
-            )
             success = ScoreManager.shared.saveScore(record: record)
         }
 
@@ -137,12 +170,47 @@ struct LogGolfScoreIntent: AppIntent {
                           userInfo: [NSLocalizedDescriptionKey: "No se pudo guardar el puntaje"])
         }
 
+        // Write to pending_score.json in Documents so ContentView/MatchManager can pick it up
+        if let fileURL = AppDelegate.pendingFileURL,
+           let data = try? JSONEncoder().encode(record) {
+            try? data.write(to: fileURL)
+        }
+
         NotificationCenter.default.post(name: .siriRecordPending, object: nil)
 
-        let dialog = isEdit
-            ? "Actualizado: \(player), hoyo \(hole) ahora \(strokes) golpes"
-            : "Anotado: \(player), \(strokes) golpes en el hoyo \(hole)"
+        // Build context-aware dialog
+        let allScores = ScoreManager.shared.allRecords()
+        let holesDone = Set(allScores.map { $0.hole }).sorted()
+        let missingPlayers = players.filter { p in
+            ScoreManager.shared.getScore(player: p, hole: hole) == nil
+        }
+
+        var dialog = isEdit
+            ? "Listo. \(resolvedPlayer), hoyo \(hole) actualizado a \(strokes) golpes."
+            : "Anotado. \(resolvedPlayer), \(strokes) golpes en el hoyo \(hole)."
+
+        if !missingPlayers.isEmpty {
+            dialog += " Faltan: \(missingPlayers.joined(separator: ", "))."
+        }
+        if let nextHole = (1...18).first(where: { !holesDone.contains($0) }) {
+            dialog += " Siguiente: hoyo \(nextHole)."
+        }
+
         return .result(dialog: IntentDialog(stringLiteral: dialog))
+    }
+}
+
+// MARK: - Intent: abrir grabación de voz (sin parámetros)
+
+struct CaddyRecordIntent: AppIntent {
+    static var title: LocalizedStringResource = "Golf Caddy"
+    static var openAppWhenRun: Bool = true
+
+    @MainActor
+    func perform() async throws -> some IntentResult & ProvidesDialog {
+        UserDefaults.standard.set(true, forKey: "pendingOpenRecorder")
+        NotificationCenter.default.post(name: .openCaddyRecorder, object: nil)
+        return .result(dialog: "Abriendo Golf Caddy")
     }
 }
 
@@ -151,14 +219,15 @@ struct LogGolfScoreIntent: AppIntent {
 struct Caddy_ScoreAppShortcuts: AppShortcutsProvider {
     static var appShortcuts: [AppShortcut] {
         AppShortcut(
-            intent: LogGolfScoreIntent(),
+            intent: CaddyRecordIntent(),
             phrases: [
-                "Anotar golf en \(.applicationName)",
-                "Registrar puntaje en \(.applicationName)",
-                "Anotar hoyo en \(.applicationName)"
+                "Golf \(.applicationName)",
+                "\(.applicationName) Golf",
+                "Anotar \(.applicationName)",
+                "Dictar \(.applicationName)"
             ],
-            shortTitle: "Anotar Golf",
-            systemImageName: "figure.golf"
+            shortTitle: "Golf Caddy",
+            systemImageName: "mic.fill"
         )
     }
 }

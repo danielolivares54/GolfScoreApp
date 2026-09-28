@@ -128,7 +128,7 @@ class OpenAIService {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         
         let body: [String: Any] = [
-            "model": "gpt-4-turbo-preview",
+            "model": "gpt-4o-mini",
             "messages": [
                 ["role": "system", "content": systemPrompt],
                 ["role": "user", "content": userPrompt]

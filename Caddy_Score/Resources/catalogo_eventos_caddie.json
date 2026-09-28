@@ -1,0 +1,106 @@
+{
+  "version": 1,
+  "descripcion": "Catálogo único de eventos de Caddie Score. Aplica igual a todos los jugadores. Valores marcados null = por confirmar con Daniel.",
+  "reglas": {
+    "aplica_a": "todos_los_jugadores",
+    "base_calculo": "golpes_brutos_vs_par",
+    "unidad_color_gana": "#3F6B4A",
+    "unidad_color_pierde": "#A8462F"
+  },
+  "eventos_calculados": [
+    {
+      "id": "albatros",
+      "nombre": "Albatros",
+      "regla_diff_par": -3,
+      "simbolo": "circulo_triple",
+      "color": "#3F6B4A",
+      "unidades": null,
+      "voz": ["albatros", "menos tres"]
+    },
+    {
+      "id": "eagle",
+      "nombre": "Eagle",
+      "regla_diff_par": -2,
+      "simbolo": "circulo_doble",
+      "color": "#3F6B4A",
+      "unidades": null,
+      "voz": ["eagle", "águila", "menos dos"]
+    },
+    {
+      "id": "birdie",
+      "nombre": "Birdie",
+      "regla_diff_par": -1,
+      "simbolo": "circulo",
+      "color": "#3F6B4A",
+      "unidades": null,
+      "voz": ["birdie", "berdi", "menos uno"]
+    },
+    {
+      "id": "par",
+      "nombre": "Par",
+      "regla_diff_par": 0,
+      "simbolo": "ninguno",
+      "color": "#1C2321",
+      "unidades": 0,
+      "voz": ["par", "en par", "iguales"]
+    },
+    {
+      "id": "bogey",
+      "nombre": "Bogey",
+      "regla_diff_par": 1,
+      "simbolo": "cuadro",
+      "color": "#A8462F",
+      "unidades": 0,
+      "voz": ["bogey", "bogui", "más uno"]
+    },
+    {
+      "id": "doble_bogey",
+      "nombre": "Doble bogey o peor",
+      "regla_diff_par": ">=2",
+      "simbolo": "cuadro_doble",
+      "color": "#A8462F",
+      "unidades": 0,
+      "voz": ["doble", "doble bogey", "más dos"]
+    }
+  ],
+  "unidades_manuales": [
+    {
+      "id": "oyes",
+      "nombre": "Oyes",
+      "descripcion": "Más cerca del hoyo en par 3",
+      "solo_hoyos_par": [3],
+      "unidades": null,
+      "requiere": ["hoyo", "jugador"],
+      "voz": ["oyes", "o yes"]
+    },
+    {
+      "id": "sandy",
+      "nombre": "Sandy",
+      "descripcion": "Par saliendo de bunker",
+      "solo_hoyos_par": null,
+      "unidades": null,
+      "requiere": ["hoyo", "jugador"],
+      "voz": ["sandy", "sendi"]
+    },
+    {
+      "id": "chip_in",
+      "nombre": "Chip-in",
+      "descripcion": "Embocar desde fuera del green",
+      "solo_hoyos_par": null,
+      "unidades": null,
+      "requiere": ["hoyo", "jugador"],
+      "voz": ["chip in", "chipin"]
+    }
+  ],
+  "registro_unidad": {
+    "campos": ["id_evento", "hoyo", "jugador", "contra_jugador", "unidades", "origen"],
+    "origen_valores": ["calculado", "manual"],
+    "uso": "Cada unidad se guarda como un registro. Al tocar una unidad en la app se lista: hoyo, quién, tipo, y si ganó (verde) o perdió (rojo)."
+  },
+  "por_confirmar": [
+    "Valor en unidades de cada evento (campos null)",
+    "Si los símbolos (círculo, cuadro) coinciden con los acordados",
+    "Si birdie/eagle se calculan con golpes brutos o netos (con strokes)",
+    "Lista completa de unidades manuales: sobran o faltan oyes, sandy, chip-in"
+  ]
+}

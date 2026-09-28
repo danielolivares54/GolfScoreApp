@@ -23,7 +23,7 @@
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>Se requiere reconocimiento de voz para transcribir el dictado en el campo.</string>
 	<key>OPENAI_API_KEY</key>
-	<string>MISSING</string>
+	<string>REPLACE_WITH_YOUR_OPENAI_API_KEY</string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>UIBackgroundModes</key>

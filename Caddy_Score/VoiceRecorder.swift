@@ -27,49 +27,49 @@ class VoiceRecorder: NSObject, ObservableObject {
     func requestPermissions() {
         if #available(iOS 17.0, *) {
             AVAudioApplication.requestRecordPermission { granted in
+                DispatchQueue.main.async { print("Microphone permission: \(granted)") }
+            }
+        } else {
+            AVAudioSession.sharedInstance().requestRecordPermission { granted in
+                DispatchQueue.main.async { print("Microphone permission: \(granted)") }
+            }
+        }
+        SFSpeechRecognizer.requestAuthorization { status in
+            DispatchQueue.main.async { print("Speech permission: \(status.rawValue)") }
+        }
+    }
+
+    // Single entry point: checks/requests mic permission then starts recording
+    func requestMicrophoneAndStart(completion: @escaping @MainActor (Bool) -> Void) {
+        if #available(iOS 17.0, *) {
+            AVAudioApplication.requestRecordPermission { granted in
                 DispatchQueue.main.async {
-                    print("Microphone permission: \(granted)")
+                    if granted { self.startRecording() }
+                    Task { @MainActor in completion(granted) }
                 }
             }
         } else {
             AVAudioSession.sharedInstance().requestRecordPermission { granted in
                 DispatchQueue.main.async {
-                    print("Microphone permission: \(granted)")
+                    if granted { self.startRecording() }
+                    Task { @MainActor in completion(granted) }
                 }
-            }
-        }
-        SFSpeechRecognizer.requestAuthorization { status in
-            DispatchQueue.main.async {
-                print("Speech permission: \(status.rawValue)")
             }
         }
     }
     
+    // Call this only after permission has been confirmed by requestMicrophoneAndStart
     func startRecording() {
         lastError = nil
         let audioSession = AVAudioSession.sharedInstance()
-        let permission = audioSession.recordPermission
-        if permission == .denied {
-            lastError = "Permiso de micrófono denegado."
-            return
-        }
-        if permission == .undetermined {
-            audioSession.requestRecordPermission { granted in
-                DispatchQueue.main.async {
-                    if granted {
-                        self.startRecording()
-                    } else {
-                        self.lastError = "Permiso de micrófono denegado."
-                    }
-                }
-            }
-            return
-        }
         do {
-            try audioSession.setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker, .allowBluetooth])
+            // Deactivate first to release any lock held by Siri or a previous session
+            try? audioSession.setActive(false, options: .notifyOthersOnDeactivation)
+            try audioSession.setCategory(.playAndRecord, mode: .default,
+                                         options: [.defaultToSpeaker, .allowBluetoothHFP])
             try audioSession.setActive(true)
         } catch {
-            lastError = "No se pudo activar el micrófono."
+            lastError = "No se pudo activar el micrófono: \(error.localizedDescription)"
             return
         }
         

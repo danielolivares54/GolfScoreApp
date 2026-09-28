@@ -171,7 +171,7 @@ enum BetValueRule: String, Codable, CaseIterable {
 }
 
 struct BetCatalogV2Entry: Identifiable, Codable {
-    let id = UUID()
+    var id = UUID()
     let betId: String
     let name: String
     let scope: BetScopeTag
@@ -223,6 +223,16 @@ struct WalletLine: Identifiable {
 struct WalletSnapshot {
     let lines: [WalletLine]
     let totalMoney: Int
+}
+
+// Apuesta (plantilla + valores) de un oponente individual específico — permite que cada rival
+// tenga una apuesta distinta a los demás. Las parejas no usan esto, ver betValuesByOpponent.
+struct OpponentBetValues: Codable, Equatable {
+    var templateId: String?
+    var vueltaValue: Int
+    var presionValue: Int
+    var matchValue: Int
+    var unitValue: Int
 }
 
 struct MatchBetSwitches: Codable {
@@ -277,6 +287,11 @@ class MatchManager: ObservableObject {
     @Published var unitValue: Int = 0
     @Published var puttsBetMode: PuttsBetMode = .hole18
     @Published var puttsBetUnits: Int = 2
+    @Published var activeTemplateId: String? = nil
+    // Cada oponente individual puede tener su propia plantilla/valor de apuesta (distinto al de otros
+    // rivales). Las parejas NO usan este diccionario — siguen compartiendo un solo valor global
+    // (vueltaValue/presionValue/matchValue/unitValue arriba), igual para las 3 combinaciones de lane.
+    @Published var betValuesByOpponent: [String: OpponentBetValues] = [:]
     @Published var individualBetSwitchesByOpponent: [String: MatchBetSwitches] = [:]
     @Published var pairBetSwitchesByLane: [UUID: MatchBetSwitches] = [:]
     // Carry en B9 por matchup individual (oponente -> alias que lo solicitó).
@@ -568,6 +583,45 @@ class MatchManager: ObservableObject {
         objectWillChange.send()
     }
 
+    func applyBetTemplate(_ template: BetTemplate) {
+        activeTemplateId = template.id
+        vueltaValue = template.vueltaValue
+        presionValue = template.presionValue
+        matchValue = template.matchValue
+        unitValue = template.unitValue
+        puttsBetMode = template.puttsBetMode
+        puttsBetUnits = template.puttsEnabled ? template.puttsBetUnits : 0
+        activeBets = betCatalog
+            .filter { template.activeUnitTags.contains($0.tag.uppercased()) }
+            .map { ActiveBet(definition: $0, tagOverride: nil) }
+        objectWillChange.send()
+    }
+
+    // Apuesta propia de un oponente individual — no toca vueltaValue/presionValue/matchValue/unitValue
+    // globales (esos siguen siendo los que usan las parejas). Ver walletSnapshot().
+    func setBetTemplateForOpponent(_ opponentAlias: String, template: BetTemplate) {
+        betValuesByOpponent[opponentAlias] = OpponentBetValues(
+            templateId: template.id,
+            vueltaValue: template.vueltaValue,
+            presionValue: template.presionValue,
+            matchValue: template.matchValue,
+            unitValue: template.unitValue
+        )
+        objectWillChange.send()
+    }
+
+    // Valores de apuesta a usar para un oponente individual: su propia plantilla si se definió,
+    // o los valores globales de la ronda como respaldo (match creado antes de esta función).
+    func betValues(forOpponent opponentAlias: String) -> OpponentBetValues {
+        betValuesByOpponent[opponentAlias] ?? OpponentBetValues(
+            templateId: activeTemplateId,
+            vueltaValue: vueltaValue,
+            presionValue: presionValue,
+            matchValue: matchValue,
+            unitValue: unitValue
+        )
+    }
+
     // Paso 2: Instancias por matchup activo.
     func rebuildBetInstances() {
         var instances: [BetInstance] = []
@@ -626,6 +680,18 @@ class MatchManager: ObservableObject {
         if let u = pairUnit, u > 0 {
             oyesPairUnitByHole[hole] = u
         }
+        objectWillChange.send()
+    }
+
+    func removeUnitEvent(hole: Int, alias: String, code: String) {
+        let clean = code.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+        unitEventsByHole[hole]?.removeAll { $0.alias == alias && $0.code == clean }
+        objectWillChange.send()
+    }
+
+    func clearOyeRank(hole: Int, alias: String) {
+        oyesRanksByHole[hole]?.removeValue(forKey: alias)
+        if oyesRanksByHole[hole]?.isEmpty == true { oyesRanksByHole.removeValue(forKey: hole) }
         objectWillChange.send()
     }
 
@@ -1306,6 +1372,7 @@ class MatchManager: ObservableObject {
             ind[opp] = individualBetSwitchesByOpponent[opp] ?? MatchBetSwitches()
         }
         individualBetSwitchesByOpponent = ind
+        betValuesByOpponent = betValuesByOpponent.filter { validOpps.contains($0.key) }
 
         let validLaneIds = Set(lanes.prefix(3).map(\.id))
         var pair: [UUID: MatchBetSwitches] = [:]
@@ -1533,11 +1600,13 @@ class MatchManager: ObservableObject {
             let mPts = switches.match ? matchPts : 0
             let uPts = switches.units ? unitsPts : 0
 
-            let vMoney = vPts * vueltaValue
-            let pMoney = pPts * presionValue
-            let cMoney = cPts * vueltaValue
-            let mMoney = mPts * matchValue
-            let uMoney = uPts * unitValue
+            // Cada oponente usa su propia plantilla/valor — no el global de la ronda (ese es solo para parejas).
+            let ov = betValues(forOpponent: opp)
+            let vMoney = vPts * ov.vueltaValue
+            let pMoney = pPts * ov.presionValue
+            let cMoney = cPts * ov.vueltaValue
+            let mMoney = mPts * ov.matchValue
+            let uMoney = uPts * ov.unitValue
             let total = vMoney + pMoney + cMoney + mMoney + uMoney
             lines.append(
                 WalletLine(
@@ -1646,7 +1715,7 @@ class MatchManager: ObservableObject {
 
     func individualCarryMoneyB9(opponentAlias: String) -> Int {
         guard isIndividualCarryActive(opponentAlias: opponentAlias) else { return 0 }
-        return individualCarryResultB9(opponentAlias: opponentAlias) * vueltaValue
+        return individualCarryResultB9(opponentAlias: opponentAlias) * betValues(forOpponent: opponentAlias).vueltaValue
     }
 
     private func f9VueltaVsOpponent(opponentAlias: String) -> Int {
@@ -1822,7 +1891,7 @@ class MatchManager: ObservableObject {
 
     // Individuales usan el histórico por jugador vs base:
     // positivo = ese jugador recibe; negativo = ese jugador da (recibe el rival).
-    private func individualMatchupStrokes(yoAlias: String, oppAlias: String, hole: Int, carryAlias: String?) -> (yo: Double, opp: Double) {
+    func individualMatchupStrokes(yoAlias: String, oppAlias: String, hole: Int, carryAlias: String?) -> (yo: Double, opp: Double) {
         let yoTotal = playerStrokes(alias: yoAlias)
         let oppTotal = playerStrokes(alias: oppAlias)
 
@@ -2038,7 +2107,7 @@ class MatchManager: ObservableObject {
         return firstBackNineHole()
     }
 
-    private func distributedStrokes(total: Double, hole: Int) -> Double {
+    func distributedStrokes(total: Double, hole: Int) -> Double {
         guard total > 0, let si = getHole(hole)?.si else { return 0 }
         let fullRounds = Int(total / 18.0)
         let remainder = total - Double(fullRounds * 18)
@@ -2122,7 +2191,7 @@ class MatchManager: ObservableObject {
         for v in values {
             let prevVuelta = vuelta
             vuelta += v
-            var prevActive = active
+            let prevActive = active
             for i in active.indices {
                 active[i] += v
             }
