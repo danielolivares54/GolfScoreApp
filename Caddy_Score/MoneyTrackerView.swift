@@ -422,40 +422,54 @@ struct UnitLogDetailView: View {
     private let wonColor  = Color(red: 0x3F / 255.0, green: 0x6B / 255.0, blue: 0x4A / 255.0)  // #3F6B4A
     private let lostColor = Color(red: 0xA8 / 255.0, green: 0x46 / 255.0, blue: 0x2F / 255.0)  // #A8462F
 
+    private var total: Int { entries.reduce(0) { $0 + $1.units } }
+
     var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            VStack(alignment: .leading, spacing: 6) {
-                HStack(spacing: 8) {
-                    detailHeader("H", 30); detailHeader("Jugador", 76); detailHeader("Tipo", 88)
-                    detailHeader("VS", 78); detailHeader("u", 32);       detailHeader("Detalle", 140)
-                }
+        ScrollView {
+            VStack(alignment: .leading, spacing: 10) {
                 if entries.isEmpty {
                     Text("Sin unidades registradas en este match.")
                         .font(.caption).foregroundColor(.secondary)
-                        .padding(.top, 8)
-                }
-                ForEach(entries) { e in
-                    HStack(spacing: 8) {
-                        detailData("\(e.hole)", 30);  detailData(e.player, 76); detailData(e.type, 88)
-                        detailData(e.vs ?? "—", 78)
-                        Text(e.units > 0 ? "+\(e.units)" : "\(e.units)")
-                            .font(.caption.monospacedDigit().bold())
-                            .foregroundColor(e.units > 0 ? wonColor : e.units < 0 ? lostColor : .secondary)
-                            .frame(width: 32, alignment: .leading)
-                        detailData(e.detail ?? "—", 140)
+                } else {
+                    // Total arriba — cuánto llevas ganado/perdido en unidades antes de entrar
+                    // al detalle hoyo por hoyo.
+                    HStack {
+                        Text("Total").font(.system(size: 13, weight: .bold)).foregroundColor(.secondary)
+                        Spacer()
+                        Text(total > 0 ? "+\(total)" : "\(total)")
+                            .font(.system(size: 22, weight: .black, design: .monospaced))
+                            .foregroundColor(total > 0 ? wonColor : total < 0 ? lostColor : .secondary)
                     }
+                    .padding(.bottom, 4)
+                    Divider()
+                    ForEach(entries) { e in entryRow(e) }
                 }
-            }.padding()
+            }
+            .padding()
         }
         .navigationTitle(title)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("Cerrar") { dismiss() } } }
     }
 
-    private func detailHeader(_ text: String, _ width: CGFloat) -> some View {
-        Text(text).font(.caption2.bold()).foregroundColor(.secondary).frame(width: width, alignment: .leading)
-    }
-    private func detailData(_ text: String, _ width: CGFloat) -> some View {
-        Text(text).font(.caption.monospacedDigit()).frame(width: width, alignment: .leading)
+    // Una sola línea por evento — quién la hizo, qué fue y contra quién, sin repetir en
+    // columnas separadas (hoyo, tipo y rival ya caben en la misma oración).
+    private func entryRow(_ e: UnitLogEntry) -> some View {
+        let color = e.units > 0 ? wonColor : e.units < 0 ? lostColor : Color.secondary
+        let verb = e.units > 0 ? "gana" : e.units < 0 ? "pierde" : "marca"
+        let unitsLabel = e.units > 0 ? "+\(e.units)" : "\(e.units)"
+        let typeLabel = e.detail ?? e.type
+        return HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Text("H\(e.hole)")
+                .font(.caption.monospacedDigit().bold())
+                .foregroundColor(.secondary)
+                .frame(width: 30, alignment: .leading)
+            HStack(spacing: 0) {
+                Text("\(e.player) ").fontWeight(.bold)
+                Text("\(verb) unidad (\(unitsLabel)) · \(typeLabel)\(e.vs.map { " vs \($0)" } ?? "")")
+            }
+            .font(.caption)
+            .foregroundColor(color)
+        }
     }
 }

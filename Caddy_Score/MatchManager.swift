@@ -281,10 +281,12 @@ class MatchManager: ObservableObject {
     @Published var activeBets: [ActiveBet] = []
     @Published var betCatalogV2: [BetCatalogV2Entry] = []
     @Published var betInstances: [BetInstance] = []
-    @Published var vueltaValue: Int = 0
-    @Published var presionValue: Int = 0
-    @Published var matchValue: Int = 0
-    @Published var unitValue: Int = 0
+    // Default $1 (no $0) para que el cálculo siempre refleje algo mientras no se configure una
+    // apuesta real — $0 en todo se veía como "no funciona", no como "sin apuesta".
+    @Published var vueltaValue: Int = 1
+    @Published var presionValue: Int = 1
+    @Published var matchValue: Int = 1
+    @Published var unitValue: Int = 1
     @Published var puttsBetMode: PuttsBetMode = .hole18
     @Published var puttsBetUnits: Int = 2
     @Published var activeTemplateId: String? = nil
@@ -563,6 +565,7 @@ class MatchManager: ObservableObject {
     func setUnitValue(_ value: Int) {
         unitValue = max(0, value)
         objectWillChange.send()
+        saveBetConfig()
     }
 
     func setApuestaValues(vuelta: Int, presion: Int, match: Int) {
@@ -570,6 +573,7 @@ class MatchManager: ObservableObject {
         presionValue = max(0, presion)
         matchValue = max(0, match)
         objectWillChange.send()
+        saveBetConfig()
     }
 
     func setPuttsBet(mode: PuttsBetMode, units: Int) {
@@ -581,6 +585,7 @@ class MatchManager: ObservableObject {
     func setActiveBets(_ bets: [ActiveBet]) {
         activeBets = bets
         objectWillChange.send()
+        saveBetConfig()
     }
 
     func applyBetTemplate(_ template: BetTemplate) {
@@ -595,6 +600,7 @@ class MatchManager: ObservableObject {
             .filter { template.activeUnitTags.contains($0.tag.uppercased()) }
             .map { ActiveBet(definition: $0, tagOverride: nil) }
         objectWillChange.send()
+        saveBetConfig()
     }
 
     // Apuesta propia de un oponente individual — no toca vueltaValue/presionValue/matchValue/unitValue
@@ -608,6 +614,7 @@ class MatchManager: ObservableObject {
             unitValue: template.unitValue
         )
         objectWillChange.send()
+        saveBetConfig()
     }
 
     // Valores de apuesta a usar para un oponente individual: su propia plantilla si se definió,
@@ -620,6 +627,96 @@ class MatchManager: ObservableObject {
             matchValue: matchValue,
             unitValue: unitValue
         )
+    }
+
+    // MARK: - Persistencia de configuración de apuestas (plantilla, valores, parejas)
+    //
+    // Antes solo los golpes (ScoreManager) sobrevivían a un relanzamiento de la app — vuelta/
+    // presión/match/unit, las parejas (lanes) y sus strokes vivían solo en memoria y se perdían
+    // cada vez. Esto se guarda en el mismo App Group que ScoreManager, y se borra junto con los
+    // golpes al "Cerrar Ronda" (único punto que borra datos).
+    private struct BetConfigSnapshot: Codable {
+        var activeTemplateId: String?
+        var vueltaValue: Int
+        var presionValue: Int
+        var matchValue: Int
+        var unitValue: Int
+        var activeBetTags: [String]
+        var betValuesByOpponent: [String: OpponentBetValues]
+        var baseTeamAliases: [String]
+        // Las lanes se reconstruyen desde baseTeamAliases (nuevos UUID cada vez) — los strokes de
+        // pareja se guardan por la combinación de aliases oponentes (estable), no por lane.id.
+        var laneStrokesByOppKey: [String: Double]
+        var strokesVsBaseByAlias: [String: Double]
+    }
+
+    private let betConfigFileName = "bet_config.json"
+    private var betConfigURL: URL? {
+        let fm = FileManager.default
+        let dir = fm.containerURL(forSecurityApplicationGroupIdentifier: "group.comDOG.Caddy-Score")
+            ?? fm.urls(for: .documentDirectory, in: .userDomainMask).first
+        return dir?.appendingPathComponent(betConfigFileName)
+    }
+
+    func saveBetConfig() {
+        guard let url = betConfigURL else { return }
+        var laneKeys: [String: Double] = [:]
+        for lane in lanes { laneKeys[lane.opp.sorted().joined(separator: "+")] = lane.strokes }
+        var strokesByAlias: [String: Double] = [:]
+        for p in players { strokesByAlias[p.alias] = p.strokesVsBase }
+        let snapshot = BetConfigSnapshot(
+            activeTemplateId: activeTemplateId,
+            vueltaValue: vueltaValue, presionValue: presionValue, matchValue: matchValue, unitValue: unitValue,
+            activeBetTags: activeBets.map { $0.definition.tag },
+            betValuesByOpponent: betValuesByOpponent,
+            baseTeamAliases: baseTeamAliases,
+            laneStrokesByOppKey: laneKeys,
+            strokesVsBaseByAlias: strokesByAlias
+        )
+        do {
+            let data = try JSONEncoder().encode(snapshot)
+            try data.write(to: url)
+        } catch {
+            print("❌ Error guardando config de apuestas: \(error)")
+        }
+    }
+
+    func loadBetConfig() {
+        guard let url = betConfigURL, FileManager.default.fileExists(atPath: url.path) else { return }
+        do {
+            let data = try Data(contentsOf: url)
+            let snapshot = try JSONDecoder().decode(BetConfigSnapshot.self, from: data)
+            activeTemplateId = snapshot.activeTemplateId
+            vueltaValue = snapshot.vueltaValue
+            presionValue = snapshot.presionValue
+            matchValue = snapshot.matchValue
+            unitValue = snapshot.unitValue
+            activeBets = betCatalog
+                .filter { snapshot.activeBetTags.contains($0.tag) }
+                .map { ActiveBet(definition: $0, tagOverride: nil) }
+            betValuesByOpponent = snapshot.betValuesByOpponent
+            for (alias, strokes) in snapshot.strokesVsBaseByAlias {
+                setStrokesVsBase(alias: alias, value: strokes)
+            }
+            if snapshot.baseTeamAliases.count >= 2 {
+                _ = setBaseTeam(snapshot.baseTeamAliases)
+                for lane in lanes {
+                    let key = lane.opp.sorted().joined(separator: "+")
+                    if let strokes = snapshot.laneStrokesByOppKey[key] {
+                        setLaneStrokes(id: lane.id, value: strokes)
+                    }
+                }
+            }
+            objectWillChange.send()
+            print("✅ Configuración de apuestas cargada desde disco")
+        } catch {
+            print("❌ Error cargando config de apuestas: \(error)")
+        }
+    }
+
+    func clearBetConfig() {
+        guard let url = betConfigURL else { return }
+        try? FileManager.default.removeItem(at: url)
     }
 
     // Paso 2: Instancias por matchup activo.
@@ -1306,6 +1403,7 @@ class MatchManager: ObservableObject {
         updated.strokesVsBase = value
         players[idx] = updated
         objectWillChange.send()
+        saveBetConfig()
     }
 
     func setBaseTeam(_ aliases: [String], opponentsOverride: [String]? = nil) -> Bool {
@@ -1316,6 +1414,7 @@ class MatchManager: ObservableObject {
         baseTeamAliases = baseUnique
         rebuildLanesFromBase(opponentsOverride: opponentsOverride)
         objectWillChange.send()
+        saveBetConfig()
         return true
     }
 
@@ -1406,6 +1505,7 @@ class MatchManager: ObservableObject {
         updated.strokes = max(0, value)
         lanes[idx] = updated
         objectWillChange.send()
+        saveBetConfig()
     }
 
     func setLaneCarrier(id: UUID, carrier: String?) {
@@ -1482,6 +1582,24 @@ class MatchManager: ObservableObject {
 
     func individualF9Vuelta(opponentAlias: String) -> Int {
         f9VueltaVsOpponent(opponentAlias: opponentAlias)
+    }
+
+    // Cada presión lleva su valor propio (CAMBIOS_CADDIE_v2.md #5: "5 3 1", nunca un conteo
+    // colapsado "2 presiones"). Se lee directo de pressureStates — la MISMA fuente que
+    // pressureNet() usa para el dinero real dentro de walletSnapshot() (cálculo congelado, no
+    // se tocó) — solo que aquí se expone el array completo en vez de colapsarlo a un neto.
+    func individualF9Presion(opponentAlias: String) -> [Int] {
+        let order = playOrder()
+        let f9 = Array(order.prefix(9))
+        let values = f9.map { holeResultVsYo(opponentAlias: opponentAlias, hole: $0, carryAlias: nil) }
+        return pressureValues(values: values, threshold: 2)
+    }
+
+    func individualB9Presion(opponentAlias: String) -> [Int] {
+        let order = playOrder()
+        let b9 = Array(order.suffix(9))
+        let values = b9.map { holeResultVsYo(opponentAlias: opponentAlias, hole: $0, carryAlias: nil) }
+        return pressureValues(values: values, threshold: 2)
     }
 
     func setIndividualCarryRequest(opponentAlias: String, requesterAlias: String?) {
@@ -1568,6 +1686,40 @@ class MatchManager: ObservableObject {
     func pairF9Vuelta(laneId: UUID) -> Int {
         guard let lane = lanes.first(where: { $0.id == laneId }) else { return 0 }
         return pairF9Vuelta(lane: lane)
+    }
+
+    // Cada presión con su propio valor (CAMBIOS_CADDIE_v2.md #5). Mismo threshold que
+    // walletSnapshot() usa para parejas: 3. Siempre desde la perspectiva de lane.base — el
+    // caller invierte el signo de cada valor si yo estoy del lado opp.
+    func pairF9Presion(laneId: UUID) -> [Int] {
+        guard let lane = lanes.first(where: { $0.id == laneId }) else { return [] }
+        let order = playOrder()
+        let f9 = Array(order.prefix(9))
+        let values = f9.map { pairResult(hole: $0, lane: lane) }
+        return pressureValues(values: values, threshold: 3)
+    }
+
+    func pairB9Presion(laneId: UUID) -> [Int] {
+        guard let lane = lanes.first(where: { $0.id == laneId }) else { return [] }
+        let order = playOrder()
+        let b9 = Array(order.suffix(9))
+        let values = b9.map { pairResult(hole: $0, lane: lane) }
+        return pressureValues(values: values, threshold: 3)
+    }
+
+    // Valores de presión acumulados hoyo por hoyo (una entrada por hoyo de `holes`, en el mismo
+    // orden) — para la columna "Acum" del Zoom, que audita vuelta+presión fila por fila.
+    func individualPresionSeries(opponentAlias: String, holes: [Int]) -> [[Int]] {
+        let values = holes.map { holeResultVsYo(opponentAlias: opponentAlias, hole: $0, carryAlias: nil) }
+        guard !values.isEmpty else { return [] }
+        return (1...values.count).map { pressureValues(values: Array(values.prefix($0)), threshold: 2) }
+    }
+
+    func pairPresionSeries(laneId: UUID, holes: [Int]) -> [[Int]] {
+        guard let lane = lanes.first(where: { $0.id == laneId }) else { return [] }
+        let values = holes.map { pairResult(hole: $0, lane: lane) }
+        guard !values.isEmpty else { return [] }
+        return (1...values.count).map { pressureValues(values: Array(values.prefix($0)), threshold: 3) }
     }
 
     func walletSnapshot() -> WalletSnapshot {
@@ -1922,8 +2074,7 @@ class MatchManager: ObservableObject {
     }
 
     func pairZoomRows(laneId: UUID, segmentOverride: String? = nil) -> [PairZoomRow] {
-        guard let lane = lanes.first(where: { $0.id == laneId }),
-              lastCompleteHole() != nil else { return [] }
+        guard let lane = lanes.first(where: { $0.id == laneId }) else { return [] }
         let holesForSegment = zoomHolesForCurrentRound(segmentOverride: segmentOverride)
         if holesForSegment.isEmpty { return [] }
         var values: [Int] = []
@@ -2133,41 +2284,15 @@ class MatchManager: ObservableObject {
         return 0
     }
 
-    private func pressureCount(values: [Int?], threshold: Int) -> (won: Int, lost: Int) {
-        var won = 0
-        var lost = 0
-        var vuelta = 0
-        var opened = false
-        var active: [Int] = []
-
-        for raw in values {
-            guard let v = raw else { continue }
-            vuelta += v
-            for i in active.indices {
-                active[i] += v
-            }
-
-            var survivors: [Int] = []
-            var closed = 0
-            for p in active {
-                if abs(p) >= threshold {
-                    if p > 0 { won += 1 } else if p < 0 { lost += 1 }
-                    closed += 1
-                } else {
-                    survivors.append(p)
-                }
-            }
-            active = survivors
-
-            if !opened && abs(vuelta) >= threshold {
-                opened = true
-                active.append(0)
-            }
-            if closed > 0 {
-                for _ in 0..<closed { active.append(0) }
-            }
-        }
-        return (won, lost)
+    // Cada presión activa, con su propio valor — leído directo de pressureStates (la MISMA
+    // fuente que pressureNet() usa para el dinero real), sin ningún cálculo nuevo. Se omiten las
+    // que están en exactamente 0: "arrancan en 0 y empiezan a contar desde el siguiente hoyo"
+    // (ver pressureStates) — en 0 todavía no han jugado ni un hoyo, no hay nada que mostrar.
+    private func pressureValues(values: [Int?], threshold: Int) -> [Int] {
+        let compact = values.compactMap { $0 }
+        if compact.isEmpty { return [] }
+        let active = pressureStates(values: compact, threshold: threshold).last ?? []
+        return active.filter { $0 != 0 }
     }
 
     // Presión neta al cierre del segmento:
@@ -2348,6 +2473,15 @@ class MatchManager: ObservableObject {
             players[idx].scores[record.hole] = (gross: record.strokes, putts: record.putts)
         }
         objectWillChange.send()
+    }
+
+    // Conteo de eventos de unidad (manuales + calculados: Birdie/Eagle/Albatros/HIO… + Oyes
+    // rank 1) para un jugador en un hoyo — usado para pegar círculos en su celda del Zoom.
+    func unitEventCount(alias: String, hole: Int) -> Int {
+        var count = (unitEventsByHole[hole] ?? []).filter { $0.alias == alias && $0.units != 0 }.count
+        count += calculatedUnitEventsForHole(hole).filter { $0.alias == alias }.count
+        if oyesRanksByHole[hole]?[alias] == 1 { count += 1 }
+        return count
     }
 
     func unitBadges(alias: String, hole: Int) -> [String] {

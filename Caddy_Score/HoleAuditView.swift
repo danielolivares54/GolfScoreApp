@@ -24,7 +24,9 @@ private extension Color {
 struct HoleAuditStatus {
     let hole: Int
     let par: Int
-    let playerData: [(alias: String, score: Int, putts: Int)]
+    // strokes = golpes propios recibidos ese hoyo (0 si da golpes o no tiene handicap) — el
+    // "neto personal" de cada jugador, sin depender de contra quién se compare.
+    let playerData: [(alias: String, score: Int, putts: Int, strokes: Double)]
 
     var isComplete: Bool     { playerData.allSatisfy { $0.score > 0 } }
     var missingScores: [String] { playerData.filter { $0.score == 0 }.map { $0.alias } }
@@ -40,7 +42,8 @@ enum HoleAudit {
             let pd = manager.players.map { p in
                 (alias: p.alias,
                  score: manager.getScore(hole: hole, player: p.alias),
-                 putts: manager.getPutts(hole: hole, player: p.alias))
+                 putts: manager.getPutts(hole: hole, player: p.alias),
+                 strokes: manager.distributedStrokes(total: p.strokesVsBase, hole: hole))
             }
             guard pd.contains(where: { $0.score > 0 }) else { return nil }
             return HoleAuditStatus(
@@ -63,9 +66,18 @@ enum HoleAudit {
         return lastWithData ?? manager.expectedNextHole()
     }
 
+    // Ventana de 9 hoyos a auditar — F9 o B9 según dónde haya datos reales, no un cálculo fijo
+    // desde startHole. Antes esto siempre devolvía los primeros 9 de playOrder, así que en
+    // cuanto se anotaba cualquier hoyo del B9 (ej. hoyo 10-14 con salida en el 1), esos datos
+    // quedaban invisibles en la auditoría — nunca se auditaba más allá del noveno hoyo jugado.
     static func holeWindow(manager: MatchManager) -> [Int] {
-        let s = max(1, min(18, manager.startHole))
-        return (0..<9).map { ((s - 1 + $0) % 18) + 1 }
+        let order = manager.playOrder()
+        let front = Array(order.prefix(9))
+        let back = Array(order.suffix(9))
+        let hasBackData = back.contains { hole in
+            manager.players.contains { p in manager.getScore(hole: hole, player: p.alias) > 0 }
+        }
+        return hasBackData ? back : front
     }
 }
 
@@ -160,10 +172,10 @@ struct HoleAuditView: View {
             // Header
             HStack {
                 Text("Hoyo \(status.hole)")
-                    .font(.system(size: 13, weight: .bold, design: .monospaced))
+                    .font(.system(size: 15, weight: .bold, design: .monospaced))
                     .foregroundColor(.cInk)
                 Text("Par \(status.par)")
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(.system(size: 13, weight: .semibold))
                     .foregroundColor(.cMuted)
                 Spacer()
                 statusIcon(status)
@@ -196,11 +208,16 @@ struct HoleAuditView: View {
 
     // MARK: Player cell
 
-    private func playerCell(pd: (alias: String, score: Int, putts: Int), par: Int) -> some View {
+    private func playerCell(pd: (alias: String, score: Int, putts: Int, strokes: Double), par: Int) -> some View {
         let hasScore = pd.score > 0
         let diff = hasScore ? pd.score - par : 0
         let scoreColor: Color = !hasScore ? .cBrick :
             diff < 0 ? .cFairwayL : diff == 0 ? .cInk : .cBrick
+        // Neto personal (sin depender de contra quién se compare) + marca de stroke — antes
+        // esta vista solo mostraba bruto, "datos incompletos" frente a lo que ya se ve en el
+        // Zoom/tarjeta de resultados.
+        let hasStroke = pd.strokes > 0.001
+        let net = Double(pd.score) - pd.strokes
 
         return VStack(spacing: 3) {
             Text(pd.alias)
@@ -208,11 +225,22 @@ struct HoleAuditView: View {
                 .foregroundColor(.cMuted)
 
             Text(hasScore ? "\(pd.score)" : "✕")
-                .font(.system(size: 18, weight: .bold, design: .monospaced))
+                .font(.system(size: 21, weight: .bold, design: .monospaced))
                 .foregroundColor(scoreColor)
 
+            if hasScore && hasStroke {
+                HStack(spacing: 2) {
+                    Text("→\(strokeStr(net))")
+                        .font(.system(size: 13, weight: .semibold, design: .monospaced))
+                        .foregroundColor(.cFairwayL)
+                    Text(strokeMarkSymbol(pd.strokes))
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundColor(.cGold)
+                }
+            }
+
             Text(pd.putts > 0 ? "\(pd.putts)p" : hasScore ? "—p" : "")
-                .font(.system(size: 10))
+                .font(.system(size: 12))
                 .foregroundColor(pd.putts > 0 ? .cMuted : .orange)
 
             Image(systemName: "pencil.circle")
@@ -245,13 +273,28 @@ struct HoleAuditView: View {
         return .cBorder
     }
 
-    private func cellBackground(pd: (alias: String, score: Int, putts: Int), par: Int) -> Color {
+    // Mismo lenguaje visual que el resto de la app (● = 1 stroke, ◐ = 0.5) — duplicado local
+    // porque el original en ContentView.swift es `private` a ese archivo.
+    private func strokeStr(_ v: Double) -> String {
+        v.truncatingRemainder(dividingBy: 1) == 0 ? "\(Int(v))" : String(format: "%.1f", v)
+    }
+
+    private func strokeMarkSymbol(_ value: Double) -> String {
+        if value <= 0.001 { return "" }
+        let whole = Int(value)
+        let half = abs(value - Double(whole) - 0.5) < 0.001
+        if whole == 0 && half { return "◐" }
+        if whole >= 1 && !half { return String(repeating: "●", count: max(1, whole)) }
+        return "●\(strokeStr(value))"
+    }
+
+    private func cellBackground(pd: (alias: String, score: Int, putts: Int, strokes: Double), par: Int) -> Color {
         if pd.score == 0 { return Color.cErrBg }
         if pd.putts == 0 { return Color.cWarnBg }
         return Color.clear
     }
 
-    private func openEdit(status: HoleAuditStatus, pd: (alias: String, score: Int, putts: Int)) {
+    private func openEdit(status: HoleAuditStatus, pd: (alias: String, score: Int, putts: Int, strokes: Double)) {
         let player = matchManager.players.first { $0.alias == pd.alias }
         editTarget = EditTarget(
             hole: status.hole,
@@ -279,6 +322,7 @@ private struct HoleCorrectionSheet: View {
                     holeHeader
                     Spacer(minLength: 0)
                     stepperBlock
+                    oyeRankRow
                     unitTagRow
                     Spacer(minLength: 0)
                     saveButton
@@ -292,7 +336,49 @@ private struct HoleCorrectionSheet: View {
                 }
             }
         }
-        .presentationDetents([.height(460)])
+        .presentationDetents([.height(target.par == 3 ? 530 : 460)])
+    }
+
+    // MARK: Oye rank — par 3 únicamente. Antes la corrección excluía Oyes explícitamente
+    // (regla dura de feedback_display_rules: corregir un hoyo debe poder corregir el Oye si
+    // es par 3) — mismo patrón de botones que oyeRow en ContentView, pero para un solo jugador.
+    @ViewBuilder
+    private var oyeRankRow: some View {
+        if target.par == 3 {
+            let currentRank = matchManager.oyesRanksByHole[target.hole]?[target.alias]
+            let playerCount = max(2, matchManager.players.count)
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Oye rank")
+                    .font(.system(size: 11, weight: .semibold)).foregroundColor(.cMuted)
+                HStack(spacing: 8) {
+                    ForEach(Array(1...playerCount), id: \.self) { rank in
+                        let sel = currentRank == rank
+                        Button {
+                            if sel {
+                                matchManager.clearOyeRank(hole: target.hole, alias: target.alias)
+                            } else {
+                                var ranks = matchManager.oyesRanksByHole[target.hole] ?? [:]
+                                ranks[target.alias] = rank
+                                matchManager.setOyesRanks(hole: target.hole, ranksByAlias: ranks)
+                            }
+                        } label: {
+                            Text("\(rank)")
+                                .font(.system(size: 15, weight: .bold))
+                                .foregroundColor(sel ? .white : (rank == 1 ? .cBrick : .cMuted))
+                                .frame(width: 34, height: 34)
+                                .background(sel ? (rank == 1 ? Color.cBrick : Color.cMuted) : Color.cBg)
+                                .clipShape(Circle())
+                                .overlay(Circle().strokeBorder(
+                                    sel ? Color.clear : (rank == 1 ? Color.cBrick.opacity(0.5) : Color.cBorder),
+                                    lineWidth: 1.5))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    Spacer(minLength: 0)
+                }
+            }
+            .padding(.horizontal, 28).padding(.top, 10)
+        }
     }
 
     // MARK: Unidad — mismo tag que en la tarjeta principal, editable sin afectar
@@ -350,7 +436,7 @@ private struct HoleCorrectionSheet: View {
     private var holeHeader: some View {
         VStack(spacing: 4) {
             Text("HOYO \(target.hole) · PAR \(target.par)")
-                .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                .font(.system(size: 13, weight: .semibold, design: .monospaced))
                 .foregroundColor(.cGreenHint).kerning(0.4)
             Text(target.playerName)
                 .font(.system(size: 20, weight: .semibold, design: .serif))
