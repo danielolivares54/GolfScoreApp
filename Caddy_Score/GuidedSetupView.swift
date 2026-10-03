@@ -8,7 +8,7 @@ private extension Color {
     static let cRowDiv   = Color(red: 0.941, green: 0.929, blue: 0.898)
     static let cInk      = Color(red: 0.110, green: 0.137, blue: 0.129)
     static let cMuted    = Color(red: 0.431, green: 0.416, blue: 0.361)
-    static let cFairway  = Color(red: 0.122, green: 0.239, blue: 0.169)
+    static let cFairway  = Color(red: 0.114, green: 0.627, blue: 0.310) // #1DA04F, verde de marca (logo)
     static let cFairwayL = Color(red: 0.290, green: 0.471, blue: 0.337)
     static let cBrick    = Color(red: 0.659, green: 0.275, blue: 0.184)
     static let cSegBg    = Color(red: 0.906, green: 0.886, blue: 0.824)

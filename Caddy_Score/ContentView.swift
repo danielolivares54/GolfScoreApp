@@ -9,7 +9,7 @@ private extension Color {
     static let cRowDiv    = Color(red: 0.941, green: 0.929, blue: 0.898)
     static let cInk       = Color(red: 0.110, green: 0.137, blue: 0.129)
     static let cMuted     = Color(red: 0.431, green: 0.416, blue: 0.361)
-    static let cFairway   = Color(red: 0.122, green: 0.239, blue: 0.169)
+    static let cFairway   = Color(red: 0.114, green: 0.627, blue: 0.310) // #1DA04F, verde de marca (logo)
     static let cFairwayL  = Color(red: 0.247, green: 0.420, blue: 0.290)
     static let cGreenHint = Color(red: 0.620, green: 0.729, blue: 0.627)
     static let cBrick     = Color(red: 0.659, green: 0.275, blue: 0.184)
@@ -76,7 +76,7 @@ struct ContentView: View {
     @State private var showAudit         = false
     @State private var showRescue        = false
     @State private var showCerrarRondaConfirm = false
-    @State private var tarjetaInitialMode: TarjetaSheetView.CardViewMode = .golpes
+    @State private var tarjetaInitialMode: TarjetaSheetView.CardViewMode = .resultado
 
     @State private var correctionRequest: ScoreCorrection? = nil
 
@@ -1290,8 +1290,8 @@ struct TarjetaSheetView: View {
     @ObservedObject var matchManager: MatchManager
     @Binding var correctionRequest: ScoreCorrection?
     @Environment(\.dismiss) private var dismiss
-    var initialMode: CardViewMode = .golpes
-    @State private var mode: CardViewMode = .golpes
+    var initialMode: CardViewMode = .resultado
+    @State private var mode: CardViewMode = .resultado
 
     enum CardViewMode { case golpes, resultado }
 
@@ -1336,8 +1336,8 @@ struct TarjetaSheetView: View {
 
     private var modeToggle: some View {
         HStack(spacing: 0) {
-            segBtn("Golpes",    active: mode == .golpes)    { mode = .golpes }
             segBtn("Resultado", active: mode == .resultado) { mode = .resultado }
+            segBtn("Golpes",    active: mode == .golpes)    { mode = .golpes }
         }
         .padding(3).background(Color.cSegBg).cornerRadius(10)
         .padding(.horizontal, 18).padding(.bottom, 10)
@@ -1720,12 +1720,17 @@ struct MatchZoomView: View {
     // Ancho de cada columna de jugador, calculado a partir del ancho real de pantalla (tableWidth)
     // para que la tabla (H + jugador + jugador + Res + Acum) siempre quepa completa sin recortarse.
     // Antes estos 122pt eran fijos y solo cabían en los iPhones más anchos (~430pt).
+    // El piso de 70 forzaba overflow en iPhones normales (~390pt): 268 fijos + 2×70 = 408 > 390,
+    // así que la columna Acum (la última del HStack) quedaba parcialmente recortada por el
+    // ScrollView (solo vertical, sin scroll horizontal). El piso bajó a 50 — solo protege el
+    // estado inicial (tableWidth == 0 antes de que GeometryReader mida), nunca fuerza overflow
+    // en un ancho real de pantalla.
     private var playerColWidth: CGFloat {
         let fixedColumns = holeColWidth + resColWidth + accumColWidth
         let gaps: CGFloat = 10 * 4 // 4 espacios en el HStack de 5 elementos
         let paddings: CGFloat = 32 + 32 // padding de la caja blanca (16x2) + padding horizontal de la fila (16x2)
         let available = tableWidth - fixedColumns - gaps - paddings
-        return max(70, available / 2)
+        return max(50, available / 2)
     }
 
     var body: some View {
@@ -2240,7 +2245,7 @@ struct ResultsSheetView: View {
                                 individualCard(opp: opp)
                                 holeDetailButton
                                 if let h = detailHole {
-                                    holeDetailCard(hole: h, opp: opp)
+                                    holeDetailCard(hole: h, opp: opp, laneId: nil)
                                         .transition(.move(edge: .top).combined(with: .opacity))
                                 }
                             }
@@ -2256,7 +2261,7 @@ struct ResultsSheetView: View {
                                 pairCard(lane: lane)
                                 holeDetailButton
                                 if let h = detailHole {
-                                    holeDetailCard(hole: h, opp: focused)
+                                    holeDetailCard(hole: h, opp: focused, laneId: laneId)
                                         .transition(.move(edge: .top).combined(with: .opacity))
                                 }
                             }
@@ -2636,7 +2641,41 @@ struct ResultsSheetView: View {
 
     // MARK: Hole detail card — tarjeta plena + navegación por hoyo
 
-    private func holeDetailCard(hole: Int, opp: PlayerModel) -> some View {
+    // Marca de stroke — mismo lenguaje visual que MatchZoomView (project_architecture_sot):
+    // ● = 1 stroke, ◐ = 0.5. En dorado para que salte a la vista como "aquí hay ventaja".
+    private func strokeMark(_ value: Double) -> String {
+        if value <= 0.001 { return "" }
+        let whole = Int(value)
+        let half = abs(value - Double(whole) - 0.5) < 0.001
+        if whole == 0 && half { return "◐" }
+        if whole >= 1 && !half { return String(repeating: "●", count: max(1, whole)) }
+        return "●\(caddyStrokeStr(value))"
+    }
+    private var strokeGold: Color { Color(red: 0.831, green: 0.627, blue: 0.090) }
+
+    // Vuelta + presiones apiladas debajo, igual que zoomAccumCell en MatchZoomView — nunca
+    // colapsar presiones a un solo número (CAMBIOS_CADDIE_v2.md #5).
+    @ViewBuilder
+    private func holeDetailAccum(vuelta: Int, pres: [Int], size: CGFloat) -> some View {
+        let color: Color = vuelta > 0 ? .cFairwayL : vuelta < 0 ? .cBrick : .cMuted
+        let label = vuelta == 0 ? "E" : vuelta > 0 ? "+\(vuelta)" : "\(vuelta)"
+        let presText = pres.map { $0 > 0 ? "+\($0)" : "\($0)" }.joined(separator: " ")
+        VStack(alignment: .trailing, spacing: 2) {
+            Text("Acum").font(.system(size: 10)).foregroundColor(.cMuted)
+            Text(label)
+                .font(.system(size: size, weight: .bold, design: .monospaced))
+                .foregroundColor(color)
+            if !pres.isEmpty {
+                Text(presText)
+                    .font(.system(size: size - 4, weight: .bold, design: .monospaced))
+                    .foregroundColor(.cInk)
+            }
+        }
+    }
+
+    // `laneId` acota la tarjeta a UN solo match — el seleccionado en los chips de arriba — en vez
+    // de desplegar también cualquier otra pareja en la que `opp` participe. nil = match individual.
+    private func holeDetailCard(hole: Int, opp: PlayerModel, laneId: UUID?) -> some View {
         let order    = matchManager.playOrder()
         let idx      = order.firstIndex(of: hole) ?? 0
         let prevH    = idx > 0                  ? order[idx - 1] : nil
@@ -2648,14 +2687,31 @@ struct ResultsSheetView: View {
 
         // Individual row — se pide con el segmento de ESTE hoyo, no el auto-detectado, para que
         // no desaparezca al navegar a un hoyo de F9 mientras ya se juega B9 (o viceversa).
-        let indRows  = matchManager.individualZoomRows(opponentAlias: opp.alias, segmentOverride: matchManager.segmentForHole(hole))
-        let indRow   = indRows.first { $0.hole == hole }
+        // Solo se calcula si el match seleccionado ES el individual (laneId == nil).
+        let indRows  = laneId == nil
+            ? matchManager.individualZoomRows(opponentAlias: opp.alias, segmentOverride: matchManager.segmentForHole(hole))
+            : []
+        let indIdx   = indRows.firstIndex { $0.hole == hole }
+        let indRow   = indIdx.map { indRows[$0] }
+        // Presión acumulada hasta este hoyo — misma serie que usa el Zoom (CAMBIOS_CADDIE_v2.md #5:
+        // nunca colapsar presiones, siempre desplegar cada valor propio).
+        let indPres: [Int] = {
+            guard let idx = indIdx else { return [] }
+            let segHoles = indRows.map { $0.hole }
+            let series = matchManager.individualPresionSeries(opponentAlias: opp.alias, holes: segHoles)
+            return series.indices.contains(idx) ? series[idx] : []
+        }()
 
-        // Pair rows (with full player lines)
-        let laneRows: [(lane: LaneModel, row: PairZoomRow)] = lanesForOpp(opp.alias).compactMap { lane in
-            guard let row = matchManager.pairZoomRows(laneId: lane.id, segmentOverride: matchManager.segmentForHole(hole)).first(where: { $0.hole == hole }) else { return nil }
-            return (lane, row)
-        }
+        // Pair row — solo la lane seleccionada (laneId), nunca todas las lanes de `opp`.
+        let laneRows: [(lane: LaneModel, row: PairZoomRow, pres: [Int])] = {
+            guard let laneId, let lane = matchManager.lanes.first(where: { $0.id == laneId }) else { return [] }
+            let rows = matchManager.pairZoomRows(laneId: lane.id, segmentOverride: matchManager.segmentForHole(hole))
+            guard let idx = rows.firstIndex(where: { $0.hole == hole }) else { return [] }
+            let segHoles = rows.map { $0.hole }
+            let series = matchManager.pairPresionSeries(laneId: lane.id, holes: segHoles)
+            let pres = series.indices.contains(idx) ? series[idx] : []
+            return [(lane, rows[idx], pres)]
+        }()
 
         return VStack(alignment: .leading, spacing: 0) {
 
@@ -2711,59 +2767,80 @@ struct ResultsSheetView: View {
 
             Color.cBorder.frame(height: 1)
 
-            // ── Tarjeta plena: todos los jugadores ────────────────────────
+            // ── Tarjeta plena: hoyo actual + 2 anteriores × todos los jugadores ──
+            // "el anterior es donde se revisa" — dejar los últimos 3 hoyos uno junto al otro
+            // permite comparar/corregir sin navegar hoyo por hoyo. Usa el mismo ancho de
+            // pantalla de siempre (sin landscape); si no caben, el ScrollView los desplaza.
+            let holesWindow = Array(order[max(0, idx - 2)...idx])
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 0) {
-                    // Row labels
-                    VStack(alignment: .leading, spacing: 0) {
-                        Text("").frame(height: 28)
-                        Color.cBorder.frame(height: 1)
-                        Text("Bruto").font(.system(size: 11)).foregroundColor(.cMuted).frame(height: 28)
-                        Text("Putts").font(.system(size: 11)).foregroundColor(.cMuted).frame(height: 24)
+                VStack(alignment: .leading, spacing: 0) {
+                    HStack(spacing: 0) {
+                        Text("").frame(width: 50, alignment: .leading)
+                        ForEach(holesWindow, id: \.self) { h in
+                            let hp = matchManager.getHole(h)?.par ?? 4
+                            VStack(spacing: 1) {
+                                Text("H\(h)")
+                                    .font(.system(size: 12, weight: .bold, design: .monospaced))
+                                    .foregroundColor(h == hole ? .cFairway : .cMuted)
+                                Text("Par \(hp)").font(.system(size: 9)).foregroundColor(.cMuted)
+                            }
+                            .frame(width: 56)
+                        }
                     }
-                    .frame(width: 48, alignment: .leading).padding(.leading, 14)
+                    .padding(.leading, 14).frame(height: 28)
+
+                    Color.cBorder.frame(height: 1)
 
                     ForEach(matchManager.players) { p in
-                        let g = matchManager.getScore(hole: hole, player: p.alias)
-                        let t = matchManager.getPutts(hole: hole, player: p.alias)
-                        let d = g > 0 ? g - par : 0
                         let isOpp = p.alias == opp.alias
                         let isYo  = p.alias == yo
-
-                        Button {
-                            correctionRequest = ScoreCorrection(hole: hole, alias: p.alias)
-                            dismiss()
-                        } label: {
-                            VStack(spacing: 0) {
-                                // Alias + mic hint
-                                HStack(spacing: 2) {
-                                    Text(p.alias)
-                                        .font(.system(size: 11, weight: .bold, design: .monospaced))
-                                        .foregroundColor(isYo ? .cFairwayL : isOpp ? .cBrick.opacity(0.8) : .cMuted)
-                                    Image(systemName: "mic.fill")
-                                        .font(.system(size: 7))
-                                        .foregroundColor(.cDisabled)
-                                }
-                                .frame(maxWidth: .infinity).frame(height: 28)
-
-                                Color.cBorder.frame(height: 1)
-
-                                // Bruto
-                                Text(g > 0 ? "\(g)" : "—")
-                                    .font(.system(size: 16, weight: .bold, design: .monospaced))
-                                    .foregroundColor(g <= 0 ? .cDisabled : d > 0 ? .cBrick : d < 0 ? .cFairwayL : .cInk)
-                                    .frame(maxWidth: .infinity).frame(height: 28)
-
-                                // Putts
-                                Text(t > 0 ? "(\(t))" : "·")
-                                    .font(.system(size: 11, design: .monospaced))
-                                    .foregroundColor(t > 0 ? .cMuted : .cDisabled)
-                                    .frame(maxWidth: .infinity).frame(height: 24)
+                        HStack(spacing: 0) {
+                            HStack(spacing: 2) {
+                                Text(p.alias)
+                                    .font(.system(size: 11, weight: .bold, design: .monospaced))
+                                    .foregroundColor(isYo ? .cFairwayL : isOpp ? .cBrick.opacity(0.8) : .cMuted)
+                                Image(systemName: "mic.fill")
+                                    .font(.system(size: 7))
+                                    .foregroundColor(.cDisabled)
                             }
-                            .frame(width: 46)
-                            .background(isYo ? Color.cFairway.opacity(0.06) : isOpp ? Color.cBrick.opacity(0.04) : Color.clear)
+                            .frame(width: 50, alignment: .leading).padding(.leading, 14)
+
+                            ForEach(holesWindow, id: \.self) { h in
+                                let hp      = matchManager.getHole(h)?.par ?? 4
+                                let g       = matchManager.getScore(hole: h, player: p.alias)
+                                let t       = matchManager.getPutts(hole: h, player: p.alias)
+                                let d       = g > 0 ? g - hp : 0
+                                let strokes = matchManager.distributedStrokes(total: p.strokesVsBase, hole: h)
+
+                                Button {
+                                    correctionRequest = ScoreCorrection(hole: h, alias: p.alias)
+                                    dismiss()
+                                } label: {
+                                    VStack(spacing: 2) {
+                                        Text(g > 0 ? "\(g)" : "—")
+                                            .font(.system(size: 16, weight: .bold, design: .monospaced))
+                                            .foregroundColor(g <= 0 ? .cDisabled : d > 0 ? .cBrick : d < 0 ? .cFairwayL : .cInk)
+                                        HStack(spacing: 3) {
+                                            Text(t > 0 ? "(\(t))" : "·")
+                                                .font(.system(size: 10, design: .monospaced))
+                                                .foregroundColor(t > 0 ? .cMuted : .cDisabled)
+                                            if strokes > 0.001 {
+                                                Text(strokeMark(strokes))
+                                                    .font(.system(size: 9, weight: .bold))
+                                                    .foregroundColor(strokeGold)
+                                            }
+                                        }
+                                    }
+                                    .frame(width: 56, height: 44)
+                                    .background(h == hole ? (isYo ? Color.cFairway.opacity(0.06) : isOpp ? Color.cBrick.opacity(0.04) : Color.clear) : Color.clear)
+                                    .overlay(
+                                        h == hole ? RoundedRectangle(cornerRadius: 6).stroke(Color.cGold.opacity(0.4), lineWidth: 1) : nil
+                                    )
+                                }
+                                .buttonStyle(.plain)
+                            }
                         }
-                        .buttonStyle(.plain)
+                        Color.cRowDiv.frame(height: 1)
                     }
                 }
             }
@@ -2781,7 +2858,6 @@ struct ResultsSheetView: View {
             if let r = indRow {
                 Color.cBorder.frame(height: 1)
                 let winner = r.result == 0 ? "Empate" : r.result > 0 ? "\(yo) gana" : "\(opp.alias) gana"
-                let aColor: Color = r.vueltaAccum > 0 ? .cFairwayL : r.vueltaAccum < 0 ? .cBrick : .cMuted
                 HStack {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("INDIVIDUAL")
@@ -2796,12 +2872,7 @@ struct ResultsSheetView: View {
                         .font(.system(size: 10, design: .monospaced)).foregroundColor(.cMuted)
                     }
                     Spacer()
-                    VStack(alignment: .trailing, spacing: 2) {
-                        Text("Acum").font(.system(size: 10)).foregroundColor(.cMuted)
-                        Text(r.vueltaAccum == 0 ? "E" : r.vueltaAccum > 0 ? "+\(r.vueltaAccum)" : "\(r.vueltaAccum)")
-                            .font(.system(size: 16, weight: .bold, design: .monospaced))
-                            .foregroundColor(aColor)
-                    }
+                    holeDetailAccum(vuelta: r.vueltaAccum, pres: indPres, size: 16)
                 }
                 .padding(.horizontal, 14).padding(.vertical, 10)
             }
@@ -2813,7 +2884,7 @@ struct ResultsSheetView: View {
                 let pResult = lr.row.result * sign
                 let pAccum  = lr.row.vueltaAccum * sign
                 let winner  = pResult == 0 ? "Empate" : pResult > 0 ? "Tu pareja gana" : "Oponentes ganan"
-                let pColor: Color = pAccum > 0 ? .cFairwayL : pAccum < 0 ? .cBrick : .cMuted
+                let pPres   = lr.pres.map { $0 * sign }
 
                 Color.cBorder.frame(height: 1)
                 VStack(alignment: .leading, spacing: 6) {
@@ -2824,12 +2895,7 @@ struct ResultsSheetView: View {
                         Text("· \(lr.lane.base.joined(separator: "+")) vs \(lr.lane.opp.joined(separator: "+"))")
                             .font(.system(size: 10)).foregroundColor(.cMuted).lineLimit(1)
                         Spacer()
-                        VStack(alignment: .trailing, spacing: 1) {
-                            Text("Acum").font(.system(size: 10)).foregroundColor(.cMuted)
-                            Text(pAccum == 0 ? "E" : pAccum > 0 ? "+\(pAccum)" : "\(pAccum)")
-                                .font(.system(size: 14, weight: .bold, design: .monospaced))
-                                .foregroundColor(pColor)
-                        }
+                        holeDetailAccum(vuelta: pAccum, pres: pPres, size: 14)
                     }
 
                     // Base side
@@ -3007,9 +3073,4 @@ struct ResultsSheetView: View {
         }
     }
 
-    // MARK: Helpers
-
-    private func lanesForOpp(_ alias: String) -> [LaneModel] {
-        matchManager.lanes.filter { $0.base.contains(alias) || $0.opp.contains(alias) }
-    }
 }
