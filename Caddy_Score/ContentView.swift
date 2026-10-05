@@ -494,9 +494,11 @@ struct ContentView: View {
             return d > 0 ? .cBrick : d < 0 ? .cFairwayL : .cInk
         }()
 
-        // Avatar: verde cuando recibe golpe, gris sin golpe
+        // Avatar: verde cuando recibe golpe, gris sin golpe. strokeCount >= 1 dejaba fuera el
+        // medio golpe (0.5) — el texto ya decía "medio golpe" pero el avatar se veía igual que
+        // sin ventaja, el único indicador rápido de un vistazo no distinguía 0.5 de 0.
         let avatarBg: Color = strokeCount >= 2 ? .cFairwayL
-                            : strokeCount >= 1 ? .cFairway
+                            : strokeCount > 0.001 ? .cFairway
                             : .cMuted
 
         let statusText: String = {
@@ -932,8 +934,6 @@ struct ContentView: View {
             legendDot(.cBrick,    "Sobre par")
             legendDot(.cFairwayL, "Bajo par")
             Spacer()
-            Button("demo") { seedDemoRound() }
-                .font(.system(size: 9)).foregroundColor(.cDisabled)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 18).padding(.bottom, 12)
@@ -1157,6 +1157,12 @@ struct ContentView: View {
                 }
             }
         }
+        // Scores de ejemplo — guard independiente del de apuestas arriba: si alguna vez queda
+        // la config de apuestas sembrada pero sin ningún score anotado (p.ej. tras reinstalar
+        // la app en el simulador), esto los repone sin esperar a que el guard de arriba corra.
+        if matchManager.getScore(hole: 1, player: matchManager.yoAlias) <= 0 {
+            seedDemoScores()
+        }
         if let next = matchManager.firstIncompleteHole(),
            let idx  = playOrder.firstIndex(of: next) { currentHoleIndex = idx }
         editingPlayerIdx = 0
@@ -1236,51 +1242,37 @@ struct ContentView: View {
         }
     }
 
-    // MARK: Demo seed (testing only)
+    // MARK: Siembra de scores de ejemplo (18 hoyos, 5 jugadores)
 
-    private func seedDemoRound() {
-        // Jugadores: DAN (yo 0h), ANS (16h), CAR (8h), PED (24h)
-        matchManager.setPlayers(names: ["Daniel", "Anselmo", "Carlos", "Pedro"])
-        matchManager.setStrokesVsBase(alias: "ANS", value: 16)
-        matchManager.setStrokesVsBase(alias: "CAR", value: 8)
-        matchManager.setStrokesVsBase(alias: "PED", value: 24)
+    // Mismo criterio de "solo una vez" que el bloque de apuestas en setupOnAppear — nunca pisa
+    // datos reales, solo rellena si de verdad no hay nada anotado todavía (ej. justo después de
+    // reinstalar la app). Jugadores y pareja base (DAN+ANS) ya quedan fijados arriba.
+    private func seedDemoScores() {
+        let pars: [Int] = [4,5,3,4,3,5,4,4,4,4,5,4,4,3,4,3,4,4]
+        let offsets: [(alias: String, base: Int)] = [("DAN", 0), ("ANS", 1), ("ROB", 2), ("RIC", 1), ("FER", -1)]
 
-        // Equipo pareja: DAN+CAR vs ANS+PED, 4 strokes de lane
-        _ = matchManager.setBaseTeam(["DAN", "CAR"])
-        if let lane = matchManager.lanes.first {
-            matchManager.setLaneStrokes(id: lane.id, value: 4)
+        for hole in 1...18 {
+            let par = pars[hole - 1]
+            let wiggle = hole % 4 == 0 ? 1 : (hole % 3 == 0 ? -1 : 0)
+            for (alias, base) in offsets where matchManager.players.contains(where: { $0.alias == alias }) {
+                let strokes = max(1, par + base + wiggle)
+                let putts = strokes - par >= 1 ? 2 : 1
+                matchManager.applyHoleEntry(HoleEntryData(
+                    hole_number: hole, player_alias: alias,
+                    strokes: strokes, putts: putts, units: nil, tags: nil))
+            }
         }
 
-        // Config de apuestas y salida
-        matchManager.startHole = 1
-        matchManager.setVueltaValue(1)
-        matchManager.puttsBetUnits = 2
-
-        // Scores H1-H5 (CGM: H1=Par4 SI13, H2=Par5 SI3, H3=Par3 SI17, H4=Par4 SI1, H5=Par3 SI15)
-        let entries: [(h: Int, a: String, s: Int, p: Int)] = [
-            (1,"DAN",4,2), (1,"ANS",5,3), (1,"CAR",3,1), (1,"PED",6,2),
-            (2,"DAN",5,2), (2,"ANS",5,2), (2,"CAR",5,2), (2,"PED",7,2),
-            (3,"DAN",3,1), (3,"ANS",4,2), (3,"CAR",3,2), (3,"PED",5,2),
-            (4,"DAN",3,1), (4,"ANS",5,2), (4,"CAR",4,2), (4,"PED",5,2),
-            (5,"DAN",2,1), (5,"ANS",3,2), (5,"CAR",4,2), (5,"PED",3,2),
-        ]
-        for e in entries {
-            matchManager.applyHoleEntry(HoleEntryData(
-                hole_number: e.h, player_alias: e.a,
-                strokes: e.s, putts: e.p, units: nil, tags: nil))
+        // Oyes en los pares 3 — se alterna quién gana para ver los dos colores del badge.
+        let par3Holes = [3, 5, 14, 16]
+        let aliases = offsets.map { $0.alias }
+        for (i, hole) in par3Holes.enumerated() {
+            let winner = aliases[i % aliases.count]
+            let order = [winner] + aliases.filter { $0 != winner }
+            var ranks: [String: Int] = [:]
+            for (idx, alias) in order.enumerated() { ranks[alias] = idx + 1 }
+            matchManager.setOyesRanks(hole: hole, ranksByAlias: ranks)
         }
-
-        // OYEs en pares 3 (H3 y H5)
-        matchManager.setOyesRanks(hole: 3, ranksByAlias: ["DAN":1,"CAR":2,"ANS":3,"PED":4])
-        matchManager.setOyesRanks(hole: 5, ranksByAlias: ["DAN":1,"ANS":2,"PED":3,"CAR":4])
-
-        // Unidades manuales: Sandy ANS H1, Sandy CAR H4, Sandy DAN H5
-        matchManager.upsertUnitEvent(hole: 1, alias: "ANS", code: "SANDY", units: 1)
-        matchManager.upsertUnitEvent(hole: 4, alias: "CAR", code: "SANDY", units: 1)
-        matchManager.upsertUnitEvent(hole: 5, alias: "DAN", code: "SANDY", units: 1)
-
-        // Navegar a H5 para ver estado completo
-        currentHoleIndex = 4
     }
 }
 
@@ -1794,8 +1786,8 @@ struct MatchZoomView: View {
             if let r = rowsByHole[hole] {
                 HStack(spacing: 10) {
                     zoomHoleCell(hole)
-                    playerScoreCell(alias: matchManager.yoAlias, hole: hole, gross: r.yoGross, net: r.yoNet, strokes: r.yoStrokes, color: .cInk, width: playerColWidth)
-                    playerScoreCell(alias: opp, hole: hole, gross: r.oppGross, net: r.oppNet, strokes: r.oppStrokes, color: .cInk, width: playerColWidth)
+                    playerScoreCell(alias: matchManager.yoAlias, hole: hole, gross: r.yoGross, net: r.yoNet, strokes: r.yoStrokes, carryExtra: matchManager.individualCarryExtraStroke(opponentAlias: opp, alias: matchManager.yoAlias, hole: hole), isMySide: true, color: .cInk, width: playerColWidth)
+                    playerScoreCell(alias: opp, hole: hole, gross: r.oppGross, net: r.oppNet, strokes: r.oppStrokes, carryExtra: matchManager.individualCarryExtraStroke(opponentAlias: opp, alias: opp, hole: hole), isMySide: false, color: .cInk, width: playerColWidth)
                     zoomResultCell(r.result)
                     zoomAccumCell(vuelta: r.vueltaAccum, pres: presionSeries[idx])
                 }
@@ -1842,8 +1834,8 @@ struct MatchZoomView: View {
                     let pres = presionSeriesRaw[idx].map { $0 * sign }
                     HStack(spacing: 10) {
                         zoomHoleCell(hole)
-                        pairSideCell(r.basePlayers, hole: hole, width: playerColWidth)
-                        pairSideCell(r.oppPlayers, hole: hole, width: playerColWidth)
+                        pairSideCell(r.basePlayers, hole: hole, laneId: laneId, isMySide: sign == 1, width: playerColWidth)
+                        pairSideCell(r.oppPlayers, hole: hole, laneId: laneId, isMySide: sign == -1, width: playerColWidth)
                         zoomResultCell(r.result * sign)
                         zoomAccumCell(vuelta: r.vueltaAccum * sign, pres: pres)
                     }
@@ -1860,13 +1852,20 @@ struct MatchZoomView: View {
     }
 
     // Un jugador, una celda: bruto siempre, y si recibió stroke ese hoyo, el neto + el punto
-    // dorado ● (mismo símbolo que el resto de la app) para que la ventaja salte a la vista.
+    // de stroke (símbolo común de caddie: ● = 1, ◐ = 0.5) en rojo/verde según de qué lado lo
+    // recibe (verde = yo/mi equipo, rojo = el oponente) — antes era dorado uniforme, pero el
+    // caddie necesita ver de un vistazo quién lleva la ventaja, no solo que existe.
+    // Si el stroke viene de una apuesta de Carry activa (B9), se agrega además una "C" aparte
+    // con el mismo esquema de color — el Carry es una apuesta adicional, no se mezcla con el
+    // punto de hándicap base.
     // Sin nombre — ya aparece una sola vez en el header de la columna (zoomHeaderNames).
     // Si este jugador tuvo evento(s) de unidad ese hoyo (Oyes, Birdie, Sandy…), el número bruto
     // se encierra en un círculo — igual que en una tarjeta de golf en papel (birdie = 1 círculo,
     // eagle/doble evento = 2 círculos concéntricos) — en vez de un símbolo aparte.
-    private func playerScoreCell(alias: String, hole: Int, gross: Int, net: Double, strokes: Double, color: Color, width: CGFloat) -> some View {
+    private func playerScoreCell(alias: String, hole: Int, gross: Int, net: Double, strokes: Double, carryExtra: Double = 0, isMySide: Bool, color: Color, width: CGFloat) -> some View {
         let hasStroke = strokes > 0.001
+        let hasCarry = carryExtra > 0.001
+        let sideColor: Color = isMySide ? .cFairwayL : .cBrick
         let unitCount = matchManager.unitEventCount(alias: alias, hole: hole)
         return HStack(spacing: 4) {
             if gross > 0 {
@@ -1882,7 +1881,12 @@ struct MatchZoomView: View {
                         .foregroundColor(.cFairwayL)
                     Text(strokeMark(strokes))
                         .font(.system(size: 13, weight: .bold))
-                        .foregroundColor(strokeGold)
+                        .foregroundColor(sideColor)
+                }
+                if hasCarry {
+                    Text("C")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundColor(sideColor)
                 }
             } else {
                 Text("—").font(.system(size: 14, design: .monospaced)).foregroundColor(.cDisabled)
@@ -1894,11 +1898,12 @@ struct MatchZoomView: View {
 
     // Lado de pareja: los 1-2 jugadores de ese lado, cada uno coloreado según su posición fija
     // (mismo orden y color que en zoomHeaderRow) en vez de repetir su nombre en cada fila.
-    private func pairSideCell(_ players: [PairBallLine], hole: Int, width: CGFloat) -> some View {
+    private func pairSideCell(_ players: [PairBallLine], hole: Int, laneId: UUID, isMySide: Bool, width: CGFloat) -> some View {
         HStack(spacing: 8) {
             ForEach(Array(players.enumerated()), id: \.element.alias) { idx, p in
                 let strokes = p.individualStrokes + p.laneStrokes
-                playerScoreCell(alias: p.alias, hole: hole, gross: p.gross, net: p.net, strokes: strokes, color: partnerColor(idx), width: width / CGFloat(max(players.count, 1)))
+                let carryExtra = matchManager.pairCarryExtraStroke(laneId: laneId, alias: p.alias, hole: hole)
+                playerScoreCell(alias: p.alias, hole: hole, gross: p.gross, net: p.net, strokes: strokes, carryExtra: carryExtra, isMySide: isMySide, color: partnerColor(idx), width: width / CGFloat(max(players.count, 1)))
             }
         }
         .frame(width: width, alignment: .leading)
@@ -2059,6 +2064,9 @@ struct ResultsSheetView: View {
     @State private var unitLogTarget: UnitLogTarget? = nil
     @State private var matchZoomTarget: UnitLogTarget? = nil
     @State private var matchZoomInitialSegment: String = "F9"
+    // Qué compañero del lado elegible queda seleccionado en el picker de Carry de pareja —
+    // por laneId, porque puede haber varias tarjetas de pareja visibles a la vez.
+    @State private var carrySelection: [UUID: String] = [:]
 
     private var opponents: [PlayerModel] {
         matchManager.players.filter { $0.alias != matchManager.yoAlias }
@@ -2410,6 +2418,7 @@ struct ResultsSheetView: View {
         let carryOn = matchManager.isIndividualCarryActive(opponentAlias: opp.alias)
         let b9Carry: Int? = carryOn ? matchManager.individualCarryResultB9(opponentAlias: opp.alias) : nil
         let wallet = matchManager.walletSnapshot().lines.first { $0.opponentAlias == opp.alias }
+        let carryEligible = matchManager.individualCarryEligibleRequester(opponentAlias: opp.alias)
 
         // Bruto/neto acumulado por jugador — para el audit contra el caddie rival (Manual punto 12).
         return matchCard(
@@ -2419,7 +2428,13 @@ struct ResultsSheetView: View {
             f9Pres: f9Pres, b9Pres: b9Pres, b9Carry: b9Carry,
             wallet: wallet,
             hasData: !rows.isEmpty,
-            zoomTarget: .individual(opp.alias)
+            zoomTarget: .individual(opp.alias),
+            carryCandidates: carryEligible.map { [$0] } ?? [],
+            carryActive: carryOn,
+            carryRequesterAlias: matchManager.individualCarryRequesterByOpponent[opp.alias],
+            onActivateCarry: { if let e = carryEligible { matchManager.setIndividualCarryRequest(opponentAlias: opp.alias, requesterAlias: e) } },
+            onCancelCarry: { matchManager.clearIndividualCarryRequest(opponentAlias: opp.alias) },
+            strokesLine: matchManager.individualStrokeSummaryLine(opponentAlias: opp.alias)
         )
     }
 
@@ -2445,6 +2460,8 @@ struct ResultsSheetView: View {
         let baseL    = lane.base.joined(separator: "+")
         let oppL     = lane.opp.joined(separator: "+")
         let wallet   = matchManager.walletSnapshot().lines.first { $0.laneId == lane.id }
+        let carryEligibleTeam = matchManager.pairCarryEligibleTeam(laneId: lane.id)
+        let carrySelected = carrySelection[lane.id] ?? carryEligibleTeam.first
 
         return matchCard(
             title: "PAREJA",
@@ -2453,7 +2470,15 @@ struct ResultsSheetView: View {
             f9Pres: f9Pres, b9Pres: b9Pres, b9Carry: b9Carry,
             wallet: wallet,
             hasData: !rows.isEmpty,
-            zoomTarget: .pair(lane.id)
+            zoomTarget: .pair(lane.id),
+            carryCandidates: carryEligibleTeam,
+            carryActive: carryOn,
+            carryRequesterAlias: matchManager.pairCarryRequesterByLane[lane.id],
+            carrySelected: carrySelected,
+            onSelectCarryCandidate: { carrySelection[lane.id] = $0 },
+            onActivateCarry: { if let alias = carrySelected { matchManager.setPairCarryRequest(laneId: lane.id, requesterAlias: alias) } },
+            onCancelCarry: { matchManager.clearPairCarryRequest(laneId: lane.id) },
+            strokesLine: matchManager.pairStrokeSummaryLine(laneId: lane.id)
         )
     }
 
@@ -2462,7 +2487,11 @@ struct ResultsSheetView: View {
     private func matchCard(title: String, subtitle: String,
                            f9V: Int, b9V: Int,
                            f9Pres: [Int], b9Pres: [Int], b9Carry: Int?, wallet: WalletLine?,
-                           hasData: Bool, zoomTarget: UnitLogTarget) -> some View {
+                           hasData: Bool, zoomTarget: UnitLogTarget,
+                           carryCandidates: [String] = [], carryActive: Bool = false, carryRequesterAlias: String? = nil,
+                           carrySelected: String? = nil, onSelectCarryCandidate: ((String) -> Void)? = nil,
+                           onActivateCarry: (() -> Void)? = nil, onCancelCarry: (() -> Void)? = nil,
+                           strokesLine: String? = nil) -> some View {
         return VStack(alignment: .leading, spacing: 0) {
             // Header — toca la tarjeta completa para abrir el Zoom a pantalla completa (historia hoyo
             // por hoyo de este match: bruto/neto/strokes/unidades, F9 y B9). El botón "U" del wallet
@@ -2501,6 +2530,65 @@ struct ResultsSheetView: View {
                     }
                     .buttonStyle(.plain)
                 }
+
+                // Strokes reales (no puntos) que recibe/da cada jugador en F9 y B9 — separado del
+                // resultado de Vuelta/Presión/Carry de arriba. Línea propia en texto chico para no
+                // repetir el amontonamiento de segmentCell; se desplaza horizontal si no cabe.
+                if let line = strokesLine {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        Text(line)
+                            .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                            .foregroundColor(.cMuted)
+                            .lineLimit(1)
+                            .fixedSize()
+                            .padding(.horizontal, 14).padding(.bottom, 6)
+                    }
+                }
+
+                // Carry B9 — solo visible una vez que el F9 queda decidido (CAMBIOS: el que
+                // pierde el F9 es quien puede pedirlo). El cálculo ya existía (individualMatchupStrokes
+                // / effectiveLaneStrokeProfile, +1 stroke en B9 para ese jugador); esto solo agrega
+                // el control para activarlo/cancelarlo, que antes no existía en ningún lado de la UI.
+                if !carryCandidates.isEmpty {
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack(spacing: 8) {
+                            Image(systemName: "arrow.triangle.2.circlepath")
+                                .font(.system(size: 11)).foregroundColor(.cGold)
+                            if carryActive {
+                                Text("Carry B9 activo · \(carryRequesterAlias ?? "")")
+                                    .font(.system(size: 11, weight: .semibold)).foregroundColor(.cGold)
+                                Spacer()
+                                Button("Cancelar") { onCancelCarry?() }
+                                    .font(.system(size: 11, weight: .bold)).foregroundColor(.cBrick)
+                            } else {
+                                Text(carryCandidates.count > 1
+                                     ? "Perdieron F9 — elige quién pide el Carry B9"
+                                     : "\(carryCandidates[0]) perdió F9 — puede pedir Carry B9")
+                                    .font(.system(size: 11)).foregroundColor(.cMuted)
+                                Spacer()
+                                Button("Activar") { onActivateCarry?() }
+                                    .font(.system(size: 11, weight: .bold)).foregroundColor(.cFairway)
+                            }
+                        }
+                        // Solo en pareja puede haber más de un candidato (los 2 compañeros del
+                        // lado que perdió el F9) — el selector elige a quién se le asigna el
+                        // stroke extra antes de tocar "Activar".
+                        if !carryActive, carryCandidates.count > 1 {
+                            Picker("", selection: Binding(
+                                get: { carrySelected ?? carryCandidates[0] },
+                                set: { onSelectCarryCandidate?($0) }
+                            )) {
+                                ForEach(carryCandidates, id: \.self) { alias in
+                                    Text(alias).tag(alias)
+                                }
+                            }
+                            .pickerStyle(.segmented)
+                        }
+                    }
+                    .padding(.horizontal, 14).padding(.vertical, 8)
+                    .background(Color.cGold.opacity(0.08))
+                }
+
                 // Total en pesos pegado justo debajo de las presiones — con signos mixtos
                 // (ej. +7 +4 +1 y a veces alguna negativa) es fácil leer solo los positivos y
                 // pensar que vas ganando cuando en realidad una presión se perdió. El total real
@@ -2585,23 +2673,39 @@ struct ResultsSheetView: View {
                 Text(vLabel)
                     .font(.system(size: 24, weight: .bold, design: .monospaced))
                     .foregroundColor(color)
-                // Cada presión con su propio valor (CAMBIOS_CADDIE_v2.md #5: "5 3 1") — nunca un
-                // conteo ni un neto colapsado.
-                ForEach(Array(pres.enumerated()), id: \.offset) { _, p in
-                    Text(p > 0 ? "+\(p)" : "\(p)")
-                        .font(.system(size: 16, weight: .bold, design: .monospaced))
-                        .foregroundColor(p > 0 ? .cFairwayL : .cBrick)
-                }
-                if let c = carry {
-                    let cColor: Color = c > 0 ? .cFairwayL : c < 0 ? .cBrick : .cMuted
-                    let cLabel = c == 0 ? "E" : c > 0 ? "+\(c)" : "\(c)"
-                    HStack(spacing: 1) {
-                        Text("C")
-                            .font(.system(size: 9, weight: .bold))
-                            .foregroundColor(.cGold)
-                        Text(cLabel)
-                            .font(.system(size: 16, weight: .bold, design: .monospaced))
-                            .foregroundColor(cColor)
+                    .lineLimit(1)
+                    .fixedSize()
+                // Con varias presiones abiertas + Carry, el contenido puede no caber en el ancho
+                // de la columna (mitad de la tarjeta) — antes el texto se envolvía y se encimaba
+                // encima de la vuelta. En vez de forzar que quepa, se desplaza horizontal; cada
+                // elemento mantiene su tamaño fijo (.fixedSize) para que nunca se parta en dos líneas.
+                if !pres.isEmpty || carry != nil {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 6) {
+                            // Cada presión con su propio valor (CAMBIOS_CADDIE_v2.md #5: "5 3 1") —
+                            // nunca un conteo ni un neto colapsado.
+                            ForEach(Array(pres.enumerated()), id: \.offset) { _, p in
+                                Text(p > 0 ? "+\(p)" : "\(p)")
+                                    .font(.system(size: 16, weight: .bold, design: .monospaced))
+                                    .foregroundColor(p > 0 ? .cFairwayL : .cBrick)
+                                    .lineLimit(1)
+                                    .fixedSize()
+                            }
+                            if let c = carry {
+                                let cColor: Color = c > 0 ? .cFairwayL : c < 0 ? .cBrick : .cMuted
+                                let cLabel = c == 0 ? "E" : c > 0 ? "+\(c)" : "\(c)"
+                                HStack(spacing: 1) {
+                                    Text("C")
+                                        .font(.system(size: 9, weight: .bold))
+                                        .foregroundColor(.cGold)
+                                    Text(cLabel)
+                                        .font(.system(size: 16, weight: .bold, design: .monospaced))
+                                        .foregroundColor(cColor)
+                                }
+                                .lineLimit(1)
+                                .fixedSize()
+                            }
+                        }
                     }
                 }
             }
@@ -2685,21 +2789,54 @@ struct ResultsSheetView: View {
         let hc       = hd?.si ?? 9
         let yo       = matchManager.yoAlias
 
+        // Hoyo actual + 2 anteriores — puede cruzar el límite F9/B9 (ej. H9→H10), así que el
+        // acumulado de cada hoyo abajo se calcula con el segmento DE ESE hoyo, no el actual.
+        let holesWindow = Array(order[max(0, idx - 2)...idx])
+
+        // Solo los jugadores del match seleccionado — antes mostraba a los 5 siempre, así que
+        // revisando RIC+ROB también aparecía Fernando sin aportar nada a esa revisión.
+        let relevantAliases: [String] = {
+            if let laneId, let lane = matchManager.lanes.first(where: { $0.id == laneId }) {
+                return lane.base + lane.opp
+            }
+            return [yo, opp.alias]
+        }()
+        let relevantPlayers = relevantAliases.compactMap { alias in
+            matchManager.players.first { $0.alias == alias }
+        }
+
+        // Quién está "de mi lado" para colorear strokes/Carry rojo (oponente) / verde (yo o mi
+        // equipo) — en pareja es todo lane.base o lane.opp según dónde esté yo, no solo "isYo".
+        let mySideAliases: Set<String> = {
+            if let laneId, let lane = matchManager.lanes.first(where: { $0.id == laneId }) {
+                return Set(lane.base.contains(yo) ? lane.base : lane.opp)
+            }
+            return [yo]
+        }()
+
         // Individual row — se pide con el segmento de ESTE hoyo, no el auto-detectado, para que
         // no desaparezca al navegar a un hoyo de F9 mientras ya se juega B9 (o viceversa).
         // Solo se calcula si el match seleccionado ES el individual (laneId == nil).
         let indRows  = laneId == nil
             ? matchManager.individualZoomRows(opponentAlias: opp.alias, segmentOverride: matchManager.segmentForHole(hole))
             : []
-        let indIdx   = indRows.firstIndex { $0.hole == hole }
-        let indRow   = indIdx.map { indRows[$0] }
-        // Presión acumulada hasta este hoyo — misma serie que usa el Zoom (CAMBIOS_CADDIE_v2.md #5:
-        // nunca colapsar presiones, siempre desplegar cada valor propio).
-        let indPres: [Int] = {
-            guard let idx = indIdx else { return [] }
-            let segHoles = indRows.map { $0.hole }
-            let series = matchManager.individualPresionSeries(opponentAlias: opp.alias, holes: segHoles)
-            return series.indices.contains(idx) ? series[idx] : []
+        let indRow   = indRows.first { $0.hole == hole }
+
+        // Acum (vuelta + presión) de cada hoyo de holesWindow, para la fila "Acum" de la tarjeta
+        // plena — así se sigue la racha de los últimos 3 hoyos sin abrir el Zoom
+        // (CAMBIOS_CADDIE_v2.md #5: nunca colapsar presiones, siempre el valor propio).
+        let indAccumByHole: [Int: (vuelta: Int, pres: [Int])] = {
+            guard laneId == nil else { return [:] }
+            var result: [Int: (vuelta: Int, pres: [Int])] = [:]
+            for seg in Set(holesWindow.map { matchManager.segmentForHole($0) }) {
+                let rows = matchManager.individualZoomRows(opponentAlias: opp.alias, segmentOverride: seg)
+                let segHoles = rows.map { $0.hole }
+                let series = matchManager.individualPresionSeries(opponentAlias: opp.alias, holes: segHoles)
+                for (i, r) in rows.enumerated() where holesWindow.contains(r.hole) {
+                    result[r.hole] = (r.vueltaAccum, series.indices.contains(i) ? series[i] : [])
+                }
+            }
+            return result
         }()
 
         // Pair row — solo la lane seleccionada (laneId), nunca todas las lanes de `opp`.
@@ -2712,6 +2849,22 @@ struct ResultsSheetView: View {
             let pres = series.indices.contains(idx) ? series[idx] : []
             return [(lane, rows[idx], pres)]
         }()
+
+        let pairAccumByHole: [Int: (vuelta: Int, pres: [Int])] = {
+            guard let laneId, let lane = matchManager.lanes.first(where: { $0.id == laneId }) else { return [:] }
+            let sign = lane.base.contains(yo) ? 1 : -1
+            var result: [Int: (vuelta: Int, pres: [Int])] = [:]
+            for seg in Set(holesWindow.map { matchManager.segmentForHole($0) }) {
+                let rows = matchManager.pairZoomRows(laneId: lane.id, segmentOverride: seg)
+                let segHoles = rows.map { $0.hole }
+                let series = matchManager.pairPresionSeries(laneId: lane.id, holes: segHoles)
+                for (i, r) in rows.enumerated() where holesWindow.contains(r.hole) {
+                    result[r.hole] = (r.vueltaAccum * sign, (series.indices.contains(i) ? series[i] : []).map { $0 * sign })
+                }
+            }
+            return result
+        }()
+        let accumByHole = laneId == nil ? indAccumByHole : pairAccumByHole
 
         return VStack(alignment: .leading, spacing: 0) {
 
@@ -2771,67 +2924,78 @@ struct ResultsSheetView: View {
             // "el anterior es donde se revisa" — dejar los últimos 3 hoyos uno junto al otro
             // permite comparar/corregir sin navegar hoyo por hoyo. Usa el mismo ancho de
             // pantalla de siempre (sin landscape); si no caben, el ScrollView los desplaza.
-            let holesWindow = Array(order[max(0, idx - 2)...idx])
             ScrollView(.horizontal, showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 0) {
                     HStack(spacing: 0) {
-                        Text("").frame(width: 50, alignment: .leading)
+                        Text("").frame(width: 58, alignment: .leading)
                         ForEach(holesWindow, id: \.self) { h in
                             let hp = matchManager.getHole(h)?.par ?? 4
                             VStack(spacing: 1) {
                                 Text("H\(h)")
-                                    .font(.system(size: 12, weight: .bold, design: .monospaced))
+                                    .font(.system(size: 14, weight: .bold, design: .monospaced))
                                     .foregroundColor(h == hole ? .cFairway : .cMuted)
-                                Text("Par \(hp)").font(.system(size: 9)).foregroundColor(.cMuted)
+                                Text("Par \(hp)").font(.system(size: 10)).foregroundColor(.cMuted)
                             }
-                            .frame(width: 56)
+                            .frame(width: 88)
                         }
                     }
                     .padding(.leading, 14).frame(height: 28)
 
                     Color.cBorder.frame(height: 1)
 
-                    ForEach(matchManager.players) { p in
+                    ForEach(relevantPlayers) { p in
                         let isOpp = p.alias == opp.alias
                         let isYo  = p.alias == yo
+                        let sideColor: Color = mySideAliases.contains(p.alias) ? .cFairwayL : .cBrick
                         HStack(spacing: 0) {
                             HStack(spacing: 2) {
                                 Text(p.alias)
-                                    .font(.system(size: 11, weight: .bold, design: .monospaced))
+                                    .font(.system(size: 13, weight: .bold, design: .monospaced))
                                     .foregroundColor(isYo ? .cFairwayL : isOpp ? .cBrick.opacity(0.8) : .cMuted)
                                 Image(systemName: "mic.fill")
-                                    .font(.system(size: 7))
+                                    .font(.system(size: 8))
                                     .foregroundColor(.cDisabled)
                             }
-                            .frame(width: 50, alignment: .leading).padding(.leading, 14)
+                            .frame(width: 58, alignment: .leading).padding(.leading, 14)
 
                             ForEach(holesWindow, id: \.self) { h in
                                 let hp      = matchManager.getHole(h)?.par ?? 4
                                 let g       = matchManager.getScore(hole: h, player: p.alias)
                                 let t       = matchManager.getPutts(hole: h, player: p.alias)
                                 let d       = g > 0 ? g - hp : 0
+                                // +1 si este jugador pidió el Carry y este hoyo ya cuenta para él
+                                // (B9, desde el hoyo de activación) — se muestra como una "C"
+                                // aparte del punto de hándicap base (el Carry es una apuesta
+                                // adicional, no se mezcla con el stroke base).
+                                let carryExtra: Double = laneId.map { matchManager.pairCarryExtraStroke(laneId: $0, alias: p.alias, hole: h) }
+                                    ?? matchManager.individualCarryExtraStroke(opponentAlias: opp.alias, alias: p.alias, hole: h)
                                 let strokes = matchManager.distributedStrokes(total: p.strokesVsBase, hole: h)
 
                                 Button {
                                     correctionRequest = ScoreCorrection(hole: h, alias: p.alias)
                                     dismiss()
                                 } label: {
-                                    VStack(spacing: 2) {
+                                    VStack(spacing: 3) {
                                         Text(g > 0 ? "\(g)" : "—")
-                                            .font(.system(size: 16, weight: .bold, design: .monospaced))
+                                            .font(.system(size: 22, weight: .bold, design: .monospaced))
                                             .foregroundColor(g <= 0 ? .cDisabled : d > 0 ? .cBrick : d < 0 ? .cFairwayL : .cInk)
-                                        HStack(spacing: 3) {
+                                        HStack(spacing: 4) {
                                             Text(t > 0 ? "(\(t))" : "·")
-                                                .font(.system(size: 10, design: .monospaced))
+                                                .font(.system(size: 12, design: .monospaced))
                                                 .foregroundColor(t > 0 ? .cMuted : .cDisabled)
                                             if strokes > 0.001 {
                                                 Text(strokeMark(strokes))
-                                                    .font(.system(size: 9, weight: .bold))
-                                                    .foregroundColor(strokeGold)
+                                                    .font(.system(size: 11, weight: .bold))
+                                                    .foregroundColor(sideColor)
+                                            }
+                                            if carryExtra > 0.001 {
+                                                Text("C")
+                                                    .font(.system(size: 11, weight: .bold))
+                                                    .foregroundColor(sideColor)
                                             }
                                         }
                                     }
-                                    .frame(width: 56, height: 44)
+                                    .frame(width: 88, height: 56)
                                     .background(h == hole ? (isYo ? Color.cFairway.opacity(0.06) : isOpp ? Color.cBrick.opacity(0.04) : Color.clear) : Color.clear)
                                     .overlay(
                                         h == hole ? RoundedRectangle(cornerRadius: 6).stroke(Color.cGold.opacity(0.4), lineWidth: 1) : nil
@@ -2841,6 +3005,38 @@ struct ResultsSheetView: View {
                             }
                         }
                         Color.cRowDiv.frame(height: 1)
+                    }
+
+                    // ── Acum: vuelta + presión de ESE match, por cada uno de los 3 hoyos —
+                    // para seguir la racha sin tener que abrir el Zoom.
+                    if !accumByHole.isEmpty {
+                        Color.cBorder.frame(height: 1)
+                        HStack(spacing: 0) {
+                            Text("Acum")
+                                .font(.system(size: 12, weight: .semibold)).foregroundColor(.cMuted)
+                                .frame(width: 58, alignment: .leading).padding(.leading, 14)
+
+                            ForEach(holesWindow, id: \.self) { h in
+                                let a      = accumByHole[h]
+                                let vuelta = a?.vuelta ?? 0
+                                let pres   = a?.pres ?? []
+                                let color: Color = vuelta > 0 ? .cFairwayL : vuelta < 0 ? .cBrick : .cMuted
+                                let label  = a == nil ? "–" : (vuelta == 0 ? "E" : vuelta > 0 ? "+\(vuelta)" : "\(vuelta)")
+
+                                VStack(spacing: 2) {
+                                    Text(label)
+                                        .font(.system(size: 18, weight: .bold, design: .monospaced))
+                                        .foregroundColor(a == nil ? .cDisabled : color)
+                                    if !pres.isEmpty {
+                                        Text(pres.map { $0 > 0 ? "+\($0)" : "\($0)" }.joined(separator: " "))
+                                            .font(.system(size: 12, weight: .bold, design: .monospaced))
+                                            .foregroundColor(.cInk)
+                                    }
+                                }
+                                .frame(width: 88)
+                            }
+                        }
+                        .padding(.vertical, 6)
                     }
                 }
             }
@@ -2872,7 +3068,7 @@ struct ResultsSheetView: View {
                         .font(.system(size: 10, design: .monospaced)).foregroundColor(.cMuted)
                     }
                     Spacer()
-                    holeDetailAccum(vuelta: r.vueltaAccum, pres: indPres, size: 16)
+                    holeDetailAccum(vuelta: r.vueltaAccum, pres: indAccumByHole[hole]?.pres ?? [], size: 16)
                 }
                 .padding(.horizontal, 14).padding(.vertical, 10)
             }
