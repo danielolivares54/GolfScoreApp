@@ -1,0 +1,260 @@
+[
+  {
+    "id": "T01_F01",
+    "target": "DAN = 5 golpes",
+    "context": "H6, par 5. Yo = DAN.",
+    "utterance": "Daniel cinco."
+  },
+  {
+    "id": "T01_F02",
+    "target": "DAN = 5 golpes",
+    "context": "H6, par 5. Yo = DAN.",
+    "utterance": "Dani hizo cinco golpes."
+  },
+  {
+    "id": "T01_F03",
+    "target": "DAN = 5 golpes",
+    "context": "H6, par 5. Yo = DAN.",
+    "utterance": "Tiré cinco."
+  },
+  {
+    "id": "T01_F04",
+    "target": "DAN = 5 golpes",
+    "context": "H6, par 5. Yo = DAN.",
+    "utterance": "Yo hice par."
+  },
+  {
+    "id": "T02_F01",
+    "target": "RIC = 6 golpes",
+    "context": "H6, par 5. Yo = DAN.",
+    "utterance": "Ricardo seis."
+  },
+  {
+    "id": "T02_F02",
+    "target": "RIC = 6 golpes",
+    "context": "H6, par 5. Yo = DAN.",
+    "utterance": "Richi hizo seis golpes."
+  },
+  {
+    "id": "T02_F03",
+    "target": "RIC = 6 golpes",
+    "context": "H6, par 5. Yo = DAN.",
+    "utterance": "Ricardo hizo bogey."
+  },
+  {
+    "id": "T02_F04",
+    "target": "RIC = 6 golpes",
+    "context": "H6, par 5. Yo = DAN.",
+    "utterance": "Anota seis a Ricardo."
+  },
+  {
+    "id": "T03_F01",
+    "target": "ANS = 4 golpes",
+    "context": "H8, par 4.",
+    "utterance": "Anselmo cuatro."
+  },
+  {
+    "id": "T03_F02",
+    "target": "ANS = 4 golpes",
+    "context": "H8, par 4.",
+    "utterance": "Anse hizo cuatro golpes."
+  },
+  {
+    "id": "T03_F03",
+    "target": "ANS = 4 golpes",
+    "context": "H8, par 4.",
+    "utterance": "Anselmo hizo par."
+  },
+  {
+    "id": "T03_F04",
+    "target": "ANS = 4 golpes",
+    "context": "H8, par 4.",
+    "utterance": "Ponle cuatro a Anselmo."
+  },
+  {
+    "id": "T04_F01",
+    "target": "ROB = 7 golpes",
+    "context": "H6, par 5.",
+    "utterance": "Roberto siete."
+  },
+  {
+    "id": "T04_F02",
+    "target": "ROB = 7 golpes",
+    "context": "H6, par 5.",
+    "utterance": "Bob hizo siete golpes."
+  },
+  {
+    "id": "T04_F03",
+    "target": "ROB = 7 golpes",
+    "context": "H6, par 5.",
+    "utterance": "Roberto doble bogey."
+  },
+  {
+    "id": "T04_F04",
+    "target": "ROB = 7 golpes",
+    "context": "H6, par 5.",
+    "utterance": "Anota siete a Roberto."
+  },
+  {
+    "id": "T05_F01",
+    "target": "FER = 3 golpes",
+    "context": "H7, par 3.",
+    "utterance": "Fernando tres."
+  },
+  {
+    "id": "T05_F02",
+    "target": "FER = 3 golpes",
+    "context": "H7, par 3.",
+    "utterance": "Fer hizo tres golpes."
+  },
+  {
+    "id": "T05_F03",
+    "target": "FER = 3 golpes",
+    "context": "H7, par 3.",
+    "utterance": "Fernando hizo par."
+  },
+  {
+    "id": "T05_F04",
+    "target": "FER = 3 golpes",
+    "context": "H7, par 3.",
+    "utterance": "Ponle tres a Fernando."
+  },
+  {
+    "id": "T06_F01",
+    "target": "DAN = 5; los otros cuatro = 6",
+    "context": "H6, par 5. Yo = DAN.",
+    "utterance": "Tiré cinco y los demás bogey."
+  },
+  {
+    "id": "T06_F02",
+    "target": "DAN = 5; los otros cuatro = 6",
+    "context": "H6, par 5. Yo = DAN.",
+    "utterance": "Yo par y todos los demás seis."
+  },
+  {
+    "id": "T06_F03",
+    "target": "DAN = 5; los otros cuatro = 6",
+    "context": "H6, par 5. Yo = DAN.",
+    "utterance": "Daniel cinco, Anselmo seis, Roberto seis, Ricardo seis y Fernando seis."
+  },
+  {
+    "id": "T07_F01",
+    "target": "RIC primero en oyes",
+    "context": "H7, par 3. Sin ranking previo.",
+    "utterance": "Ricardo ganó el oyes."
+  },
+  {
+    "id": "T07_F02",
+    "target": "RIC primero en oyes",
+    "context": "H7, par 3. Sin ranking previo.",
+    "utterance": "El oyes fue de Richi."
+  },
+  {
+    "id": "T07_F03",
+    "target": "RIC primero en oyes",
+    "context": "H7, par 3. Sin ranking previo.",
+    "utterance": "Ricardo quedó primero en oyes."
+  },
+  {
+    "id": "T07_F04",
+    "target": "RIC primero en oyes",
+    "context": "H7, par 3. Sin ranking previo.",
+    "utterance": "El más cerca fue Ricardo."
+  },
+  {
+    "id": "T08_F01",
+    "target": "Orden de oyes completo",
+    "context": "H7, par 3. RIC 1, ANS 2, DAN 3, ROB 4, FER 5.",
+    "utterance": "Oyes: Ricardo primero, Anselmo segundo, Daniel tercero, Roberto cuarto y Fernando quinto."
+  },
+  {
+    "id": "T08_F02",
+    "target": "Orden de oyes completo",
+    "context": "H7, par 3. RIC 1, ANS 2, DAN 3, ROB 4, FER 5.",
+    "utterance": "Primero Richi, segundo Anse, tercero Dani, cuarto Bob y quinto Fer en los oyes."
+  },
+  {
+    "id": "T09_F01",
+    "target": "ROB = 3 putts",
+    "context": "H6. 3P habilitado para esta prueba.",
+    "utterance": "Roberto tres putts."
+  },
+  {
+    "id": "T09_F02",
+    "target": "ROB = 3 putts",
+    "context": "H6. 3P habilitado para esta prueba.",
+    "utterance": "Bob tripoteó."
+  },
+  {
+    "id": "T09_F03",
+    "target": "ROB = 3 putts",
+    "context": "H6. 3P habilitado para esta prueba.",
+    "utterance": "Roberto hizo tripoteo."
+  },
+  {
+    "id": "T09_F04",
+    "target": "ROB = 3 putts",
+    "context": "H6. 3P habilitado para esta prueba.",
+    "utterance": "Anota tres putts a Roberto."
+  },
+  {
+    "id": "T10_F01",
+    "target": "FER = 4 putts",
+    "context": "H8. Sin unidad monetaria 4P definida.",
+    "utterance": "Fernando cuatro putts."
+  },
+  {
+    "id": "T10_F02",
+    "target": "FER = 4 putts",
+    "context": "H8. Sin unidad monetaria 4P definida.",
+    "utterance": "Fer cuatripoteó."
+  },
+  {
+    "id": "T10_F03",
+    "target": "FER = 4 putts",
+    "context": "H8. Sin unidad monetaria 4P definida.",
+    "utterance": "Fernando hizo cuatripoteo."
+  },
+  {
+    "id": "T11_F01",
+    "target": "HO para DAN",
+    "context": "H8. Hole Out habilitado en esta prueba.",
+    "utterance": "Daniel hizo hole out."
+  },
+  {
+    "id": "T11_F02",
+    "target": "HO para DAN",
+    "context": "H8. Hole Out habilitado en esta prueba.",
+    "utterance": "Dani hole out."
+  },
+  {
+    "id": "T11_F03",
+    "target": "HO para DAN",
+    "context": "H8. Hole Out habilitado en esta prueba.",
+    "utterance": "Anota hole out a Daniel."
+  },
+  {
+    "id": "T12_F01",
+    "target": "DAN birdie: 4 golpes, evento BIRD una vez",
+    "context": "H6, par 5. Birdie calculado desde bruto.",
+    "utterance": "Daniel birdie."
+  },
+  {
+    "id": "T12_F02",
+    "target": "DAN birdie: 4 golpes, evento BIRD una vez",
+    "context": "H6, par 5. Birdie calculado desde bruto.",
+    "utterance": "Dani hizo cuatro golpes."
+  },
+  {
+    "id": "T12_F03",
+    "target": "DAN birdie: 4 golpes, evento BIRD una vez",
+    "context": "H6, par 5. Birdie calculado desde bruto.",
+    "utterance": "Daniel hizo uno abajo del par."
+  },
+  {
+    "id": "T12_F04",
+    "target": "DAN birdie: 4 golpes, evento BIRD una vez",
+    "context": "H6, par 5. Birdie calculado desde bruto.",
+    "utterance": "Anota birdie a Daniel."
+  }
+]

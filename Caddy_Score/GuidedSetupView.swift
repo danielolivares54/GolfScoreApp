@@ -48,6 +48,10 @@ struct GuidedSetupView: View {
     @State private var startHole: Int = 1
     @State private var playerNames: [String] = []
     @State private var newPlayerName = ""
+    // Jugador del directorio que coincide con lo escrito — si se confirma al tocar una
+    // sugerencia, addPlayerName() toma sus strokes/tag en vez de los defaults.
+    @State private var pendingDirectoryMatch: PlayerDirectoryEntry?
+    @State private var showingPlayerDirectory = false
     @State private var strokesByAlias: [String: Double] = [:]
     @State private var base1: String = ""
     @State private var base2: String = ""
@@ -219,6 +223,18 @@ struct GuidedSetupView: View {
         VStack(alignment: .leading, spacing: 8) {
             let atCap = playerNames.count >= 5
 
+            HStack {
+                Spacer()
+                Button { showingPlayerDirectory = true } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "person.text.rectangle")
+                        Text("Directorio")
+                    }
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(.cFairway)
+                }
+            }
+
             // Add row
             HStack(spacing: 8) {
                 TextField(atCap ? "Máximo de 5 jugadores alcanzado" : "Nombre del jugador", text: $newPlayerName)
@@ -236,6 +252,43 @@ struct GuidedSetupView: View {
                     .background(atCap || newPlayerName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? Color.cDisabled : Color.cFairway)
                     .cornerRadius(12)
                     .disabled(atCap || newPlayerName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+
+            // Mini-search del directorio — al escribir "An" aparecen los jugadores conocidos
+            // que empiezan igual; tocar una sugerencia precarga su alias de siempre, strokes y
+            // plantilla de apuesta en vez de partir de cero.
+            let directoryMatches = PlayerDirectoryStore.shared.search(newPlayerName)
+            if !directoryMatches.isEmpty {
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(Array(directoryMatches.enumerated()), id: \.element.id) { idx, entry in
+                        Button {
+                            newPlayerName = entry.name
+                            pendingDirectoryMatch = entry
+                        } label: {
+                            HStack(spacing: 8) {
+                                Text(entry.name)
+                                    .font(.system(size: 14, weight: .semibold))
+                                    .foregroundColor(.cInk)
+                                Text(entry.alias)
+                                    .font(.system(size: 10, weight: .bold))
+                                    .foregroundColor(.cMuted)
+                                Spacer()
+                                Text("Strokes \(formatStrokeShort(entry.strokesVsBase))")
+                                    .font(.system(size: 11))
+                                    .foregroundColor(.cMuted)
+                            }
+                            .padding(.horizontal, 14).padding(.vertical, 10)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        if idx < directoryMatches.count - 1 {
+                            Color.cRowDiv.frame(height: 1)
+                        }
+                    }
+                }
+                .background(Color.cSurface)
+                .cornerRadius(10)
+                .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.cBorder, lineWidth: 1))
             }
 
             // Player list
@@ -349,6 +402,9 @@ struct GuidedSetupView: View {
                         .font(.system(size: 11.5)).foregroundColor(.cMuted).padding(.leading, 2)
                 }
             }
+        }
+        .sheet(isPresented: $showingPlayerDirectory) {
+            PlayerDirectoryView()
         }
     }
 
@@ -720,14 +776,44 @@ struct GuidedSetupView: View {
     private func addPlayerName() {
         let clean = newPlayerName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !clean.isEmpty, playerNames.count < 5 else { return }
-        playerNames.append(clean); newPlayerName = ""
+        // Si el usuario tocó la sugerencia del mini-search usamos esa entrada; si en vez de eso
+        // escribió el nombre completo y dio "Agregar" directo, buscamos por nombre exacto para no
+        // perder el autofill de strokes/plantilla solo por no haber tocado el dropdown.
+        let match = pendingDirectoryMatch ?? PlayerDirectoryStore.shared.entries.first(where: {
+            $0.name.caseInsensitiveCompare(clean) == .orderedSame
+        })
+        playerNames.append(clean); newPlayerName = ""; pendingDirectoryMatch = nil
         syncStrokes(); syncBaseDefaults()
+        // Si el nombre agregado viene de una sugerencia del directorio, usa sus strokes/tag en
+        // vez de los defaults que syncStrokes() ya puso — el alias real lo sigue decidiendo
+        // buildAliases (no forzamos el alias guardado, solo strokes y plantilla).
+        if let match, match.name.caseInsensitiveCompare(clean) == .orderedSame,
+           let alias = playerAliases.first(where: { $0.name == clean })?.alias {
+            strokesByAlias[alias] = match.strokesVsBase
+            if let tag = match.preferredTagId { templateIdByOpponent[alias] = tag }
+        }
+    }
+
+    private func formatStrokeShort(_ value: Double) -> String {
+        abs(value - value.rounded()) < 0.001 ? String(Int(value.rounded())) : String(format: "%.1f", value)
     }
 
     private func syncStrokes() {
         let aliases = playerAliases.map { $0.alias }.filter { $0 != matchManager.yoAlias }
         for a in aliases where strokesByAlias[a] == nil {
-            strokesByAlias[a] = matchManager.players.first(where: { $0.alias == a })?.strokesVsBase ?? 0
+            let current = matchManager.players.first(where: { $0.alias == a })
+            // Un jugador ya en el match con strokes en 0 suele significar que nunca se le asignó
+            // nada (se agregó antes de que existiera el directorio, o sin pasar por el mini-search)
+            // — en ese caso preferimos lo que el directorio tiene guardado para ese nombre en vez
+            // de perpetuar el 0. Si el match ya trae un valor explícito distinto de 0, se respeta.
+            if let current, current.strokesVsBase != 0 {
+                strokesByAlias[a] = current.strokesVsBase
+            } else if let name = current?.name,
+                      let dirEntry = PlayerDirectoryStore.shared.entries.first(where: { $0.name.caseInsensitiveCompare(name) == .orderedSame }) {
+                strokesByAlias[a] = dirEntry.strokesVsBase
+            } else {
+                strokesByAlias[a] = current?.strokesVsBase ?? 0
+            }
         }
         for key in strokesByAlias.keys where !aliases.contains(key) { strokesByAlias.removeValue(forKey: key) }
 
@@ -785,11 +871,16 @@ struct GuidedSetupView: View {
         matchManager.setPlayers(names: playerNames, preserveScores: true)
         for p in matchManager.players {
             if p.alias == matchManager.yoAlias { continue }
-            matchManager.setStrokesVsBase(alias: p.alias, value: strokesByAlias[p.alias] ?? 0)
-            if let tplId = templateIdByOpponent[p.alias],
-               let tpl = BetTemplate.catalog.first(where: { $0.id == tplId }) {
+            let strokes = strokesByAlias[p.alias] ?? 0
+            matchManager.setStrokesVsBase(alias: p.alias, value: strokes)
+            let tplId = templateIdByOpponent[p.alias]
+            if let tplId, let tpl = BetTemplate.catalog.first(where: { $0.id == tplId }) {
                 matchManager.setBetTemplateForOpponent(p.alias, template: tpl)
             }
+            // Aprende/actualiza el directorio con lo que realmente quedó configurado para este
+            // jugador — la próxima vez que se escriba su nombre, el mini-search ya sugiere estos
+            // mismos strokes y plantilla.
+            PlayerDirectoryStore.shared.upsert(name: p.name, alias: p.alias, strokesVsBase: strokes, preferredTagId: tplId)
         }
         let base = [base1, base2].filter { !$0.isEmpty }
         if base.count >= 2 {
@@ -907,4 +998,5 @@ struct GuidedSetupView: View {
         }
     }
 }
+
 

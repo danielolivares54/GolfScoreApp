@@ -25,8 +25,8 @@ struct MatchSummaryView: View {
             summaryRow("Campo", value: matchManager.courseId.isEmpty ? "—" : matchManager.courseId)
             summaryRow("Hoyo salida", value: "\(matchManager.startHole)")
             summaryRow("Jugadores", value: playersSummary)
-            summaryRow("Strokes", value: strokesSummary)
-            summaryRow("Parejas", value: teamsSummary)
+            summaryRow("Strokes", text: strokesSummaryText)
+            summaryRow("Parejas", text: teamsSummaryText)
             summaryRow("F9/B9/Match", value: betResultsSummary)
             summaryRow("Unidad", value: unitSummary)
             summaryRow("Apuestas", value: betsSummary)
@@ -45,6 +45,18 @@ struct MatchSummaryView: View {
         }.joined(separator: ", ")
     }
 
+    // Mismo contenido que strokesSummary, pero el valor del stroke va en negritas — el caddie
+    // necesita distinguir de un vistazo el número de strokes dentro de la frase, no solo leerlo
+    // mezclado con el alias en el mismo peso de fuente.
+    private var strokesSummaryText: Text {
+        if matchManager.players.isEmpty { return Text("—") }
+        return matchManager.players.enumerated().reduce(Text("")) { acc, item in
+            let (idx, p) = item
+            let piece = Text("\(p.alias) ") + Text(formatSignedStroke(p.strokesVsBase)).fontWeight(.bold)
+            return idx == 0 ? piece : acc + Text(", ") + piece
+        }
+    }
+
     private var teamsSummary: String {
         if !matchManager.lanes.isEmpty {
             return matchManager.lanes.map { lane in
@@ -61,6 +73,27 @@ struct MatchSummaryView: View {
             return "\(base) vs \(opp.isEmpty ? "—" : opp.joined(separator: "+"))"
         }
         return "—"
+    }
+
+    // Igual que teamsSummary, pero con los strokes de cada pareja en negritas (misma razón que
+    // strokesSummaryText: distinguir el número dentro de la frase "base vs opp · Strokes N").
+    private var teamsSummaryText: Text {
+        if !matchManager.lanes.isEmpty {
+            return matchManager.lanes.enumerated().reduce(Text("")) { acc, item in
+                let (idx, lane) = item
+                let base = lane.base.joined(separator: "+")
+                let opp = lane.opp.joined(separator: "+")
+                var line = Text("\(base) vs \(opp) · Strokes ") + Text(formatStroke(lane.strokes)).fontWeight(.bold)
+                if let carrier = lane.strokeCarrier { line = line + Text(" · Lleva \(carrier)") }
+                return idx == 0 ? line : acc + Text("\n") + line
+            }
+        }
+        if !matchManager.baseTeamAliases.isEmpty {
+            let base = matchManager.baseTeamAliases.joined(separator: "+")
+            let opp = matchManager.players.map { $0.alias }.filter { !matchManager.baseTeamAliases.contains($0) }
+            return Text("\(base) vs \(opp.isEmpty ? "—" : opp.joined(separator: "+"))")
+        }
+        return Text("—")
     }
 
     private var unitSummary: String {
@@ -93,6 +126,18 @@ struct MatchSummaryView: View {
         VStack(alignment: .leading, spacing: 2) {
             Text(label).font(.caption.bold())
             Text(value).font(.caption).foregroundColor(.secondary)
+                .lineLimit(nil).fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    // Overload para filas cuyo valor mezcla texto normal con segmentos en negritas (ej. Strokes) —
+    // Text concatenado ya trae su propio peso por segmento, por eso no se aplica .font(.caption)
+    // encima (pisaría el .bold de los segmentos); el tamaño caption se fija por separado.
+    private func summaryRow(_ label: String, text: Text) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(label).font(.caption.bold())
+            text.font(.caption).foregroundColor(.secondary)
                 .lineLimit(nil).fixedSize(horizontal: false, vertical: true)
         }
         .frame(maxWidth: .infinity, alignment: .leading)

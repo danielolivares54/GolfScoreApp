@@ -1,0 +1,338 @@
+[
+  {
+    "id": "C01",
+    "title": "Golpes completos",
+    "context": "H6, par 5. Yo = DAN. Sin datos previos.",
+    "utterance": "Hoyo seis: Daniel cinco, Anselmo seis, Roberto siete, Ricardo cinco y Fernando cuatro.",
+    "expected": "DAN=5; ANS=6; ROB=7; RIC=5; FER=4.",
+    "players": {
+      "DAN": "Daniel",
+      "ANS": "Anselmo",
+      "ROB": "Roberto",
+      "RIC": "Ricardo",
+      "FER": "Fernando"
+    }
+  },
+  {
+    "id": "C02",
+    "title": "Yo y los demás",
+    "context": "H6, par 5. Yo = DAN.",
+    "utterance": "Tiré cinco y los demás bogey.",
+    "expected": "DAN=5; ANS=6; ROB=6; RIC=6; FER=6. Usar H6 contextual.",
+    "players": {
+      "DAN": "Daniel",
+      "ANS": "Anselmo",
+      "ROB": "Roberto",
+      "RIC": "Ricardo",
+      "FER": "Fernando"
+    }
+  },
+  {
+    "id": "C03",
+    "title": "Todos",
+    "context": "H8, par 4. Yo = DAN.",
+    "utterance": "Todos hicimos par en el ocho.",
+    "expected": "H8: DAN=ANS=ROB=RIC=FER=4.",
+    "players": {
+      "DAN": "Daniel",
+      "ANS": "Anselmo",
+      "ROB": "Roberto",
+      "RIC": "Ricardo",
+      "FER": "Fernando"
+    }
+  },
+  {
+    "id": "C04",
+    "title": "Frase corrida",
+    "context": "H6, par 5. Yo = DAN.",
+    "utterance": "Yo par, Anselmo birdie, Roberto doble bogey y los demás bogey.",
+    "expected": "H6: DAN=5; ANS=4; ROB=7; RIC=6; FER=6.",
+    "players": {
+      "DAN": "Daniel",
+      "ANS": "Anselmo",
+      "ROB": "Roberto",
+      "RIC": "Ricardo",
+      "FER": "Fernando"
+    }
+  },
+  {
+    "id": "C05",
+    "title": "Alias",
+    "context": "H8, par 4.",
+    "utterance": "Dani cuatro, Richi cinco, Bob seis y Anse cuatro.",
+    "expected": "H8: DAN=4; RIC=5; ROB=6; ANS=4. FER sigue pendiente.",
+    "players": {
+      "DAN": "Daniel",
+      "ANS": "Anselmo",
+      "ROB": "Roberto",
+      "RIC": "Ricardo",
+      "FER": "Fernando"
+    }
+  },
+  {
+    "id": "C06",
+    "title": "Cambio de yo",
+    "context": "H6, par 5. Yo = RIC.",
+    "utterance": "Yo cinco y Daniel seis.",
+    "expected": "RIC=5; DAN=6. No confundir hablante con jugador yo configurado.",
+    "players": {
+      "DAN": "Daniel",
+      "ANS": "Anselmo",
+      "ROB": "Roberto",
+      "RIC": "Ricardo",
+      "FER": "Fernando"
+    }
+  },
+  {
+    "id": "C07",
+    "title": "Números juntos",
+    "context": "H12, par 4.",
+    "utterance": "Hoyo doce, Daniel seis golpes y dos putts.",
+    "expected": "H12: DAN golpes=6, putts=2. No confundir doce con dos.",
+    "players": {
+      "DAN": "Daniel",
+      "ANS": "Anselmo",
+      "ROB": "Roberto",
+      "RIC": "Ricardo",
+      "FER": "Fernando"
+    }
+  },
+  {
+    "id": "C08",
+    "title": "Dieciséis y seis",
+    "context": "H16, par 3.",
+    "utterance": "En el dieciséis Ricardo hizo seis, con tres putts.",
+    "expected": "H16: RIC golpes=6, putts=3. Oyes continúa pendiente.",
+    "players": {
+      "DAN": "Daniel",
+      "ANS": "Anselmo",
+      "ROB": "Roberto",
+      "RIC": "Ricardo",
+      "FER": "Fernando"
+    }
+  },
+  {
+    "id": "C09",
+    "title": "Dos y doce",
+    "context": "H2, par 4. Caso de estrés.",
+    "utterance": "Hoyo dos, Roberto doce golpes y dos putts.",
+    "expected": "H2: ROB golpes=12, putts=2. Número alto: revisar, nunca reducir a 2.",
+    "players": {
+      "DAN": "Daniel",
+      "ANS": "Anselmo",
+      "ROB": "Roberto",
+      "RIC": "Ricardo",
+      "FER": "Fernando"
+    }
+  },
+  {
+    "id": "C10",
+    "title": "Birdie y eagle",
+    "context": "H6, par 5.",
+    "utterance": "Daniel birdie, Ricardo eagle y Fernando par.",
+    "expected": "DAN=4; RIC=3; FER=5. Eventos calculados desde bruto; no duplicar unidades.",
+    "players": {
+      "DAN": "Daniel",
+      "ANS": "Anselmo",
+      "ROB": "Roberto",
+      "RIC": "Ricardo",
+      "FER": "Fernando"
+    }
+  },
+  {
+    "id": "C11",
+    "title": "Corrección hablada",
+    "context": "H6. DAN aún sin guardar.",
+    "utterance": "Daniel seis... no, cinco.",
+    "expected": "Borrador DAN=5. La corrección reemplaza seis; requiere confirmar.",
+    "players": {
+      "DAN": "Daniel",
+      "ANS": "Anselmo",
+      "ROB": "Roberto",
+      "RIC": "Ricardo",
+      "FER": "Fernando"
+    }
+  },
+  {
+    "id": "C12",
+    "title": "Reentrada",
+    "context": "H6. DAN=6 ya guardado.",
+    "utterance": "Corrige a Daniel: fueron cinco en el seis.",
+    "expected": "Proponer DAN=5 en H6 y pedir confirmación de sobreescritura.",
+    "players": {
+      "DAN": "Daniel",
+      "ANS": "Anselmo",
+      "ROB": "Roberto",
+      "RIC": "Ricardo",
+      "FER": "Fernando"
+    }
+  },
+  {
+    "id": "C13",
+    "title": "Oyes completo",
+    "context": "H7, par 3. Sin ranking previo.",
+    "utterance": "Oyes del siete: primero Ricardo, segundo Anselmo, tercero Daniel, cuarto Roberto y quinto Fernando.",
+    "expected": "Ranks H7: RIC=1, ANS=2, DAN=3, ROB=4, FER=5.",
+    "players": {
+      "DAN": "Daniel",
+      "ANS": "Anselmo",
+      "ROB": "Roberto",
+      "RIC": "Ricardo",
+      "FER": "Fernando"
+    }
+  },
+  {
+    "id": "C14",
+    "title": "Oyes alias",
+    "context": "H16, par 3.",
+    "utterance": "O yes: Richi primero, Dani segundo, Anse tercero, Bob cuarto y Fernando quinto.",
+    "expected": "Ranks H16: RIC=1, DAN=2, ANS=3, ROB=4, FER=5. Variante de voz.",
+    "players": {
+      "DAN": "Daniel",
+      "ANS": "Anselmo",
+      "ROB": "Roberto",
+      "RIC": "Ricardo",
+      "FER": "Fernando"
+    }
+  },
+  {
+    "id": "C15",
+    "title": "Oyes parcial",
+    "context": "H7, par 3.",
+    "utterance": "El oyes lo ganó Anselmo.",
+    "expected": "ANS rank=1. No inventar otras posiciones; consultar si falta orden para resolver apuestas.",
+    "players": {
+      "DAN": "Daniel",
+      "ANS": "Anselmo",
+      "ROB": "Roberto",
+      "RIC": "Ricardo",
+      "FER": "Fernando"
+    }
+  },
+  {
+    "id": "C16",
+    "title": "Oyes duplicado",
+    "context": "H7, par 3.",
+    "utterance": "Primero Daniel y primero Ricardo en los oyes.",
+    "expected": "No guardar ranking conflictivo. Preguntar quién es primero o aclarar empate según regla.",
+    "players": {
+      "DAN": "Daniel",
+      "ANS": "Anselmo",
+      "ROB": "Roberto",
+      "RIC": "Ricardo",
+      "FER": "Fernando"
+    }
+  },
+  {
+    "id": "C17",
+    "title": "Oyes fuera de par 3",
+    "context": "H6, par 5.",
+    "utterance": "Ricardo ganó el oyes en el seis.",
+    "expected": "Señalar incompatibilidad de hoyo y pedir aclaración; no cambiar el par.",
+    "players": {
+      "DAN": "Daniel",
+      "ANS": "Anselmo",
+      "ROB": "Roberto",
+      "RIC": "Ricardo",
+      "FER": "Fernando"
+    }
+  },
+  {
+    "id": "C18",
+    "title": "Tripoteo",
+    "context": "H6. Unidades 3P habilitadas para prueba.",
+    "utterance": "Roberto hizo seis y tripoteó.",
+    "expected": "ROB golpes=6, putts=3; registrar 3P una vez según regla activa.",
+    "players": {
+      "DAN": "Daniel",
+      "ANS": "Anselmo",
+      "ROB": "Roberto",
+      "RIC": "Ricardo",
+      "FER": "Fernando"
+    }
+  },
+  {
+    "id": "C19",
+    "title": "Cuatripoteo",
+    "context": "H8. Caso de vocabulario, sin regla 4P confirmada.",
+    "utterance": "Fernando cinco y cuatripoteo.",
+    "expected": "FER golpes=5, putts=4. No inventar valor monetario ni unidad 4P.",
+    "players": {
+      "DAN": "Daniel",
+      "ANS": "Anselmo",
+      "ROB": "Roberto",
+      "RIC": "Ricardo",
+      "FER": "Fernando"
+    }
+  },
+  {
+    "id": "C20",
+    "title": "Hole out",
+    "context": "H8. HO habilitado para prueba.",
+    "utterance": "Daniel hizo cuatro y hole out.",
+    "expected": "DAN golpes=4; evento HO para DAN, H8. Monetización solo según configuración.",
+    "players": {
+      "DAN": "Daniel",
+      "ANS": "Anselmo",
+      "ROB": "Roberto",
+      "RIC": "Ricardo",
+      "FER": "Fernando"
+    }
+  },
+  {
+    "id": "C21",
+    "title": "Dicho nuevo",
+    "context": "H8. Sandy no confirmado en catálogo activo.",
+    "utterance": "Anselmo hizo sandy y Ricardo chip in.",
+    "expected": "Extraer candidatos Sandy=ANS y Chip-in=RIC. Pedir regla/configuración; no monetizar automáticamente.",
+    "players": {
+      "DAN": "Daniel",
+      "ANS": "Anselmo",
+      "ROB": "Roberto",
+      "RIC": "Ricardo",
+      "FER": "Fernando"
+    }
+  },
+  {
+    "id": "C22",
+    "title": "Frase mixta",
+    "context": "H7, par 3. OYES y HO habilitados.",
+    "utterance": "Yo tres, Anselmo cuatro y los demás bogey. Oyes primero Ricardo, segundo Daniel, tercero Fernando, cuarto Anselmo, quinto Roberto. Daniel hole out.",
+    "expected": "DAN=3; ANS=ROB=RIC=FER=4. Ranks RIC=1,DAN=2,FER=3,ANS=4,ROB=5. HO DAN una vez.",
+    "players": {
+      "DAN": "Daniel",
+      "ANS": "Anselmo",
+      "ROB": "Roberto",
+      "RIC": "Ricardo",
+      "FER": "Fernando"
+    }
+  },
+  {
+    "id": "C23",
+    "title": "Falta jugador",
+    "context": "H6, par 5.",
+    "utterance": "Hizo cinco y dos putts.",
+    "expected": "Preguntar qué jugador. No asignar a yo ni a todos.",
+    "players": {
+      "DAN": "Daniel",
+      "ANS": "Anselmo",
+      "ROB": "Roberto",
+      "RIC": "Ricardo",
+      "FER": "Fernando"
+    }
+  },
+  {
+    "id": "C24",
+    "title": "Seguimiento de audit",
+    "context": "Salida H10. Llegamos a H11, par 3 de escenario. Golpes completos; putts desactivados; oyes sin registrar.",
+    "utterance": "Ya terminamos el once.",
+    "expected": "No inventar golpes ni ranking. Recordar oyes pendiente H11. Seguir orden H10...H18,H1...H9.",
+    "players": {
+      "DAN": "Daniel",
+      "ANS": "Anselmo",
+      "ROB": "Roberto",
+      "RIC": "Ricardo",
+      "FER": "Fernando"
+    }
+  }
+]

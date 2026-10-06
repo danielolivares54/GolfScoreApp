@@ -64,6 +64,8 @@
 				IntentTestView.swift,
 				MatchSummaryView.swift,
 				MoneyTrackerView.swift,
+				PlayerDirectory.swift,
+				PlayerDirectoryView.swift,
 				RescueCaptureView.swift,
 				ScorecardView.swift,
 				SetupWizardView.swift,
