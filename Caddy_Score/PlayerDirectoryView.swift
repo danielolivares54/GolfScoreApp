@@ -6,6 +6,7 @@ import SwiftUI
 struct PlayerDirectoryView: View {
     @Environment(\.dismiss) private var dismiss
     @ObservedObject private var store = PlayerDirectoryStore.shared
+    @ObservedObject private var templateStore = BetTemplateStore.shared
     @State private var editingEntry: PlayerDirectoryEntry?
     @State private var showingNew = false
 
@@ -54,7 +55,7 @@ struct PlayerDirectoryView: View {
                                         Text("Strokes \(formatStroke(entry.strokesVsBase))")
                                             .font(.system(size: 12, weight: .semibold))
                                         if let tagId = entry.preferredTagId,
-                                           let tpl = BetTemplate.catalog.first(where: { $0.id == tagId }) {
+                                           let tpl = templateStore.entries.first(where: { $0.id == tagId }) {
                                             Text(tpl.name)
                                                 .font(.system(size: 11)).foregroundColor(.secondary)
                                         }
@@ -94,6 +95,7 @@ struct PlayerDirectoryView: View {
 private struct PlayerDirectoryEditView: View {
     @Environment(\.dismiss) private var dismiss
     @ObservedObject private var store = PlayerDirectoryStore.shared
+    @ObservedObject private var templateStore = BetTemplateStore.shared
     let entry: PlayerDirectoryEntry?
 
     @State private var name: String = ""
@@ -101,6 +103,11 @@ private struct PlayerDirectoryEditView: View {
     @State private var strokesText: String = ""
     @State private var selectedTagId: String = ""
     @State private var isActive: Bool = true
+    @State private var opponentTee: String = ""
+    @State private var myTee: String = ""
+    @State private var adjustmentNotes: String = ""
+    @State private var comentario: String = ""
+    @State private var strokeAntText: String = ""
 
     var body: some View {
         NavigationStack {
@@ -116,10 +123,20 @@ private struct PlayerDirectoryEditView: View {
                         .keyboardType(.decimalPad)
                     Picker("Plantilla preferida", selection: $selectedTagId) {
                         Text("Ninguna").tag("")
-                        ForEach(BetTemplate.catalog) { tpl in
+                        ForEach(templateStore.entries) { tpl in
                             Text(tpl.name).tag(tpl.id)
                         }
                     }
+                    TextField("Stroke anterior", text: $strokeAntText)
+                        .keyboardType(.decimalPad)
+                }
+                Section("Tees") {
+                    TextField("Tee de salida (rival)", text: $opponentTee)
+                    TextField("Mi tee", text: $myTee)
+                }
+                Section("Notas") {
+                    TextField("Notas de ajuste", text: $adjustmentNotes)
+                    TextField("Comentario", text: $comentario)
                 }
                 if entry != nil {
                     Section {
@@ -147,6 +164,11 @@ private struct PlayerDirectoryEditView: View {
                     strokesText = formatStroke(entry.strokesVsBase)
                     selectedTagId = entry.preferredTagId ?? ""
                     isActive = entry.active
+                    opponentTee = entry.opponentTee ?? ""
+                    myTee = entry.myTee ?? ""
+                    adjustmentNotes = entry.adjustmentNotes ?? ""
+                    comentario = entry.comentario ?? ""
+                    strokeAntText = entry.strokeAnt.map { formatStroke($0) } ?? ""
                 }
             }
         }
@@ -161,6 +183,20 @@ private struct PlayerDirectoryEditView: View {
             store.remove(entry)
         }
         store.upsert(name: name, alias: cleanAlias, strokesVsBase: strokes, preferredTagId: selectedTagId.isEmpty ? nil : selectedTagId, active: isActive)
+        if let saved = store.entries.first(where: { $0.name.caseInsensitiveCompare(name) == .orderedSame }) {
+            let cleanOpponentTee = opponentTee.trimmingCharacters(in: .whitespacesAndNewlines)
+            let cleanMyTee = myTee.trimmingCharacters(in: .whitespacesAndNewlines)
+            let cleanAdjustmentNotes = adjustmentNotes.trimmingCharacters(in: .whitespacesAndNewlines)
+            let cleanComentario = comentario.trimmingCharacters(in: .whitespacesAndNewlines)
+            store.setDetails(
+                id: saved.id,
+                opponentTee: cleanOpponentTee.isEmpty ? nil : cleanOpponentTee,
+                myTee: cleanMyTee.isEmpty ? nil : cleanMyTee,
+                adjustmentNotes: cleanAdjustmentNotes.isEmpty ? nil : cleanAdjustmentNotes,
+                comentario: cleanComentario.isEmpty ? nil : cleanComentario,
+                strokeAnt: Double(strokeAntText.trimmingCharacters(in: .whitespacesAndNewlines))
+            )
+        }
         dismiss()
     }
 

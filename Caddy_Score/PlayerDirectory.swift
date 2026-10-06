@@ -132,6 +132,32 @@ final class PlayerDirectoryStore: ObservableObject {
         save()
     }
 
+    // Asigna estos campos directamente (a diferencia de upsert, que preserva el valor viejo si
+    // llega nil) — así la edición manual puede borrar un tee/nota/stroke anterior, no solo rellenarlo.
+    func setDetails(id: UUID, opponentTee: String?, myTee: String?, adjustmentNotes: String?, comentario: String?, strokeAnt: Double?) {
+        guard let idx = entries.firstIndex(where: { $0.id == id }) else { return }
+        entries[idx].opponentTee = opponentTee
+        entries[idx].myTee = myTee
+        entries[idx].adjustmentNotes = adjustmentNotes
+        entries[idx].comentario = comentario
+        entries[idx].strokeAnt = strokeAnt
+        save()
+    }
+
+    // Ajuste de stroke entre rondas (regla 2026-10-06): quien ganó el B9 de un duelo IND mueve
+    // ±1 el strokeVsBase del rival para el próximo match. El valor viejo se conserva en
+    // strokeAnt, y resultSummary/roundId quedan en lastResult/lastKeyId como la bitácora de
+    // "por qué cambió" — se consulta la próxima vez que se arme el Setup contra ese rival.
+    func applyMatchStrokeShift(playerName: String, delta: Double, resultSummary: String, roundId: String) {
+        guard let idx = entries.firstIndex(where: { $0.name.caseInsensitiveCompare(playerName) == .orderedSame }) else { return }
+        entries[idx].strokeAnt = entries[idx].strokesVsBase
+        entries[idx].strokesVsBase += delta
+        entries[idx].lastResult = resultSummary
+        entries[idx].lastKeyId = roundId
+        entries[idx].lastUsedAt = Date()
+        save()
+    }
+
     func remove(_ entry: PlayerDirectoryEntry) {
         entries.removeAll { $0.id == entry.id }
         save()

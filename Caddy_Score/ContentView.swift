@@ -133,6 +133,14 @@ struct ContentView: View {
         }
         .sheet(isPresented: $showGuidedSetup)  { GuidedSetupView(matchManager: matchManager).caddySheetDetents() }
         .sheet(isPresented: $showBetSetup)     { BetSetupSheet(matchManager: matchManager) }
+        // Bug reportado: al cambiar el hoyo de inicio desde el Setup (applySetup() preserva
+        // scores a propósito, resetScores: false), la tarjeta se quedaba mostrando la misma
+        // posición de scroll de antes — un índice que ahora apunta a un hoyo físico distinto
+        // dentro del nuevo playOrder(). El audit/semáforo sí se recalculaba bien (ya lee
+        // matchManager.startHole en vivo), pero la tarjeta visible no seguía el cambio.
+        .onChange(of: matchManager.startHole) { _, _ in
+            currentHoleIndex = 0
+        }
         .onChange(of: correctionRequest) { _, req in
             guard let req else { return }
             // Navegar al hoyo correcto
@@ -1136,9 +1144,14 @@ struct ContentView: View {
         // Ronda), usa "S y D" para cada rival individual y "S y D 4" para parejas, como apuesta
         // pareja para todos mientras se decide el flujo real de configuración.
         if matchManager.baseTeamAliases.isEmpty && matchManager.betValuesByOpponent.isEmpty {
-            matchManager.applyBetTemplate(.syd4)
-            for p in matchManager.players where p.alias != matchManager.yoAlias {
-                matchManager.setBetTemplateForOpponent(p.alias, template: .syd)
+            let templates = BetTemplateStore.shared.entries
+            if let syd4 = templates.first(where: { $0.id == "SYD4" }) {
+                matchManager.applyBetTemplate(syd4)
+            }
+            if let syd = templates.first(where: { $0.id == "SYD" }) {
+                for p in matchManager.players where p.alias != matchManager.yoAlias {
+                    matchManager.setBetTemplateForOpponent(p.alias, template: syd)
+                }
             }
             _ = matchManager.setBaseTeam(["DAN", "ANS"])
 
@@ -1188,6 +1201,7 @@ struct ContentView: View {
 
     private func cerrarRonda() {
         closeAllSheets()
+        applyInterMatchStrokeCarry()
         saveRoundResultToFile()
         matchManager.resetScores()
         ScoreManager.shared.clearAll()
@@ -1198,9 +1212,56 @@ struct ContentView: View {
         noteByKey = [:]
     }
 
+    // Ajuste de stroke entre rondas (regla 2026-10-06, solo IND — TEAM queda fuera porque las
+    // parejas varían de ronda a ronda). Quien ganó el B9 de un duelo da un golpe más la próxima
+    // vez (el rival se vuelve más duro de vencer); quien lo perdió recibe un golpe más. Gatillado
+    // por plantilla vía BetTemplate.carryMatchEnabled. Empate en B9 (0) no mueve nada — no hay
+    // ganador al que asignarle la dirección del ajuste.
+    //
+    // Usa siempre el B9 plano (individualB9Vuelta), nunca el ajustado por Carry/Ajuste 50 — la
+    // apuesta de Vuelta normal tampoco usa el ajustado (confirmado corriendo walletSnapshot con
+    // datos reales el 2026-10-06), así que este ajuste se mantiene consistente con esa línea base.
+    //
+    // Excepción: si Ajuste 50 estuvo activo, NO se autoaplica ningún stroke — Ajuste 50 redefine
+    // el stroke efectivo con su propia fórmula (ganados/perdidos, no un ±1 plano), y replicar esa
+    // fórmula para el salto entre rondas es un caso raro que Daniel prefiere resolver a mano. Solo
+    // se deja una bandera en lastResult para que se revise el Setup del próximo match contra ese rival.
+    private func applyInterMatchStrokeCarry() {
+        let opponents = matchManager.players.map(\.alias).filter { $0 != matchManager.yoAlias }
+        guard !opponents.isEmpty else { return }
+        let snapshot = matchManager.walletSnapshot()
+        for opp in opponents {
+            guard let player = matchManager.players.first(where: { $0.alias == opp }) else { continue }
+            let templateId = matchManager.betValues(forOpponent: opp).templateId
+            let carryEnabled = BetTemplateStore.shared.entries.first(where: { $0.id == templateId })?.carryMatchEnabled ?? true
+            guard carryEnabled else { continue }
+
+            let f9 = matchManager.individualF9Vuelta(opponentAlias: opp)
+            let b9 = matchManager.individualB9Vuelta(opponentAlias: opp)
+            let line = snapshot.lines.first(where: { $0.opponentAlias == opp && $0.scope == .individual })
+            let matchLabel = line.map { $0.matchPoints >= 0 ? "+\($0.matchPoints)" : "\($0.matchPoints)" } ?? "—"
+            let base = "F9 \(f9 >= 0 ? "+" : "")\(f9) · B9 \(b9 >= 0 ? "+" : "")\(b9) · Match \(matchLabel)"
+                + " · $\(line?.totalMoney ?? 0) · \(matchManager.dateString)"
+
+            if matchManager.isIndividualAdjust50Active(opponentAlias: opp) {
+                let summary = "⚠️ AJUSTE 50 ACTIVO — revisar stroke a mano · " + base
+                PlayerDirectoryStore.shared.applyMatchStrokeShift(
+                    playerName: player.name, delta: 0, resultSummary: summary, roundId: matchManager.roundId
+                )
+                continue
+            }
+
+            // b9 > 0 = yo gané el duelo en B9 -> el rival perdió -> recibe un golpe más (+1).
+            // b9 < 0 = yo perdí -> el rival ganó -> da un golpe más -> su strokeVsBase baja (-1).
+            guard b9 != 0 else { continue }
+            let delta: Double = b9 > 0 ? 1 : -1
+            PlayerDirectoryStore.shared.applyMatchStrokeShift(
+                playerName: player.name, delta: delta, resultSummary: base, roundId: matchManager.roundId
+            )
+        }
+    }
+
     // Guarda el resultado final (scores + wallet) a disco antes de borrar.
-    // Provisional: hoy solo archiva. El ajuste automático de strokesVsBase en el
-    // directorio de jugadores (a partir de este histórico) queda para una fase futura.
     private func saveRoundResultToFile() {
         let snapshot = matchManager.walletSnapshot()
         let lines = snapshot.lines.map { line in

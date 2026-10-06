@@ -56,7 +56,7 @@ enum BetMode: String, CaseIterable {
     case manual
 }
 
-enum PuttsBetMode: String, CaseIterable {
+enum PuttsBetMode: String, CaseIterable, Codable {
     case hole18 = "H18"
     case byRound = "Vuelta"
 }
@@ -1169,9 +1169,29 @@ class MatchManager: ObservableObject {
     }
 
     func updateStartHole(_ value: Int, resetScores shouldResetScores: Bool = true) {
-        startHole = max(1, min(18, value))
+        let clamped = max(1, min(18, value))
+        let changed = clamped != startHole
+        startHole = clamped
         if shouldResetScores {
             resetScores()
+        } else if changed {
+            // El F9/B9 se recorre completo al mover el hoyo de inicio sin resetear scores (ej.
+            // GuidedSetupView.applySetup edita el Setup de una ronda en curso). Cualquier
+            // Carry/Ajuste 50/Double Press ya activo quedó calculado sobre el F9 viejo y guarda
+            // un startHole absoluto del orden viejo (individualCarryStartHoleByOpponent, etc.) —
+            // dejarlo "vivo" aplicaría el carry desde un hoyo que ya no es el inicio de B9, o lo
+            // seguiría dando por elegible/inelegible según un F9 que ya no es el que se jugó. Se
+            // limpia en vez de dejarlo stale; el usuario lo vuelve a activar si todavía aplica.
+            individualCarryRequesterByOpponent.removeAll()
+            individualCarryStartHoleByOpponent.removeAll()
+            individualDoublePressOpponents.removeAll()
+            individualAdjust50Opponents.removeAll()
+            pairCarryRequesterByLane.removeAll()
+            pairCarryStartHoleByLane.removeAll()
+            pairDoublePressLanes.removeAll()
+            pairAdjust50Lanes.removeAll()
+            pairAdjust50FlipReceiverByLane.removeAll()
+            saveBetConfig()
         }
         objectWillChange.send()
     }
@@ -1693,6 +1713,12 @@ class MatchManager: ObservableObject {
 
     func individualF9Vuelta(opponentAlias: String) -> Int {
         f9VueltaVsOpponent(opponentAlias: opponentAlias)
+    }
+
+    // Resultado crudo de B9 (no signedUnit) — quien gana este segmento es quien mueve el
+    // strokeVsBase del rival para el próximo match (regla 2026-10-06, ver ContentView.cerrarRonda).
+    func individualB9Vuelta(opponentAlias: String) -> Int {
+        b9VueltaVsOpponent(opponentAlias: opponentAlias)
     }
 
     // Cada presión lleva su valor propio (CAMBIOS_CADDIE_v2.md #5: "5 3 1", nunca un conteo
@@ -2297,15 +2323,38 @@ class MatchManager: ObservableObject {
             // Double Press solo duplica el dinero de Vuelta y Presión en B9 (no Match, no strokes,
             // no F9) — el resultado deportivo (vPts/pPts) no cambia, solo la monetización.
             let dpMultiplier = doublePressActive ? 2 : 1
-            let vMoney = switches.vuelta
-                ? signedUnit(f9V) * ov.vueltaValue + signedUnit(b9V) * ov.vueltaValue * dpMultiplier
-                : 0
-            let pMoney = switches.presion
-                ? f9P * ov.presionValue + b9P * ov.presionValue * dpMultiplier
-                : 0
+
+            // Regla "F9 vuelta = 0" (empate, 2026-10-06): Carry/Ajuste/Double Press ya quedan
+            // bloqueados en su elegibilidad (individualCarryEligibleRequester retorna nil), así
+            // que aquí solo cambia la liquidación. B9 (vuelta + presión) y Match se funden en un
+            // solo precio combinado — suma de vueltaValue + presionValue + matchValue de la
+            // plantilla — aplicado a cada unidad ganada (vuelta cuenta 1, cada presión de B9
+            // cuenta 1 más, sin importar su valor nominal). El Match no liquida aparte, queda
+            // absorbido en ese precio combinado. La presión de F9 ya cerró como segmento
+            // independiente (ST-06 del SSOT) y se sigue cobrando normal, sin tocar. Solo aplica
+            // si las tres apuestas (vuelta/presión/match) están activas a la vez para este rival;
+            // si el usuario las separó manualmente, se usa el cálculo normal de abajo.
+            let f9Tied = f9V == 0 && switches.vuelta && switches.presion && switches.match
+            let vMoney: Int
+            let pMoney: Int
+            let mMoney: Int
+            if f9Tied {
+                let bundledPrice = ov.vueltaValue + ov.presionValue + ov.matchValue
+                let bundledUnits = signedUnit(b9V) + b9P
+                vMoney = bundledUnits * bundledPrice
+                pMoney = f9P * ov.presionValue
+                mMoney = 0
+            } else {
+                vMoney = switches.vuelta
+                    ? signedUnit(f9V) * ov.vueltaValue + signedUnit(b9V) * ov.vueltaValue * dpMultiplier
+                    : 0
+                pMoney = switches.presion
+                    ? f9P * ov.presionValue + b9P * ov.presionValue * dpMultiplier
+                    : 0
+                mMoney = switches.match ? mPts * ov.matchValue : 0
+            }
             let cMoney = cPts * ov.vueltaValue
             let aMoney = aPts * ov.vueltaValue
-            let mMoney = mPts * ov.matchValue
             let uMoney = uPts * ov.unitValue
             let total = vMoney + pMoney + cMoney + aMoney + mMoney + uMoney
             lines.append(
@@ -2466,6 +2515,12 @@ class MatchManager: ObservableObject {
         let order = playOrder()
         let f9 = Array(order.prefix(9))
         return f9.compactMap { holeResultVsYo(opponentAlias: opponentAlias, hole: $0, carryAlias: nil) }.reduce(0, +)
+    }
+
+    private func b9VueltaVsOpponent(opponentAlias: String) -> Int {
+        let order = playOrder()
+        let b9 = Array(order.suffix(9))
+        return b9.compactMap { holeResultVsYo(opponentAlias: opponentAlias, hole: $0, carryAlias: nil) }.reduce(0, +)
     }
 
     private func holeResultVsYo(opponentAlias: String, hole: Int, carryAlias: String?) -> Int? {

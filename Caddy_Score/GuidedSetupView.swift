@@ -43,6 +43,7 @@ struct GuidedSetupView: View {
 
     @Environment(\.dismiss) private var dismiss
     @ObservedObject var matchManager: MatchManager
+    @ObservedObject private var templateStore = BetTemplateStore.shared
     @State private var stepIndex = 0
     @State private var selectedCourseId: String = ""
     @State private var startHole: Int = 1
@@ -412,7 +413,7 @@ struct GuidedSetupView: View {
     // parejas, que comparten una sola). Ver MatchManager.setBetTemplateForOpponent.
     private func opponentTemplateMenu(for alias: String) -> some View {
         Menu {
-            ForEach(BetTemplate.catalog) { tpl in
+            ForEach(templateStore.entries) { tpl in
                 Button(tpl.name) { templateIdByOpponent[alias] = tpl.id }
             }
         } label: {
@@ -604,7 +605,7 @@ struct GuidedSetupView: View {
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
-                    ForEach(BetTemplate.catalog) { tpl in
+                    ForEach(templateStore.entries) { tpl in
                         let selected = selectedTemplateId == tpl.id
                         Button { applyTemplateLocally(tpl) } label: {
                             Text(tpl.name)
@@ -819,7 +820,7 @@ struct GuidedSetupView: View {
 
         for a in aliases where templateIdByOpponent[a] == nil {
             templateIdByOpponent[a] = matchManager.betValuesByOpponent[a]?.templateId
-                ?? BetTemplate.catalog.first!.id
+                ?? templateStore.entries.first?.id ?? ""
         }
         for key in templateIdByOpponent.keys where !aliases.contains(key) { templateIdByOpponent.removeValue(forKey: key) }
     }
@@ -874,7 +875,7 @@ struct GuidedSetupView: View {
             let strokes = strokesByAlias[p.alias] ?? 0
             matchManager.setStrokesVsBase(alias: p.alias, value: strokes)
             let tplId = templateIdByOpponent[p.alias]
-            if let tplId, let tpl = BetTemplate.catalog.first(where: { $0.id == tplId }) {
+            if let tplId, let tpl = templateStore.entries.first(where: { $0.id == tplId }) {
                 matchManager.setBetTemplateForOpponent(p.alias, template: tpl)
             }
             // Aprende/actualiza el directorio con lo que realmente quedó configurado para este
@@ -894,7 +895,7 @@ struct GuidedSetupView: View {
                 }
             }
         }
-        if let tpl = BetTemplate.catalog.first(where: { $0.id == selectedTemplateId }) {
+        if let tpl = templateStore.entries.first(where: { $0.id == selectedTemplateId }) {
             matchManager.applyBetTemplate(tpl)
             // Si el usuario ajustó el monto de vuelta a mano después de elegir la plantilla, respeta ese override.
             if let v = Int(vueltaValueText), v != tpl.vueltaValue { matchManager.setVueltaValue(v) }
@@ -926,7 +927,7 @@ struct GuidedSetupView: View {
     }
 
     private func templateName(_ id: String) -> String {
-        BetTemplate.catalog.first(where: { $0.id == id })?.name ?? id
+        templateStore.entries.first(where: { $0.id == id })?.name ?? id
     }
 
     private func buildAliases(from names: [String]) -> [(alias: String, name: String)] {
