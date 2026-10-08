@@ -2621,17 +2621,21 @@ struct ResultsSheetView: View {
 
     // Chip tipo botón para activar/desactivar un refresh de B9 (Carry/Ajuste 50/Doble B9) —
     // se prende/apaga tocando el mismo botón, sin un estado "Ninguno" explícito.
-    private func b9RefreshChip(label: String, active: Bool, action: @escaping () -> Void) -> some View {
+    // disabled = F9 empatado y este chip no está activo: se ve gris y no responde al tap, pero
+    // sigue visible (antes toda la fila desaparecía cuando el F9 daba 0 — Daniel: el botón debe
+    // verse siempre, si el F9 sale cero esas apuestas simplemente no se accionan).
+    private func b9RefreshChip(label: String, active: Bool, disabled: Bool = false, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(label)
                 .font(.system(size: 11, weight: .bold))
-                .foregroundColor(active ? .white : .cMuted)
+                .foregroundColor(active ? .white : disabled ? .cDisabled : .cMuted)
                 .padding(.horizontal, 10).padding(.vertical, 6)
                 .frame(maxWidth: .infinity)
-                .background(active ? Color.cGold : Color.cGold.opacity(0.12))
+                .background(active ? Color.cGold : Color.cGold.opacity(disabled ? 0.05 : 0.12))
                 .cornerRadius(8)
         }
         .buttonStyle(.plain)
+        .disabled(disabled)
     }
 
     // Shared card builder for individual and pair.
@@ -2700,29 +2704,31 @@ struct ResultsSheetView: View {
                         .padding(.horizontal, 14).padding(.bottom, 6)
                 }
 
-                // B9 Refresh — solo visible una vez que el F9 queda decidido (CAMBIOS: el que
-                // pierde el F9 es quien puede pedirlo). Carry y Ajuste 50 tocan strokes y son
-                // mutuamente excluyentes (MatchManager ya lo valida vía guard): activar uno
-                // cancela el otro. Doble B9 es independiente — solo duplica dinero, no strokes —
-                // por eso puede combinarse con cualquiera de los dos. Los 3 son botones tipo
-                // chip que se prenden/apagan solos; no hay un botón "Ninguno" — para apagar
-                // Carry o Ajuste 50 se vuelve a tocar el mismo botón que ya está activo.
-                if !carryCandidates.isEmpty {
+                // B9 Refresh — visible siempre que ya se está jugando B9, no solo cuando hay un
+                // candidato elegible. Antes la fila completa desaparecía en cuanto el F9 salía
+                // empatado (carryCandidates vacío), así que en pareja — donde empatar a 9 hoyos
+                // es mucho más común que en individual — el botón simplemente nunca se veía.
+                // Daniel: el botón debe aparecer siempre; si el F9 sale cero esas apuestas
+                // (Carry/Ajuste 50/Doble B9, las 3 dependen del mismo guard en MatchManager)
+                // solo quedan deshabilitadas, no ocultas.
+                let f9Tied = carryCandidates.isEmpty && !carryActive && !adjust50Active
+                if currentSegment == "B9" {
                     VStack(alignment: .leading, spacing: 8) {
                         HStack(spacing: 8) {
                             Image(systemName: "arrow.triangle.2.circlepath")
-                                .font(.system(size: 11)).foregroundColor(.cGold)
+                                .font(.system(size: 11)).foregroundColor(f9Tied ? .cDisabled : .cGold)
                             Text(carryActive ? "Carry B9 activo · \(carryRequesterAlias ?? "")"
                                  : adjust50Active ? "Ajuste 50 activo"
+                                 : f9Tied ? "F9 empatado — Carry/Ajuste 50/Doble B9 no aplican"
                                  : (carryCandidates.count > 1
                                     ? "Perdieron F9 — elige el refresh de B9"
                                     : "\(carryCandidates[0]) perdió F9 — elige el refresh de B9"))
                                 .font(.system(size: 11, weight: (carryActive || adjust50Active) ? .semibold : .regular))
-                                .foregroundColor((carryActive || adjust50Active) ? .cGold : .cMuted)
+                                .foregroundColor((carryActive || adjust50Active) ? .cGold : f9Tied ? .cDisabled : .cMuted)
                             Spacer()
                         }
                         HStack(spacing: 6) {
-                            b9RefreshChip(label: "Carry", active: carryActive) {
+                            b9RefreshChip(label: "Carry", active: carryActive, disabled: f9Tied) {
                                 if carryActive {
                                     onCancelCarry?()
                                 } else {
@@ -2730,7 +2736,7 @@ struct ResultsSheetView: View {
                                     onActivateCarry?()
                                 }
                             }
-                            b9RefreshChip(label: "Ajuste 50", active: adjust50Active) {
+                            b9RefreshChip(label: "Ajuste 50", active: adjust50Active, disabled: f9Tied) {
                                 if adjust50Active {
                                     onCancelAdjust50?()
                                 } else {
@@ -2738,7 +2744,7 @@ struct ResultsSheetView: View {
                                     onActivateAdjust50?()
                                 }
                             }
-                            b9RefreshChip(label: "Doble B9", active: doublePressActive) {
+                            b9RefreshChip(label: "Doble B9", active: doublePressActive, disabled: f9Tied) {
                                 onToggleDoublePress?()
                             }
                         }
@@ -2758,7 +2764,7 @@ struct ResultsSheetView: View {
                         }
                     }
                     .padding(.horizontal, 14).padding(.vertical, 8)
-                    .background(Color.cGold.opacity(0.08))
+                    .background(Color.cGold.opacity(f9Tied ? 0.03 : 0.08))
                 }
 
                 // Total en pesos pegado justo debajo de las presiones — con signos mixtos

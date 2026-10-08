@@ -441,14 +441,16 @@ struct GuidedSetupView: View {
             } else {
                 VStack(alignment: .leading, spacing: 8) {
                     sectionTitle("Pareja base")
-                    VStack(spacing: 0) {
+                    VStack(spacing: 10) {
                         pickerRow("Jugador 1", selection: $base1)
-                        Color.cRowDiv.frame(height: 1)
+                            .background(Color.cSurface)
+                            .cornerRadius(14)
+                            .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.cBorder, lineWidth: 1))
                         pickerRow("Jugador 2", selection: $base2)
+                            .background(Color.cSurface)
+                            .cornerRadius(14)
+                            .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.cBorder, lineWidth: 1))
                     }
-                    .background(Color.cSurface)
-                    .cornerRadius(14)
-                    .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.cBorder, lineWidth: 1))
 
                     if base1 == base2 && !base1.isEmpty {
                         Text("La pareja base necesita dos jugadores distintos.")
@@ -728,6 +730,9 @@ struct GuidedSetupView: View {
         Int((value * 2).rounded()) % 2 != 0
     }
 
+    // Siempre la lista completa de jugadores — Jugador 1 y Jugador 2 deben poder ver y elegir
+    // a cualquiera. Elegir el mismo jugador en ambos no se bloquea ocultando opciones (eso hacía
+    // desaparecer nombres del selector); se bloquea con el aviso de abajo + canAdvance().
     private func pickerRow(_ label: String, selection: Binding<String>) -> some View {
         HStack {
             Text(label)
@@ -740,7 +745,7 @@ struct GuidedSetupView: View {
             }
             .tint(.cFairway)
         }
-        .padding(.horizontal, 16).padding(.vertical, 4)
+        .padding(.horizontal, 16).padding(.vertical, 10)
     }
 
     private func emptyHint(_ text: String) -> some View {
@@ -761,10 +766,18 @@ struct GuidedSetupView: View {
         selectedCourseId = matchManager.courseId.isEmpty ? CourseCatalog.default.id : matchManager.courseId
         startHole = matchManager.startHole
         playerNames = matchManager.players.map { $0.name }
-        if playerNames.isEmpty { playerNames = ["Daniel"] }
         syncStrokes()
-        if let first = playerAliases.first?.alias { base1 = first }
-        if playerAliases.count > 1 { base2 = playerAliases[1].alias }
+        // Restaura la pareja base real del match en curso (matchManager.baseTeamAliases) en vez
+        // de asumir siempre a los dos primeros jugadores de la lista — si no hay pareja base
+        // guardada todavía (match nuevo), ahí sí caen los defaults de los dos primeros.
+        let liveAliases = Set(matchManager.players.map { $0.alias })
+        let existingBase = matchManager.baseTeamAliases.filter { liveAliases.contains($0) }
+        if existingBase.count >= 2 {
+            base1 = existingBase[0]; base2 = existingBase[1]
+        } else {
+            if let first = playerAliases.first?.alias { base1 = first }
+            if playerAliases.count > 1 { base2 = playerAliases[1].alias }
+        }
         syncLaneSetupState()
         vueltaValueText = matchManager.vueltaValue > 0 ? "\(matchManager.vueltaValue)" : ""
         selectedTemplateId = matchManager.activeTemplateId ?? ""

@@ -66,18 +66,13 @@ enum HoleAudit {
         return lastWithData ?? manager.expectedNextHole()
     }
 
-    // Ventana de 9 hoyos a auditar — F9 o B9 según dónde haya datos reales, no un cálculo fijo
-    // desde startHole. Antes esto siempre devolvía los primeros 9 de playOrder, así que en
-    // cuanto se anotaba cualquier hoyo del B9 (ej. hoyo 10-14 con salida en el 1), esos datos
-    // quedaban invisibles en la auditoría — nunca se auditaba más allá del noveno hoyo jugado.
+    // Los 18 hoyos en orden de juego — playedHoles() ya filtra a solo los que tienen algún
+    // score anotado, así que esto cubre F9 y B9 a la vez. Antes devolvía solo un segmento de 9
+    // (F9 o B9, el que tuviera datos), así que apenas se empezaba a anotar B9 los hoyos ya
+    // auditados de F9 desaparecían de esta pantalla — Daniel: "la auditoría debe mostrar todo
+    // el llenado a ese momento de F9 y B9", no solo el segmento vigente.
     static func holeWindow(manager: MatchManager) -> [Int] {
-        let order = manager.playOrder()
-        let front = Array(order.prefix(9))
-        let back = Array(order.suffix(9))
-        let hasBackData = back.contains { hole in
-            manager.players.contains { p in manager.getScore(hole: hole, player: p.alias) > 0 }
-        }
-        return hasBackData ? back : front
+        manager.playOrder()
     }
 }
 
@@ -104,6 +99,17 @@ struct HoleAuditView: View {
     private var audited: [HoleAuditStatus] { HoleAudit.playedHoles(manager: matchManager) }
     private var incompleteCount: Int { audited.filter { $0.hasWarning }.count }
 
+    // Separa lo ya anotado en los dos capítulos que el caddie usa en cancha — F9 y B9 por orden
+    // de juego (Regla 4 de feedback_display_rules), no por número literal de hoyo.
+    private var f9Audited: [HoleAuditStatus] {
+        let f9 = Set(matchManager.playOrder().prefix(9))
+        return audited.filter { f9.contains($0.hole) }
+    }
+    private var b9Audited: [HoleAuditStatus] {
+        let b9 = Set(matchManager.playOrder().suffix(9))
+        return audited.filter { b9.contains($0.hole) }
+    }
+
     var body: some View {
         NavigationStack {
             ZStack {
@@ -115,9 +121,19 @@ struct HoleAuditView: View {
                         ScrollView {
                             VStack(spacing: 10) {
                                 if incompleteCount > 0 { warningBanner }
-                                ForEach(audited, id: \.hole) { status in
-                                    holeCard(status)
+                                if !f9Audited.isEmpty {
+                                    chapterHeader("F9")
+                                    ForEach(f9Audited, id: \.hole) { status in
+                                        holeCard(status)
+                                    }
                                 }
+                                if !b9Audited.isEmpty {
+                                    chapterHeader("B9")
+                                    ForEach(b9Audited, id: \.hole) { status in
+                                        holeCard(status)
+                                    }
+                                }
+                                oyesUnidadesChapter
                             }
                             .padding(.horizontal, 18).padding(.vertical, 14)
                         }
@@ -163,6 +179,106 @@ struct HoleAuditView: View {
         .background(Color.cWarnBg)
         .cornerRadius(12)
         .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.orange.opacity(0.3), lineWidth: 1))
+    }
+
+    // MARK: Chapter header (F9 / B9 / Oyes y Unidades)
+
+    private func chapterHeader(_ title: String) -> some View {
+        HStack {
+            Text(title)
+                .font(.system(size: 12, weight: .bold, design: .monospaced)).kerning(1)
+                .foregroundColor(.cFairway)
+            Color.cRowDiv.frame(height: 1)
+        }
+        .padding(.top, 4)
+    }
+
+    // MARK: Oyes y Unidades — capítulo aparte con todo lo marcado en cancha (Oye rank por hoyo
+    // par 3, y unidades manuales como Sandy/Chip/etc.), para auditar de un vistazo sin tener que
+    // abrir cada hoyo uno por uno. Tocar una fila abre la misma HoleCorrectionSheet que las
+    // tarjetas de arriba — cualquier corrección ahí dispara el mismo recalculo de MatchManager.
+    private struct OyeRow: Identifiable {
+        let id = UUID()
+        let hole: Int
+        let alias: String
+        let rank: Int
+    }
+
+    private struct UnitRow: Identifiable {
+        let id: UUID
+        let hole: Int
+        let alias: String
+        let code: String
+        let units: Int
+    }
+
+    private var oyeRows: [OyeRow] {
+        let playedSet = Set(audited.map(\.hole))
+        var rows: [OyeRow] = []
+        for (hole, ranks) in matchManager.oyesRanksByHole where playedSet.contains(hole) {
+            for (alias, rank) in ranks {
+                rows.append(OyeRow(hole: hole, alias: alias, rank: rank))
+            }
+        }
+        rows.sort { $0.hole == $1.hole ? $0.rank < $1.rank : $0.hole < $1.hole }
+        return rows
+    }
+
+    private var unitRows: [UnitRow] {
+        let playedSet = Set(audited.map(\.hole))
+        var rows: [UnitRow] = []
+        for (hole, events) in matchManager.unitEventsByHole where playedSet.contains(hole) {
+            for event in events {
+                rows.append(UnitRow(id: event.id, hole: hole, alias: event.alias, code: event.code, units: event.units))
+            }
+        }
+        rows.sort { $0.hole < $1.hole }
+        return rows
+    }
+
+    @ViewBuilder
+    private var oyesUnidadesChapter: some View {
+        if !oyeRows.isEmpty || !unitRows.isEmpty {
+            chapterHeader("OYES Y UNIDADES")
+            VStack(spacing: 0) {
+                ForEach(oyeRows) { row in
+                    Button { openEdit(hole: row.hole, alias: row.alias) } label: {
+                        HStack {
+                            Text("Hoyo \(row.hole)")
+                                .font(.system(size: 12, weight: .bold, design: .monospaced)).foregroundColor(.cInk)
+                            Text(row.alias)
+                                .font(.system(size: 12, weight: .semibold)).foregroundColor(.cMuted)
+                            Spacer()
+                            Text("Oye \(row.rank)°")
+                                .font(.system(size: 12, weight: .bold))
+                                .foregroundColor(row.rank == 1 ? .cGold : .cMuted)
+                        }
+                        .padding(.horizontal, 14).padding(.vertical, 10)
+                    }
+                    .buttonStyle(.plain)
+                    Color.cRowDiv.frame(height: 1)
+                }
+                ForEach(unitRows) { row in
+                    Button { openEdit(hole: row.hole, alias: row.alias) } label: {
+                        HStack {
+                            Text("Hoyo \(row.hole)")
+                                .font(.system(size: 12, weight: .bold, design: .monospaced)).foregroundColor(.cInk)
+                            Text(row.alias)
+                                .font(.system(size: 12, weight: .semibold)).foregroundColor(.cMuted)
+                            Spacer()
+                            Text(row.code)
+                                .font(.system(size: 12, weight: .bold)).foregroundColor(.cFairway)
+                        }
+                        .padding(.horizontal, 14).padding(.vertical, 10)
+                    }
+                    .buttonStyle(.plain)
+                    Color.cRowDiv.frame(height: 1)
+                }
+            }
+            .background(Color.cSurface)
+            .cornerRadius(14)
+            .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.cBorder, lineWidth: 1))
+        }
     }
 
     // MARK: Hole card
@@ -303,6 +419,23 @@ struct HoleAuditView: View {
             playerName: player?.name ?? pd.alias,
             score: pd.score > 0 ? pd.score : status.par,
             putts: pd.putts > 0 ? pd.putts : 2
+        )
+    }
+
+    // Usado por el capítulo "Oyes y Unidades" — abre la misma sheet de corrección a partir de
+    // hoyo+alias en vez de un (status, pd) ya armado.
+    private func openEdit(hole: Int, alias: String) {
+        guard let status = audited.first(where: { $0.hole == hole }) else { return }
+        let player = matchManager.players.first { $0.alias == alias }
+        let score = matchManager.getScore(hole: hole, player: alias)
+        let putts = matchManager.getPutts(hole: hole, player: alias)
+        editTarget = EditTarget(
+            hole: hole,
+            par: status.par,
+            alias: alias,
+            playerName: player?.name ?? alias,
+            score: score > 0 ? score : status.par,
+            putts: putts > 0 ? putts : 2
         )
     }
 }

@@ -360,9 +360,7 @@ class MatchManager: ObservableObject {
     }
     
     func setupDefaultPlayers() {
-        players = [
-            PlayerModel(alias: "DAN", name: "Daniel", strokesVsBase: 0)
-        ]
+        players = []
     }
 
     func setPlayers(names: [String], preserveScores: Bool = false) {
@@ -679,13 +677,19 @@ class MatchManager: ObservableObject {
         // nunca lo aplicaba (strokeCarrier quedaba nil en cada relanzamiento, aunque el número
         // de strokes sí se hubiera guardado). "los strokes son la base de la apuesta."
         var laneCarrierByOppKey: [String: String] = [:]
+        // Ajuste 50 y Doble B9 de pareja — antes no se guardaban en absoluto (solo vivían en
+        // pairAdjust50Lanes/pairDoublePressLanes, Set<UUID> en memoria), así que un relanzamiento
+        // de la app los perdía siempre, no solo al guardar el Setup.
+        var pairAdjust50ByOppKey: [String] = []
+        var pairDoublePressByOppKey: [String] = []
 
         init(activeTemplateId: String?, vueltaValue: Int, presionValue: Int, matchValue: Int, unitValue: Int,
              activeBetTags: [String], betValuesByOpponent: [String: OpponentBetValues], baseTeamAliases: [String],
              laneStrokesByOppKey: [String: Double], strokesVsBaseByAlias: [String: Double],
              individualCarryRequesterByOpponent: [String: String], individualCarryStartHoleByOpponent: [String: Int],
              pairCarryRequesterByOppKey: [String: String], pairCarryStartHoleByOppKey: [String: Int],
-             laneCarrierByOppKey: [String: String]) {
+             laneCarrierByOppKey: [String: String],
+             pairAdjust50ByOppKey: [String] = [], pairDoublePressByOppKey: [String] = []) {
             self.activeTemplateId = activeTemplateId
             self.vueltaValue = vueltaValue
             self.presionValue = presionValue
@@ -701,6 +705,8 @@ class MatchManager: ObservableObject {
             self.pairCarryRequesterByOppKey = pairCarryRequesterByOppKey
             self.pairCarryStartHoleByOppKey = pairCarryStartHoleByOppKey
             self.laneCarrierByOppKey = laneCarrierByOppKey
+            self.pairAdjust50ByOppKey = pairAdjust50ByOppKey
+            self.pairDoublePressByOppKey = pairDoublePressByOppKey
         }
 
         init(from decoder: Decoder) throws {
@@ -720,6 +726,8 @@ class MatchManager: ObservableObject {
             pairCarryRequesterByOppKey = try c.decodeIfPresent([String: String].self, forKey: .pairCarryRequesterByOppKey) ?? [:]
             pairCarryStartHoleByOppKey = try c.decodeIfPresent([String: Int].self, forKey: .pairCarryStartHoleByOppKey) ?? [:]
             laneCarrierByOppKey = try c.decodeIfPresent([String: String].self, forKey: .laneCarrierByOppKey) ?? [:]
+            pairAdjust50ByOppKey = try c.decodeIfPresent([String].self, forKey: .pairAdjust50ByOppKey) ?? []
+            pairDoublePressByOppKey = try c.decodeIfPresent([String].self, forKey: .pairDoublePressByOppKey) ?? []
         }
     }
 
@@ -746,10 +754,14 @@ class MatchManager: ObservableObject {
         // misma clave estable de aliases que usa laneStrokesByOppKey antes de guardar.
         var pairCarryReqByKey: [String: String] = [:]
         var pairCarryStartByKey: [String: Int] = [:]
+        var pairAdjust50Keys: [String] = []
+        var pairDoublePressKeys: [String] = []
         for lane in lanes {
             let key = lane.opp.sorted().joined(separator: "+")
             if let req = pairCarryRequesterByLane[lane.id] { pairCarryReqByKey[key] = req }
             if let start = pairCarryStartHoleByLane[lane.id] { pairCarryStartByKey[key] = start }
+            if pairAdjust50Lanes.contains(lane.id) { pairAdjust50Keys.append(key) }
+            if pairDoublePressLanes.contains(lane.id) { pairDoublePressKeys.append(key) }
         }
         let snapshot = BetConfigSnapshot(
             activeTemplateId: activeTemplateId,
@@ -763,7 +775,9 @@ class MatchManager: ObservableObject {
             individualCarryStartHoleByOpponent: individualCarryStartHoleByOpponent,
             pairCarryRequesterByOppKey: pairCarryReqByKey,
             pairCarryStartHoleByOppKey: pairCarryStartByKey,
-            laneCarrierByOppKey: laneCarrierKeys
+            laneCarrierByOppKey: laneCarrierKeys,
+            pairAdjust50ByOppKey: pairAdjust50Keys,
+            pairDoublePressByOppKey: pairDoublePressKeys
         )
         do {
             let data = try JSONEncoder().encode(snapshot)
@@ -804,6 +818,8 @@ class MatchManager: ObservableObject {
                        let start = snapshot.pairCarryStartHoleByOppKey[key] {
                         restorePairCarry(laneId: lane.id, requesterAlias: req, startHole: start)
                     }
+                    if snapshot.pairAdjust50ByOppKey.contains(key) { pairAdjust50Lanes.insert(lane.id) }
+                    if snapshot.pairDoublePressByOppKey.contains(key) { pairDoublePressLanes.insert(lane.id) }
                 }
             }
             for (opp, req) in snapshot.individualCarryRequesterByOpponent {
@@ -1567,13 +1583,54 @@ class MatchManager: ObservableObject {
     }
 
     func rebuildLanesFromBase(opponentsOverride: [String]? = nil) {
+        // Antes de reconstruir, preserva TODO el estado por-lane (strokes, quién carga, Carry,
+        // Ajuste 50, Doble B9) usando la combinación estable de oponentes como llave — lane.id
+        // es un UUID nuevo en cada rebuild, así que sin este paso cualquier llamada a
+        // setBaseTeam (ej. guardar el Setup a mitad de ronda sin cambiar la pareja base) huérfana
+        // silenciosamente cualquier apuesta de pareja ya activada.
+        var strokesByKey: [String: Double] = [:]
+        var carrierByKey: [String: String] = [:]
+        var carryReqByKey: [String: String] = [:]
+        var carryStartByKey: [String: Int] = [:]
+        var adjust50Keys: Set<String> = []
+        var doublePressKeys: Set<String> = []
+        for lane in lanes {
+            let key = lane.opp.sorted().joined(separator: "+")
+            strokesByKey[key] = lane.strokes
+            if let carrier = lane.strokeCarrier { carrierByKey[key] = carrier }
+            if let req = pairCarryRequesterByLane[lane.id] { carryReqByKey[key] = req }
+            if let start = pairCarryStartHoleByLane[lane.id] { carryStartByKey[key] = start }
+            if pairAdjust50Lanes.contains(lane.id) { adjust50Keys.insert(key) }
+            if pairDoublePressLanes.contains(lane.id) { doublePressKeys.insert(key) }
+        }
+
         lanes.removeAll()
+        pairCarryRequesterByLane.removeAll()
+        pairCarryStartHoleByLane.removeAll()
+        pairAdjust50Lanes.removeAll()
+        pairDoublePressLanes.removeAll()
+
         let base = baseTeamAliases
         let rawOpp = opponentsOverride ?? players.map { $0.alias }
         let opponents = uniqueAliases(rawOpp).filter { !base.contains($0) }
+
+        func makeLane(opp: [String]) -> LaneModel {
+            let key = opp.sorted().joined(separator: "+")
+            let lane = LaneModel(id: UUID(), base: base, opp: opp,
+                                  strokes: strokesByKey[key] ?? 0,
+                                  strokeCarrier: carrierByKey[key])
+            if let req = carryReqByKey[key] {
+                pairCarryRequesterByLane[lane.id] = req
+                pairCarryStartHoleByLane[lane.id] = carryStartByKey[key] ?? firstBackNineHole()
+            }
+            if adjust50Keys.contains(key) { pairAdjust50Lanes.insert(lane.id) }
+            if doublePressKeys.contains(key) { pairDoublePressLanes.insert(lane.id) }
+            return lane
+        }
+
         if base.count == 2 {
             if opponents.count == 2 {
-                lanes.append(LaneModel(id: UUID(), base: base, opp: opponents, strokes: 0, strokeCarrier: nil))
+                lanes.append(makeLane(opp: opponents))
             } else if opponents.count == 3 {
                 let combos = [
                     [opponents[0], opponents[1]],
@@ -1581,14 +1638,14 @@ class MatchManager: ObservableObject {
                     [opponents[1], opponents[2]]
                 ]
                 for opp in combos {
-                    lanes.append(LaneModel(id: UUID(), base: base, opp: opp, strokes: 0, strokeCarrier: nil))
+                    lanes.append(makeLane(opp: opp))
                 }
             }
             reconcileBetSwitches()
             return
         }
         if base.count == 3 && opponents.count == 2 {
-            lanes.append(LaneModel(id: UUID(), base: base, opp: opponents, strokes: 0, strokeCarrier: nil))
+            lanes.append(makeLane(opp: opponents))
         }
         reconcileBetSwitches()
         rebuildBetInstances()
@@ -1668,6 +1725,7 @@ class MatchManager: ObservableObject {
             }
         }
         objectWillChange.send()
+        saveBetConfig()
     }
 
     func setLaneStrokesForMatch(base: [String], opp: [String], value: Double) {
@@ -1682,6 +1740,7 @@ class MatchManager: ObservableObject {
             }
         }
         objectWillChange.send()
+        saveBetConfig()
     }
 
     private func uniqueAliases(_ values: [String]) -> [String] {

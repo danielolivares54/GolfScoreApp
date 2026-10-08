@@ -119,8 +119,11 @@ private struct PlayerDirectoryEditView: View {
                     Toggle("Activo", isOn: $isActive)
                 }
                 Section("Strokes y apuesta") {
-                    TextField("Strokes vs base", text: $strokesText)
-                        .keyboardType(.decimalPad)
+                    HStack {
+                        TextField("Strokes vs base", text: $strokesText)
+                            .keyboardType(.decimalPad)
+                        signToggleButton($strokesText)
+                    }
                     Picker("Plantilla preferida", selection: $selectedTagId) {
                         Text("Ninguna").tag("")
                         ForEach(templateStore.entries) { tpl in
@@ -172,6 +175,22 @@ private struct PlayerDirectoryEditView: View {
                 }
             }
         }
+    }
+
+    // .decimalPad no tiene tecla de signo — sin esto no se puede capturar un stroke negativo
+    // ("da golpes", convención SSOT: >0 recibe, <0 da) desde el Directorio.
+    private func signToggleButton(_ text: Binding<String>) -> some View {
+        Button {
+            if text.wrappedValue.hasPrefix("-") {
+                text.wrappedValue.removeFirst()
+            } else if !text.wrappedValue.isEmpty, Double(text.wrappedValue) != 0 {
+                text.wrappedValue = "-" + text.wrappedValue
+            }
+        } label: {
+            Image(systemName: "plusminus.circle.fill")
+                .font(.system(size: 20))
+        }
+        .buttonStyle(.plain)
     }
 
     private func save() {
