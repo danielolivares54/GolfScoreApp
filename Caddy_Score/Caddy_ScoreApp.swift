@@ -178,7 +178,10 @@ class AppDelegate: NSObject, UIApplicationDelegate {
             print("✅ Match cargado desde bundle: \(SiriMatchManager.shared.getClubName())")
             return
         }
-        // Embedded default — keeps the app working without bundle resource setup
+        // Embedded default — keeps the app working without bundle resource setup. "players" se
+        // deja vacío a propósito: los 5 nombres de ejemplo (Daniel/Anselmo/Roberto/Ricardo/
+        // Fernando) hacían que la app nunca arrancara en blanco — el roster real se configura
+        // en el Setup guiado.
         let embedded = """
         {
           "matchId": "2026-09-07-CGM-Match1",
@@ -189,13 +192,7 @@ class AppDelegate: NSObject, UIApplicationDelegate {
             "pars": [4,5,3,4,3,5,4,4,4,4,5,4,4,3,4,3,4,4],
             "handicap": [13,3,17,1,15,5,9,7,6,4,10,14,16,8,18,2,12,12]
           },
-          "players": [
-            {"name":"Daniel","position":1,"isUser":true,"handicap":0},
-            {"name":"Anselmo","position":2,"isUser":false,"handicap":0},
-            {"name":"Roberto","position":3,"isUser":false,"handicap":0},
-            {"name":"Ricardo","position":4,"isUser":false,"handicap":0},
-            {"name":"Fernando","position":5,"isUser":false,"handicap":0}
-          ],
+          "players": [],
           "startingHole": 1,
           "betType": "VPCM",
           "createdAt": "2026-09-07T10:00:00Z"

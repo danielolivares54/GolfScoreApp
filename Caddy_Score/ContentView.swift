@@ -44,6 +44,11 @@ struct RoundResultLine: Codable {
     let matchMoney: Int
     let unitsMoney: Int
     let totalMoney: Int
+    // Solo para scope == "individual" (TEAM queda fuera, ver applyInterMatchStrokeCarry) —
+    // nil en rondas cerradas antes de agregar este campo; el decoder sintetizado ya maneja
+    // la ausencia de la key como nil al ser Optional.
+    var f9Points: Int? = nil
+    var b9Points: Int? = nil
 }
 
 struct RoundResultPlayer: Codable {
@@ -92,7 +97,6 @@ struct ContentView: View {
 
     @State private var showGuidedCapture = false
     @State private var showGuidedSetup   = false
-    @State private var showBetSetup      = false
     @State private var showTarjeta       = false
     @State private var showAudit         = false
     @State private var showRescue        = false
@@ -162,7 +166,6 @@ struct ContentView: View {
                 .presentationDragIndicator(.visible)
         }
         .sheet(isPresented: $showGuidedSetup)  { GuidedSetupView(matchManager: matchManager).caddySheetDetents() }
-        .sheet(isPresented: $showBetSetup)     { BetSetupSheet(matchManager: matchManager) }
         // Bug reportado: al cambiar el hoyo de inicio desde el Setup (applySetup() preserva
         // scores a propósito, resetScores: false), la tarjeta se quedaba mostrando la misma
         // posición de scroll de antes — un índice que ahora apunta a un hoyo físico distinto
@@ -269,19 +272,6 @@ struct ContentView: View {
                         .foregroundColor(auditBgColor)
                         .lineLimit(1)
                 }
-            }
-            .buttonStyle(.plain)
-
-            Button { showBetSetup = true } label: {
-                VStack(spacing: -1) {
-                    Text("$").font(.system(size: 14, weight: .black, design: .monospaced)).foregroundColor(.cFairway)
-                    Text(matchManager.activeTemplateId ?? "—")
-                        .font(.system(size: 7, weight: .bold)).foregroundColor(.cMuted).lineLimit(1)
-                }
-                .frame(width: 40, height: 40)
-                .background(Color.cSurface)
-                .clipShape(Circle())
-                .overlay(Circle().stroke(matchManager.activeTemplateId != nil ? Color.cFairway.opacity(0.5) : Color.cDisabled, lineWidth: 1.5))
             }
             .buttonStyle(.plain)
 
@@ -542,7 +532,10 @@ struct ContentView: View {
         let hasScore    = score > 0
         // Usa la misma distribución (incluye medios strokes) que ya calcula MatchManager para apuestas —
         // antes esta fila truncaba a Int y perdía el .5 al decidir quién recibe golpe.
-        let strokeCount: Double = matchManager.distributedStrokes(total: player.strokesVsBase, hole: currentHole)
+        // distributedStrokes exige total > 0, así que se pide con la magnitud absoluta — el signo
+        // original de strokesVsBase (guardado aparte en receivesFromMe) decide la dirección.
+        let strokeCount: Double = matchManager.distributedStrokes(total: abs(player.strokesVsBase), hole: currentHole)
+        let receivesFromMe = player.strokesVsBase > 0   // false = este jugador me da el golpe a mí
         let diff: Int?  = hasScore ? (score - currentPar) : nil
 
         let scoreColor: Color = {
@@ -550,16 +543,20 @@ struct ContentView: View {
             return d > 0 ? .cBrick : d < 0 ? .cFairwayL : .cInk
         }()
 
-        // Avatar: verde cuando recibe golpe, gris sin golpe. strokeCount >= 1 dejaba fuera el
-        // medio golpe (0.5) — el texto ya decía "medio golpe" pero el avatar se veía igual que
-        // sin ventaja, el único indicador rápido de un vistazo no distinguía 0.5 de 0.
-        let avatarBg: Color = strokeCount >= 2 ? .cFairwayL
-                            : strokeCount > 0.001 ? .cFairway
-                            : .cMuted
+        // Avatar: verde cuando el jugador recibe golpe de mí en este hoyo, rojo cuando es al
+        // revés (me da el golpe a mí), gris si en este hoyo no hay intercambio. Antes, con
+        // strokesVsBase negativo el avatar quedaba siempre gris (distributedStrokes regresaba 0
+        // de inmediato para total <= 0) y nunca se veía que yo estaba recibiendo de ese rival.
+        let avatarBg: Color = {
+            guard strokeCount > 0.001 else { return .cMuted }
+            if receivesFromMe { return strokeCount >= 2 ? .cFairwayL : .cFairway }
+            return .cBrick
+        }()
 
         let statusText: String = {
             guard hasScore, let d = diff else {
-                return strokeCount > 0 ? "recibe \(strokeReceiveLabel(strokeCount))" : "sin anotar"
+                guard strokeCount > 0 else { return "sin anotar" }
+                return receivesFromMe ? "recibe \(strokeReceiveLabel(strokeCount))" : "te da \(strokeReceiveLabel(strokeCount))"
             }
             var label: String
             switch d {
@@ -569,7 +566,8 @@ struct ContentView: View {
             case 1:       label = "Bogey"
             default:      label = "\(d) sobre par"
             }
-            return strokeCount > 0 ? "\(label) · \(strokeReceiveLabel(strokeCount))" : label
+            guard strokeCount > 0 else { return label }
+            return receivesFromMe ? "\(label) · \(strokeReceiveLabel(strokeCount))" : "\(label) · te da \(strokeReceiveLabel(strokeCount))"
         }()
 
         return VStack(spacing: 0) {
@@ -1053,7 +1051,6 @@ struct ContentView: View {
     private func closeAllSheets() {
         showGuidedCapture = false
         showGuidedSetup   = false
-        showBetSetup      = false
         showTarjeta       = false
         showAudit         = false
         showRescue        = false
@@ -1187,51 +1184,6 @@ struct ContentView: View {
         if metaStart > 0 { matchManager.startHole = metaStart }
         matchManager.syncFromScoreManager()
         matchManager.loadBetConfig()
-        // Siembra única DE VERDAD — antes el guard solo miraba "¿está vacío ahora?", y
-        // Cerrar Ronda (clearBetConfig + resetScores) deja todo vacío a propósito, así que la
-        // siembra de nombres/strokes/scores de ejemplo (DAN/ANS/ROB/RIC/FER) volvía a aparecer
-        // cada vez que se cerraba un match real — Daniel: "sigue sucediendo, son hardcode".
-        // Con el flag persistente, esta siembra corre como máximo una vez en la vida de la app
-        // (primera instalación / primer lanzamiento en el simulador), nunca después de cerrar
-        // una ronda real.
-        let didSeedKey = "didSeedDemoDataV1"
-        let alreadySeeded = UserDefaults.standard.bool(forKey: didSeedKey)
-        if !alreadySeeded && matchManager.baseTeamAliases.isEmpty && matchManager.betValuesByOpponent.isEmpty {
-            let templates = BetTemplateStore.shared.entries
-            if let syd4 = templates.first(where: { $0.id == "SYD4" }) {
-                matchManager.applyBetTemplate(syd4)
-            }
-            if let syd = templates.first(where: { $0.id == "SYD" }) {
-                for p in matchManager.players where p.alias != matchManager.yoAlias {
-                    matchManager.setBetTemplateForOpponent(p.alias, template: syd)
-                }
-            }
-            _ = matchManager.setBaseTeam(["DAN", "ANS"])
-
-            // Strokes de ejemplo (handicap vs DAN=base 0) — para poder revisar neto + marca ●
-            // con datos reales en vez de todo en 0. Valores variados a propósito: ANS/ROB con
-            // ventaja real, RIC poca, FER da golpes (negativo) — cubre los 3 casos visuales.
-            let exampleStrokes: [String: Double] = ["ANS": 5, "ROB": 9, "RIC": 3, "FER": -2]
-            for (alias, strokes) in exampleStrokes where matchManager.players.contains(where: { $0.alias == alias }) {
-                matchManager.setStrokesVsBase(alias: alias, value: strokes)
-            }
-            // Strokes de pareja (adicionales a los individuales, por lane) — variados igual.
-            let exampleLaneStrokes: [Set<String>: Double] = [["ROB","RIC"]: 3, ["ROB","FER"]: 1, ["RIC","FER"]: 4]
-            for lane in matchManager.lanes {
-                if let s = exampleLaneStrokes[Set(lane.opp)] {
-                    matchManager.setLaneStrokes(id: lane.id, value: s)
-                    // setLaneStrokes solo fija el número — el que lo carga es otra llamada
-                    // aparte. Sin esto, effectiveLaneStrokeProfile nunca aplica el stroke a
-                    // nadie (strokeCarrier queda nil), aunque el número ya esté guardado.
-                    matchManager.setLaneCarrier(id: lane.id, carrier: lane.opp.first)
-                }
-            }
-            // Scores de ejemplo — mismo lanzamiento que siembra apuestas/strokes, mismo flag.
-            if matchManager.getScore(hole: 1, player: matchManager.yoAlias) <= 0 {
-                seedDemoScores()
-            }
-            UserDefaults.standard.set(true, forKey: didSeedKey)
-        }
         if let next = matchManager.firstIncompleteHole(),
            let idx  = playOrder.firstIndex(of: next) { currentHoleIndex = idx }
         editingPlayerIdx = 0
@@ -1326,15 +1278,21 @@ struct ContentView: View {
     // Guarda el resultado final (scores + wallet) a disco antes de borrar.
     private func saveRoundResultToFile() {
         let snapshot = matchManager.walletSnapshot()
-        let lines = snapshot.lines.map { line in
-            RoundResultLine(
+        let lines = snapshot.lines.map { line -> RoundResultLine in
+            // F9/B9 por rival solo aplica a IND (igual que applyInterMatchStrokeCarry) — las
+            // parejas varían de ronda a ronda, no hay "próximo match" fijo contra el que comparar.
+            let isIndividual = line.scope.rawValue == "individual"
+            let f9 = isIndividual ? line.opponentAlias.map { matchManager.individualF9Vuelta(opponentAlias: $0) } : nil
+            let b9 = isIndividual ? line.opponentAlias.map { matchManager.individualB9Vuelta(opponentAlias: $0) } : nil
+            return RoundResultLine(
                 label: line.label, scope: line.scope.rawValue, opponentAlias: line.opponentAlias,
                 vueltaPoints: line.vueltaPoints, presionPoints: line.presionPoints,
                 carryPoints: line.carryPoints, carryActive: line.carryActive,
                 matchPoints: line.matchPoints, unitsPoints: line.unitsPoints,
                 vueltaMoney: line.vueltaMoney, presionMoney: line.presionMoney,
                 carryMoney: line.carryMoney, matchMoney: line.matchMoney,
-                unitsMoney: line.unitsMoney, totalMoney: line.totalMoney
+                unitsMoney: line.unitsMoney, totalMoney: line.totalMoney,
+                f9Points: f9, b9Points: b9
             )
         }
         let players = matchManager.players.map { p -> RoundResultPlayer in
@@ -1367,38 +1325,6 @@ struct ContentView: View {
         }
     }
 
-    // MARK: Siembra de scores de ejemplo (18 hoyos, 5 jugadores)
-
-    // Mismo criterio de "solo una vez" que el bloque de apuestas en setupOnAppear — nunca pisa
-    // datos reales, solo rellena si de verdad no hay nada anotado todavía (ej. justo después de
-    // reinstalar la app). Jugadores y pareja base (DAN+ANS) ya quedan fijados arriba.
-    private func seedDemoScores() {
-        let pars: [Int] = [4,5,3,4,3,5,4,4,4,4,5,4,4,3,4,3,4,4]
-        let offsets: [(alias: String, base: Int)] = [("DAN", 0), ("ANS", 1), ("ROB", 2), ("RIC", 1), ("FER", -1)]
-
-        for hole in 1...18 {
-            let par = pars[hole - 1]
-            let wiggle = hole % 4 == 0 ? 1 : (hole % 3 == 0 ? -1 : 0)
-            for (alias, base) in offsets where matchManager.players.contains(where: { $0.alias == alias }) {
-                let strokes = max(1, par + base + wiggle)
-                let putts = strokes - par >= 1 ? 2 : 1
-                matchManager.applyHoleEntry(HoleEntryData(
-                    hole_number: hole, player_alias: alias,
-                    strokes: strokes, putts: putts, units: nil, tags: nil))
-            }
-        }
-
-        // Oyes en los pares 3 — se alterna quién gana para ver los dos colores del badge.
-        let par3Holes = [3, 5, 14, 16]
-        let aliases = offsets.map { $0.alias }
-        for (i, hole) in par3Holes.enumerated() {
-            let winner = aliases[i % aliases.count]
-            let order = [winner] + aliases.filter { $0 != winner }
-            var ranks: [String: Int] = [:]
-            for (idx, alias) in order.enumerated() { ranks[alias] = idx + 1 }
-            matchManager.setOyesRanks(hole: hole, ranksByAlias: ranks)
-        }
-    }
 }
 
 // MARK: - TarjetaSheetView  (02-tarjeta: hoyos-como-filas, jugadores-como-columnas)

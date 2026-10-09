@@ -46,12 +46,12 @@ struct LaneModel: Identifiable {
     var strokeCarrier: String?
 }
 
-enum BetType: String, CaseIterable {
+enum BetType: String, CaseIterable, Codable {
     case individual
     case parejas
 }
 
-enum BetMode: String, CaseIterable {
+enum BetMode: String, CaseIterable, Codable {
     case calculado
     case manual
 }
@@ -61,14 +61,17 @@ enum PuttsBetMode: String, CaseIterable, Codable {
     case byRound = "Vuelta"
 }
 
-struct BetDefinition: Identifiable {
-    let id = UUID()
+struct BetDefinition: Identifiable, Codable, Equatable {
+    var id = UUID()
     let tag: String
-    let name: String
+    var name: String
     let type: BetType
     let mode: BetMode
-    let units: Int
-    let description: String
+    var units: Int
+    var description: String
+    // Único interruptor de activación — global, no por match ni por plantilla. Un tag
+    // desactivado aquí no aparece como opción ni se registra en ningún match.
+    var isEnabled: Bool = true
 }
 
 struct ActiveBet: Identifiable {
@@ -448,19 +451,14 @@ class MatchManager: ObservableObject {
         holes = course.holes
     }
 
+    // El catálogo real (editable, persistido) vive en BetDefinitionStore — esto solo copia al
+    // match la foto vigente de tags habilitados. Para recoger cambios hechos en el editor de
+    // catálogo a medio match, se vuelve a llamar (ver BetDefinitionEditorView).
     func setupDefaultBets() {
-        betCatalog = [
-            BetDefinition(tag: "BIRD", name: "Birdie", type: .individual, mode: .calculado, units: 1, description: "Par - 1"),
-            BetDefinition(tag: "EAG", name: "Águila", type: .individual, mode: .calculado, units: 2, description: "Par - 2"),
-            BetDefinition(tag: "ALB", name: "Albatros", type: .individual, mode: .calculado, units: 3, description: "Par - 3"),
-            BetDefinition(tag: "HIO", name: "Hole in One", type: .individual, mode: .calculado, units: 100, description: "Ace"),
-            BetDefinition(tag: "B18", name: "Birdie en 18", type: .individual, mode: .calculado, units: 2, description: "Birdie en hoyo 18"),
-            BetDefinition(tag: "3P", name: "3 Putt", type: .individual, mode: .manual, units: 1, description: "Manual"),
-            BetDefinition(tag: "HO", name: "Hole Out", type: .individual, mode: .manual, units: 1, description: "Manual"),
-            BetDefinition(tag: "OYES", name: "Oyes Rank", type: .individual, mode: .manual, units: 1, description: "Ranking par 3"),
-            BetDefinition(tag: "PAIR", name: "Match Parejas", type: .parejas, mode: .manual, units: 1, description: "Manual"),
-            BetDefinition(tag: "OYESP", name: "Oyes Rank Parejas", type: .parejas, mode: .manual, units: 1, description: "Ranking par 3 (parejas)")
-        ]
+        betCatalog = BetDefinitionStore.shared.entries.filter { $0.isEnabled }
+        // Ya no hay selección por match/plantilla — todo tag habilitado en el catálogo global
+        // está activo en todos los matches. Ver BetDefinitionEditorView.
+        activeBets = betCatalog.map { ActiveBet(definition: $0, tagOverride: nil) }
     }
 
     // Paso 1: SSOT inicial de apuestas por scope/moment/type.
@@ -599,12 +597,6 @@ class MatchManager: ObservableObject {
         objectWillChange.send()
     }
 
-    func setActiveBets(_ bets: [ActiveBet]) {
-        activeBets = bets
-        objectWillChange.send()
-        saveBetConfig()
-    }
-
     func applyBetTemplate(_ template: BetTemplate) {
         activeTemplateId = template.id
         vueltaValue = template.vueltaValue
@@ -613,9 +605,6 @@ class MatchManager: ObservableObject {
         unitValue = template.unitValue
         puttsBetMode = template.puttsBetMode
         puttsBetUnits = template.puttsEnabled ? template.puttsBetUnits : 0
-        activeBets = betCatalog
-            .filter { template.activeUnitTags.contains($0.tag.uppercased()) }
-            .map { ActiveBet(definition: $0, tagOverride: nil) }
         objectWillChange.send()
         saveBetConfig()
     }
@@ -658,7 +647,6 @@ class MatchManager: ObservableObject {
         var presionValue: Int
         var matchValue: Int
         var unitValue: Int
-        var activeBetTags: [String]
         var betValuesByOpponent: [String: OpponentBetValues]
         var baseTeamAliases: [String]
         // Las lanes se reconstruyen desde baseTeamAliases (nuevos UUID cada vez) — los strokes de
@@ -684,7 +672,7 @@ class MatchManager: ObservableObject {
         var pairDoublePressByOppKey: [String] = []
 
         init(activeTemplateId: String?, vueltaValue: Int, presionValue: Int, matchValue: Int, unitValue: Int,
-             activeBetTags: [String], betValuesByOpponent: [String: OpponentBetValues], baseTeamAliases: [String],
+             betValuesByOpponent: [String: OpponentBetValues], baseTeamAliases: [String],
              laneStrokesByOppKey: [String: Double], strokesVsBaseByAlias: [String: Double],
              individualCarryRequesterByOpponent: [String: String], individualCarryStartHoleByOpponent: [String: Int],
              pairCarryRequesterByOppKey: [String: String], pairCarryStartHoleByOppKey: [String: Int],
@@ -695,7 +683,6 @@ class MatchManager: ObservableObject {
             self.presionValue = presionValue
             self.matchValue = matchValue
             self.unitValue = unitValue
-            self.activeBetTags = activeBetTags
             self.betValuesByOpponent = betValuesByOpponent
             self.baseTeamAliases = baseTeamAliases
             self.laneStrokesByOppKey = laneStrokesByOppKey
@@ -716,7 +703,6 @@ class MatchManager: ObservableObject {
             presionValue = try c.decode(Int.self, forKey: .presionValue)
             matchValue = try c.decode(Int.self, forKey: .matchValue)
             unitValue = try c.decode(Int.self, forKey: .unitValue)
-            activeBetTags = try c.decode([String].self, forKey: .activeBetTags)
             betValuesByOpponent = try c.decode([String: OpponentBetValues].self, forKey: .betValuesByOpponent)
             baseTeamAliases = try c.decode([String].self, forKey: .baseTeamAliases)
             laneStrokesByOppKey = try c.decode([String: Double].self, forKey: .laneStrokesByOppKey)
@@ -766,7 +752,6 @@ class MatchManager: ObservableObject {
         let snapshot = BetConfigSnapshot(
             activeTemplateId: activeTemplateId,
             vueltaValue: vueltaValue, presionValue: presionValue, matchValue: matchValue, unitValue: unitValue,
-            activeBetTags: activeBets.map { $0.definition.tag },
             betValuesByOpponent: betValuesByOpponent,
             baseTeamAliases: baseTeamAliases,
             laneStrokesByOppKey: laneKeys,
@@ -797,9 +782,6 @@ class MatchManager: ObservableObject {
             presionValue = snapshot.presionValue
             matchValue = snapshot.matchValue
             unitValue = snapshot.unitValue
-            activeBets = betCatalog
-                .filter { snapshot.activeBetTags.contains($0.tag) }
-                .map { ActiveBet(definition: $0, tagOverride: nil) }
             betValuesByOpponent = snapshot.betValuesByOpponent
             for (alias, strokes) in snapshot.strokesVsBaseByAlias {
                 setStrokesVsBase(alias: alias, value: strokes)
@@ -2642,17 +2624,17 @@ class MatchManager: ObservableObject {
             if gross <= 0 { continue }
 
             if enabled.contains("HIO"), gross == 1 {
-                out.append(UnitEvent(hole: hole, alias: p.alias, code: "HIO", units: unitsForCalculatedTag("HIO", fallback: 100), note: "Hole in One"))
+                out.append(UnitEvent(hole: hole, alias: p.alias, code: "HIO", units: unitsForCalculatedTag("HIO", fallback: 1), note: "Hole in One"))
             }
             if enabled.contains("ALB"), gross == (h.par - 3) {
-                out.append(UnitEvent(hole: hole, alias: p.alias, code: "ALB", units: unitsForCalculatedTag("ALB", fallback: 3), note: "Albatros"))
+                out.append(UnitEvent(hole: hole, alias: p.alias, code: "ALB", units: unitsForCalculatedTag("ALB", fallback: 1), note: "Albatros"))
             } else if enabled.contains("EAG"), gross == (h.par - 2) {
-                out.append(UnitEvent(hole: hole, alias: p.alias, code: "EAG", units: unitsForCalculatedTag("EAG", fallback: 2), note: "Aguila"))
+                out.append(UnitEvent(hole: hole, alias: p.alias, code: "EAG", units: unitsForCalculatedTag("EAG", fallback: 1), note: "Aguila"))
             } else if enabled.contains("BIRD"), gross == (h.par - 1) {
                 out.append(UnitEvent(hole: hole, alias: p.alias, code: "BIRD", units: unitsForCalculatedTag("BIRD", fallback: 1), note: "Birdie"))
             }
             if enabled.contains("B18"), hole == 18, gross == (h.par - 1) {
-                out.append(UnitEvent(hole: hole, alias: p.alias, code: "B18", units: unitsForCalculatedTag("B18", fallback: 2), note: "Birdie 18"))
+                out.append(UnitEvent(hole: hole, alias: p.alias, code: "B18", units: unitsForCalculatedTag("B18", fallback: 1), note: "Birdie 18"))
             }
         }
         return out

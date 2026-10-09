@@ -53,6 +53,8 @@ struct GuidedSetupView: View {
     // sugerencia, addPlayerName() toma sus strokes/tag en vez de los defaults.
     @State private var pendingDirectoryMatch: PlayerDirectoryEntry?
     @State private var showingPlayerDirectory = false
+    @State private var showingRoundHistory = false
+    @State private var showingBets = false
     @State private var strokesByAlias: [String: Double] = [:]
     @State private var base1: String = ""
     @State private var base2: String = ""
@@ -61,8 +63,7 @@ struct GuidedSetupView: View {
     @State private var vueltaValueText: String = ""
     @State private var selectedTemplateId: String = ""       // plantilla compartida de PAREJAS
     @State private var templateIdByOpponent: [String: String] = [:]  // plantilla por rival individual
-    @State private var selectedBetIds: Set<UUID> = []
-    @State private var betTagOverrides: [UUID: String] = [:]
+
 
     private var step: Step { Step.allCases[stepIndex] }
 
@@ -139,18 +140,12 @@ struct GuidedSetupView: View {
             jugadoresStep
             Divider().padding(.vertical, 4)
             strokesStep
-            Divider().padding(.vertical, 4)
-            unidadesCalculadasStep
-            Divider().padding(.vertical, 4)
-            betPickerScroll(title: "Apuestas individuales", type: .individual)
         case .parejas:
             parejasStep
             Divider().padding(.vertical, 4)
             strokesParejasStep
             Divider().padding(.vertical, 4)
             parejaApuestaStep
-            Divider().padding(.vertical, 4)
-            betPickerScroll(title: "Apuestas por parejas", type: .parejas)
         }
     }
 
@@ -226,10 +221,26 @@ struct GuidedSetupView: View {
 
             HStack {
                 Spacer()
+                Button { showingRoundHistory = true } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "clock.arrow.circlepath")
+                        Text("Log")
+                    }
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(.cFairway)
+                }
                 Button { showingPlayerDirectory = true } label: {
                     HStack(spacing: 4) {
                         Image(systemName: "person.text.rectangle")
                         Text("Directorio")
+                    }
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(.cFairway)
+                }
+                Button { showingBets = true } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "dollarsign.circle")
+                        Text("Apuestas")
                     }
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundColor(.cFairway)
@@ -407,6 +418,16 @@ struct GuidedSetupView: View {
         .sheet(isPresented: $showingPlayerDirectory) {
             PlayerDirectoryView()
         }
+        .sheet(isPresented: $showingRoundHistory) {
+            RoundHistoryView()
+        }
+        .sheet(isPresented: $showingBets, onDismiss: {
+            // Recoge altas/bajas/cambios de valor hechos en el catálogo para que ya aparezcan
+            // en este Setup sin tener que reabrir la app.
+            matchManager.setupDefaultBets()
+        }) {
+            BetsHubView(matchManager: matchManager)
+        }
     }
 
     // Plantilla propia de este rival — cada oponente puede tener una distinta (a diferencia de
@@ -565,38 +586,6 @@ struct GuidedSetupView: View {
         }
     }
 
-    // MARK: Unidades calculadas (dentro del paso Jugadores — ajuste fino global, no por rival)
-
-    // Unidades calculadas (Birdie, Águila, Albatros, Hole in One, Birdie 18) son automáticas —
-    // un solo switch las activa/desactiva todas, no se eligen una por una. Es global (no por
-    // rival): cada oponente ya elige su propia plantilla de $ arriba, pero cuáles unidades
-    // cuentan sigue siendo una sola decisión para toda la ronda.
-    private var unidadesCalculadasStep: some View {
-        let calculadoBets = matchManager.betCatalog.filter { $0.mode == .calculado }
-        return Group {
-            if !calculadoBets.isEmpty {
-                let ids = calculadoBets.map(\.id)
-                let unidadesOn = ids.allSatisfy { selectedBetIds.contains($0) }
-                HStack {
-                    VStack(alignment: .leading, spacing: 2) {
-                        sectionTitle("Unidades")
-                        Text(calculadoBets.map(\.name).joined(separator: ", "))
-                            .font(.system(size: 11.5)).foregroundColor(.cMuted)
-                    }
-                    Spacer()
-                    Toggle("", isOn: Binding(
-                        get: { unidadesOn },
-                        set: { on in if on { selectedBetIds.formUnion(ids) } else { selectedBetIds.subtract(ids) } }
-                    )).labelsHidden().toggleStyle(SwitchToggleStyle(tint: .cFairway))
-                }
-                .padding(16)
-                .background(Color.cSurface)
-                .cornerRadius(14)
-                .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.cBorder, lineWidth: 1))
-            }
-        }
-    }
-
     // MARK: Apuesta de parejas (dentro del paso Parejas — un solo valor, igual para las 3 combinaciones)
 
     private var parejaApuestaStep: some View {
@@ -643,40 +632,6 @@ struct GuidedSetupView: View {
                     Text("Unidad: $\(unitValueFromText())")
                         .font(.system(size: 13)).foregroundColor(.cMuted)
                 }
-            }
-        }
-    }
-
-    // Apuestas manuales (no las de unidades automáticas) — una lista con scroll por tipo, para ahorrar espacio.
-    @ViewBuilder
-    private func betPickerScroll(title: String, type: BetType) -> some View {
-        let bets = matchManager.betCatalog.filter { $0.type == type && $0.mode == .manual }
-        if !bets.isEmpty {
-            VStack(alignment: .leading, spacing: 8) {
-                sectionTitle(title)
-                ScrollView {
-                    VStack(spacing: 0) {
-                        ForEach(Array(bets.enumerated()), id: \.offset) { idx, bet in
-                            Toggle(isOn: Binding(
-                                get: { selectedBetIds.contains(bet.id) },
-                                set: { on in if on { selectedBetIds.insert(bet.id) } else { selectedBetIds.remove(bet.id) } }
-                            )) {
-                                Text(bet.name)
-                                    .font(.system(size: 14, weight: .semibold)).foregroundColor(.cInk)
-                            }
-                            .toggleStyle(SwitchToggleStyle(tint: .cFairway))
-                            .padding(.horizontal, 16).padding(.vertical, 12)
-                            .background(Color.cSurface)
-                            if idx < bets.count - 1 {
-                                Color.cRowDiv.frame(height: 1).padding(.horizontal, 16)
-                            }
-                        }
-                    }
-                }
-                .frame(maxHeight: 160)
-                .background(Color.cSurface)
-                .cornerRadius(14)
-                .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.cBorder, lineWidth: 1))
             }
         }
     }
@@ -781,10 +736,6 @@ struct GuidedSetupView: View {
         syncLaneSetupState()
         vueltaValueText = matchManager.vueltaValue > 0 ? "\(matchManager.vueltaValue)" : ""
         selectedTemplateId = matchManager.activeTemplateId ?? ""
-        selectedBetIds = Set(matchManager.activeBets.map { $0.definition.id })
-        for bet in matchManager.activeBets {
-            if let tag = bet.tagOverride { betTagOverrides[bet.definition.id] = tag }
-        }
     }
 
     private func addPlayerName() {
@@ -915,28 +866,14 @@ struct GuidedSetupView: View {
         } else if let v = Int(vueltaValueText) {
             matchManager.setVueltaValue(v)
         }
-        let active = matchManager.betCatalog
-            .filter { selectedBetIds.contains($0.id) }
-            .map { def in ActiveBet(definition: def, tagOverride: tagOverridesValue(for: def.id)) }
-        matchManager.setActiveBets(active)
     }
 
-    private func tagOverridesValue(for id: UUID) -> String? {
-        guard let raw = betTagOverrides[id]?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty else { return nil }
-        return raw
-    }
-
-    // Aplica la plantilla localmente al estado del wizard (no muta matchManager hasta "Guardar") —
-    // preserva las apuestas manuales ya elegidas, solo reemplaza el subconjunto de unidades calculadas.
+    // Aplica la plantilla localmente al estado del wizard (no muta matchManager hasta "Guardar").
+    // Qué unidades cuentan ya no se decide aquí — es el catálogo global (BetDefinitionEditorView)
+    // el que define qué tags existen y están activos para todos los matches.
     private func applyTemplateLocally(_ tpl: BetTemplate) {
         selectedTemplateId = tpl.id
         vueltaValueText = "\(tpl.vueltaValue)"
-        let calculadoIds = Set(matchManager.betCatalog.filter { $0.mode == .calculado }.map(\.id))
-        selectedBetIds.subtract(calculadoIds)
-        let templateIds = matchManager.betCatalog
-            .filter { tpl.activeUnitTags.contains($0.tag.uppercased()) }
-            .map(\.id)
-        selectedBetIds.formUnion(templateIds)
     }
 
     private func templateName(_ id: String) -> String {

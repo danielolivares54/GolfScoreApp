@@ -1,5 +1,11 @@
 import SwiftUI
 
+// Mismos valores que ContentView/GuidedSetupView — rojo/verde por signo en Strokes.
+private extension Color {
+    static let cFairway = Color(red: 0.114, green: 0.627, blue: 0.310)
+    static let cBrick   = Color(red: 0.659, green: 0.275, blue: 0.184)
+}
+
 // Administración manual del directorio de jugadores (SSOT Sección 17, PLAYER_BET_TAGS) — el
 // mini-search del Setup aprende solo, pero aquí se puede agregar/editar/borrar sin pasar por
 // un match real, o corregir un stroke/tag que cambió de temporada a temporada.
@@ -32,14 +38,14 @@ struct PlayerDirectoryView: View {
                         ForEach(sortedEntries) { entry in
                             Button { editingEntry = entry } label: {
                                 HStack {
-                                    VStack(alignment: .leading, spacing: 2) {
+                                    VStack(alignment: .leading, spacing: 3) {
                                         HStack(spacing: 6) {
                                             Text(entry.name)
-                                                .font(.system(size: 15, weight: .semibold))
+                                                .font(.system(size: 19, weight: .semibold))
                                                 .foregroundColor(entry.active ? .primary : .secondary)
                                             if !entry.active {
                                                 Text("INACTIVO")
-                                                    .font(.system(size: 9, weight: .bold))
+                                                    .font(.system(size: 10, weight: .bold))
                                                     .foregroundColor(.secondary)
                                                     .padding(.horizontal, 5).padding(.vertical, 2)
                                                     .background(Color.secondary.opacity(0.15))
@@ -47,17 +53,20 @@ struct PlayerDirectoryView: View {
                                             }
                                         }
                                         Text(entry.alias)
-                                            .font(.system(size: 11, weight: .bold))
+                                            .font(.system(size: 13, weight: .bold))
                                             .foregroundColor(.secondary)
                                     }
                                     Spacer()
                                     VStack(alignment: .trailing, spacing: 2) {
-                                        Text("Strokes \(formatStroke(entry.strokesVsBase))")
-                                            .font(.system(size: 12, weight: .semibold))
+                                        // "Strokes" sobra como etiqueta — el signo ya lo dice todo:
+                                        // verde = recibe (o neutro), rojo = da (solo cuando hay "-").
+                                        Text(formatStroke(entry.strokesVsBase))
+                                            .font(.system(size: 18, weight: .bold, design: .monospaced))
+                                            .foregroundColor(entry.strokesVsBase < 0 ? .cBrick : .cFairway)
                                         if let tagId = entry.preferredTagId,
                                            let tpl = templateStore.entries.first(where: { $0.id == tagId }) {
                                             Text(tpl.name)
-                                                .font(.system(size: 11)).foregroundColor(.secondary)
+                                                .font(.system(size: 12)).foregroundColor(.secondary)
                                         }
                                     }
                                 }
@@ -108,6 +117,7 @@ private struct PlayerDirectoryEditView: View {
     @State private var adjustmentNotes: String = ""
     @State private var comentario: String = ""
     @State private var strokeAntText: String = ""
+    @State private var showingLog = false
 
     var body: some View {
         NavigationStack {
@@ -117,6 +127,15 @@ private struct PlayerDirectoryEditView: View {
                     TextField("Alias (3 letras)", text: $alias)
                         .textInputAutocapitalization(.characters)
                     Toggle("Activo", isOn: $isActive)
+                }
+                // Filtrado directo a este jugador — para resolver una disputa de stroke en
+                // cancha sin tener que buscarlo en el selector del Log.
+                if let entry {
+                    Section {
+                        Button { showingLog = true } label: {
+                            Label("Ver log de \(entry.name)", systemImage: "clock.arrow.circlepath")
+                        }
+                    }
                 }
                 Section("Strokes y apuesta") {
                     HStack {
@@ -173,6 +192,9 @@ private struct PlayerDirectoryEditView: View {
                     comentario = entry.comentario ?? ""
                     strokeAntText = entry.strokeAnt.map { formatStroke($0) } ?? ""
                 }
+            }
+            .sheet(isPresented: $showingLog) {
+                RoundHistoryView(initialPlayerName: entry?.name ?? "Todos")
             }
         }
     }

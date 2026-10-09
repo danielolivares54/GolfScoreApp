@@ -15,7 +15,6 @@ struct BetTemplate: Identifiable, Codable, Equatable {
     var puttsBetMode: PuttsBetMode
     var puttsBetUnits: Int
     var b9MultiplierAvailable: Bool
-    var activeUnitTags: Set<String>
     // Ajuste de stroke entre rondas (regla 2026-10-06): si es true, el ganador del B9 de un
     // duelo IND mueve ±1 el strokeVsBase del rival en el directorio para el próximo match.
     // Default true — los casos de "no cambio" son la excepción, no la regla.
@@ -100,40 +99,307 @@ final class BetTemplateStore: ObservableObject {
                 id: "SYD", name: "S y D",
                 vueltaValue: 50, presionValue: 50, matchValue: 100, unitValue: 25,
                 puttsEnabled: false, puttsBetMode: .hole18, puttsBetUnits: 0,
-                b9MultiplierAvailable: true,
-                activeUnitTags: ["BIRD", "EAG", "ALB", "HIO", "B18", "OYES"]
+                b9MultiplierAvailable: true
             ),
             BetTemplate(
                 id: "SYD4", name: "S y D 4",
                 vueltaValue: 40, presionValue: 40, matchValue: 80, unitValue: 20,
                 puttsEnabled: false, puttsBetMode: .hole18, puttsBetUnits: 0,
-                b9MultiplierAvailable: true,
-                activeUnitTags: ["BIRD", "EAG", "ALB", "HIO", "B18", "OYES"]
+                b9MultiplierAvailable: true
             ),
             BetTemplate(
                 id: "JUEVES", name: "Jueves",
                 vueltaValue: 40, presionValue: 40, matchValue: 80, unitValue: 20,
                 puttsEnabled: true, puttsBetMode: .hole18, puttsBetUnits: 2,
-                b9MultiplierAvailable: true,
-                activeUnitTags: ["BIRD", "EAG", "ALB", "HIO", "B18", "OYES"]
+                b9MultiplierAvailable: true
             ),
             BetTemplate(
                 id: "TPCH", name: "TPCH",
                 vueltaValue: 20, presionValue: 20, matchValue: 40, unitValue: 10,
                 puttsEnabled: false, puttsBetMode: .hole18, puttsBetUnits: 0,
-                b9MultiplierAvailable: false,
-                activeUnitTags: ["BIRD", "EAG", "ALB", "HIO", "OYES"]
+                b9MultiplierAvailable: false
             ),
             BetTemplate(
                 id: "FDEZ", name: "Fdez",
                 vueltaValue: 50, presionValue: 50, matchValue: 100, unitValue: 25,
                 puttsEnabled: false, puttsBetMode: .hole18, puttsBetUnits: 0,
                 b9MultiplierAvailable: true,
-                activeUnitTags: ["BIRD", "EAG", "ALB", "HIO", "B18", "OYES"],
                 carryMatchEnabled: false
             )
         ]
+    }
+}
+
+// MARK: - BetDefinitionStore (catálogo de unidades — editable y persistido)
+//
+// Antes esto era un array hardcodeado dentro de MatchManager.setupDefaultBets(), regenerado
+// (con IDs nuevos) cada vez que arrancaba un match. Ahora es un catálogo único, persistido,
+// con el mismo patrón que BetTemplateStore/PlayerDirectoryStore — MatchManager solo copia la
+// foto de tags habilitados al armar el match (ver setupDefaultBets()).
+final class BetDefinitionStore: ObservableObject {
+    static let shared = BetDefinitionStore()
+
+    @Published private(set) var entries: [BetDefinition] = []
+
+    private let fileName = "bet_definitions.json"
+
+    private var fileURL: URL? {
+        FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first?
+            .appendingPathComponent(fileName)
+    }
+
+    init() {
+        load()
+        if entries.isEmpty { seedDefaults() }
+    }
+
+    func upsert(_ def: BetDefinition) {
+        if let idx = entries.firstIndex(where: { $0.id == def.id }) {
+            entries[idx] = def
+        } else {
+            entries.append(def)
+        }
         save()
+    }
+
+    func setEnabled(_ def: BetDefinition, enabled: Bool) {
+        guard let idx = entries.firstIndex(where: { $0.id == def.id }) else { return }
+        entries[idx].isEnabled = enabled
+        save()
+    }
+
+    func setUnits(_ def: BetDefinition, units: Int) {
+        guard let idx = entries.firstIndex(where: { $0.id == def.id }) else { return }
+        entries[idx].units = max(1, units)
+        save()
+    }
+
+    func remove(_ def: BetDefinition) {
+        entries.removeAll { $0.id == def.id }
+        save()
+    }
+
+    // Mismo patrón que PlayerDirectoryStore/BetTemplateStore: 3 letras del nombre + contador si colisiona.
+    func suggestTag(forName name: String) -> String {
+        let letters = name.uppercased().filter { $0.isLetter }
+        let base = letters.isEmpty ? "TAG" : String(letters.prefix(4))
+        var candidate = base
+        var counter = 1
+        while entries.contains(where: { $0.tag == candidate }) {
+            candidate = base + String(counter)
+            counter += 1
+        }
+        return candidate
+    }
+
+    private func save() {
+        guard let url = fileURL else { return }
+        do {
+            let data = try JSONEncoder().encode(entries)
+            try data.write(to: url)
+        } catch {
+            print("❌ Error guardando catálogo de unidades: \(error)")
+        }
+    }
+
+    private func load() {
+        guard let url = fileURL, FileManager.default.fileExists(atPath: url.path) else { return }
+        do {
+            let data = try Data(contentsOf: url)
+            entries = try JSONDecoder().decode([BetDefinition].self, from: data)
+        } catch {
+            print("❌ Error cargando catálogo de unidades: \(error)")
+        }
+    }
+
+    private func seedDefaults() {
+        entries = [
+            BetDefinition(tag: "BIRD",  name: "Birdie",            type: .individual, mode: .calculado, units: 1, description: "Par - 1"),
+            BetDefinition(tag: "EAG",   name: "Águila",            type: .individual, mode: .calculado, units: 1, description: "Par - 2"),
+            BetDefinition(tag: "ALB",   name: "Albatros",          type: .individual, mode: .calculado, units: 1, description: "Par - 3"),
+            BetDefinition(tag: "HIO",   name: "Hole in One",       type: .individual, mode: .calculado, units: 1, description: "Ace"),
+            BetDefinition(tag: "B18",   name: "Birdie en 18",      type: .individual, mode: .calculado, units: 1, description: "Birdie en hoyo 18"),
+            BetDefinition(tag: "3P",    name: "3 Putt",            type: .individual, mode: .manual,    units: 1, description: "Manual"),
+            BetDefinition(tag: "HO",    name: "Hole Out",          type: .individual, mode: .manual,    units: 1, description: "Manual"),
+            BetDefinition(tag: "OYES",  name: "Oyes Rank",         type: .individual, mode: .manual,    units: 1, description: "Ranking par 3"),
+            BetDefinition(tag: "PAIR",  name: "Match Parejas",     type: .parejas,    mode: .manual,    units: 1, description: "Manual"),
+            BetDefinition(tag: "OYESP", name: "Oyes Rank Parejas", type: .parejas,    mode: .manual,    units: 1, description: "Ranking par 3 (parejas)")
+        ]
+        save()
+    }
+}
+
+// MARK: - BetDefinitionEditorView (editor del catálogo de unidades)
+//
+// Fonts grandes, una fila por tag: nombre, toggle activa/inactiva, y stepper de valor en
+// unidades. Agregar una unidad nueva (ej. "Sandy Par") solo permite modo manual — un tag
+// calculado necesita fórmula de detección propia en MatchManager, no es editable desde datos.
+struct BetDefinitionEditorView: View {
+    @ObservedObject private var store = BetDefinitionStore.shared
+    @State private var showingNew = false
+
+    private var individualDefs: [BetDefinition] {
+        store.entries.filter { $0.type == .individual }.sorted { $0.name < $1.name }
+    }
+    private var parejasDefs: [BetDefinition] {
+        store.entries.filter { $0.type == .parejas }.sorted { $0.name < $1.name }
+    }
+
+    // Sin NavigationStack/toolbar propios — vive embebido como una de las dos páginas de
+    // BetsHubView (Valores/Catálogo), que aporta el único título y botón "Cerrar".
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Text("Qué cuenta y cuántas unidades vale")
+                    .font(.system(size: 12.5)).foregroundColor(.secondary)
+                Spacer()
+                Button { showingNew = true } label: {
+                    Label("Nueva", systemImage: "plus.circle.fill")
+                        .font(.system(size: 14, weight: .semibold))
+                }
+            }
+            .padding(.horizontal, 18).padding(.vertical, 10)
+            List {
+                Section("Individual") {
+                    ForEach(individualDefs) { def in row(def) }
+                }
+                Section("Parejas") {
+                    ForEach(parejasDefs) { def in row(def) }
+                }
+            }
+        }
+        .sheet(isPresented: $showingNew) {
+            BetDefinitionNewView()
+        }
+    }
+
+    private func row(_ def: BetDefinition) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(def.name)
+                        .font(.system(size: 20, weight: .bold))
+                        .foregroundColor(def.isEnabled ? .primary : .secondary)
+                    Text(def.mode == .calculado ? "Calculado · \(def.description)" : "Manual")
+                        .font(.system(size: 13))
+                        .foregroundColor(.secondary)
+                }
+                Spacer()
+                Toggle("", isOn: Binding(
+                    get: { def.isEnabled },
+                    set: { store.setEnabled(def, enabled: $0) }
+                ))
+                .labelsHidden()
+            }
+            HStack(spacing: 14) {
+                Text("Vale")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(.secondary)
+                Spacer()
+                stepperButton(icon: "minus") { store.setUnits(def, units: def.units - 1) }
+                Text("\(def.units)")
+                    .font(.system(size: 28, weight: .black, design: .monospaced))
+                    .frame(minWidth: 46)
+                stepperButton(icon: "plus") { store.setUnits(def, units: def.units + 1) }
+                Text(def.units == 1 ? "unidad" : "unidades")
+                    .font(.system(size: 15))
+                    .foregroundColor(.secondary)
+            }
+        }
+        .padding(.vertical, 8)
+        .opacity(def.isEnabled ? 1.0 : 0.45)
+    }
+
+    private func stepperButton(icon: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: icon)
+                .font(.system(size: 16, weight: .bold))
+                .frame(width: 40, height: 40)
+                .background(Color(.systemGray5))
+                .clipShape(Circle())
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private struct BetDefinitionNewView: View {
+    @Environment(\.dismiss) private var dismiss
+    @ObservedObject private var store = BetDefinitionStore.shared
+    @State private var name: String = ""
+    @State private var type: BetType = .individual
+    @State private var units: Int = 1
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Nueva unidad manual") {
+                    TextField("Nombre (ej. Sandy Par)", text: $name)
+                        .font(.system(size: 17))
+                    Picker("Tipo", selection: $type) {
+                        Text("Individual").tag(BetType.individual)
+                        Text("Parejas").tag(BetType.parejas)
+                    }
+                    Stepper("Vale \(units) \(units == 1 ? "unidad" : "unidades")", value: $units, in: 1...20)
+                }
+                Text("Las unidades nuevas siempre son manuales — se registran con un toque en cancha, no se detectan solas del score.")
+                    .font(.system(size: 12)).foregroundColor(.secondary)
+            }
+            .navigationTitle("Nueva unidad")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) { Button("Cancelar") { dismiss() } }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Guardar") {
+                        let cleanName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+                        let tag = store.suggestTag(forName: cleanName)
+                        store.upsert(BetDefinition(tag: tag, name: cleanName, type: type, mode: .manual, units: units, description: "Manual"))
+                        dismiss()
+                    }
+                    .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+            }
+        }
+    }
+}
+
+// MARK: - BetsHubView (fusión de "Definir apuesta" + "Catálogo de Unidades")
+//
+// Antes eran dos botones separados ("$" en la pantalla principal, "Catálogo" en Setup) con
+// nombres que competían por el mismo territorio semántico ("apuestas"). Ahora es un solo punto
+// de entrada "Apuestas" (reachable solo desde Setup), con dos páginas: Valores (dinero de este
+// match) y Catálogo (qué cuenta como unidad, global).
+struct BetsHubView: View {
+    @Environment(\.dismiss) private var dismiss
+    @ObservedObject var matchManager: MatchManager
+
+    private enum Page: String, CaseIterable {
+        case valores = "Valores"
+        case catalogo = "Catálogo"
+    }
+    @State private var page: Page = .valores
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 0) {
+                Picker("", selection: $page) {
+                    ForEach(Page.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+                }
+                .pickerStyle(.segmented)
+                .padding(.horizontal, 18).padding(.top, 10).padding(.bottom, 4)
+
+                switch page {
+                case .valores:
+                    BetSetupSheet(matchManager: matchManager)
+                case .catalogo:
+                    BetDefinitionEditorView()
+                }
+            }
+            .navigationTitle("Apuestas")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) { Button("Cerrar") { dismiss() } }
+            }
+        }
     }
 }
 
@@ -150,48 +416,36 @@ struct BetSetupSheet: View {
     @State private var matchText = ""
     @State private var unitText = ""
 
-    // Apuestas activas — mismo modelo que GuidedSetupView.apuestasStep (Set<UUID> sobre matchManager.betCatalog).
-    // Antes había una lista de 7 tags hardcodeados aquí, distinta de la del Setup, y no incluía apuestas de parejas.
-    @State private var selectedBetIds: Set<UUID> = []
-
     @State private var editingTemplate: BetTemplate?
     @State private var showingNewTemplate = false
 
+    // Sin NavigationStack/toolbar propios — vive embebido como una de las dos páginas de
+    // BetsHubView (Valores/Catálogo), que aporta el único título y botón "Cerrar".
     var body: some View {
-        NavigationStack {
-            ZStack {
-                Color(red: 0.965, green: 0.953, blue: 0.925).ignoresSafeArea()
-                ScrollView {
-                    VStack(spacing: 16) {
-                        templatePickerSection
-                        valoresSection
-                        unidadesToggleSection
-                        betSelectionSection(title: "APUESTAS INDIVIDUALES", type: .individual)
-                        betSelectionSection(title: "APUESTAS POR PAREJAS", type: .parejas)
+        ZStack {
+            Color(red: 0.965, green: 0.953, blue: 0.925).ignoresSafeArea()
+            ScrollView {
+                VStack(spacing: 16) {
+                    templatePickerSection
+                    valoresSection
+                    Button { applyAndDismiss() } label: {
+                        Text("Aplicar")
+                            .font(.system(size: 15, weight: .bold))
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity, minHeight: 46)
+                            .background(Color(red: 0.122, green: 0.239, blue: 0.169))
+                            .cornerRadius(12)
                     }
-                    .padding(18)
                 }
-            }
-            .navigationTitle("Definir apuesta")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button("Cancelar") { dismiss() }
-                        .foregroundColor(Color(red: 0.431, green: 0.416, blue: 0.361))
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Aplicar") { applyAndDismiss() }
-                        .font(.system(size: 14, weight: .bold))
-                        .foregroundColor(Color(red: 0.122, green: 0.239, blue: 0.169))
-                }
+                .padding(18)
             }
         }
         .onAppear { syncFromManager() }
         .sheet(item: $editingTemplate) { tpl in
-            BetTemplateEditView(template: tpl, catalogBets: matchManager.betCatalog)
+            BetTemplateEditView(template: tpl)
         }
         .sheet(isPresented: $showingNewTemplate) {
-            BetTemplateEditView(template: nil, catalogBets: matchManager.betCatalog)
+            BetTemplateEditView(template: nil)
         }
     }
 
@@ -274,91 +528,6 @@ struct BetSetupSheet: View {
         }
     }
 
-    // MARK: Selección de apuestas — mismo catálogo y mismo Set<UUID> que GuidedSetupView.apuestasStep
-
-    // Unidades calculadas (Birdie, Águila, Albatros, Hole in One, Birdie 18) son automáticas —
-    // un solo switch las activa/desactiva todas, no se eligen una por una.
-    private var calculadoBets: [BetDefinition] { matchManager.betCatalog.filter { $0.mode == .calculado } }
-
-    private var unidadesOn: Bool {
-        let ids = calculadoBets.map(\.id)
-        return !ids.isEmpty && ids.allSatisfy { selectedBetIds.contains($0) }
-    }
-
-    private func setUnidadesOn(_ on: Bool) {
-        let ids = calculadoBets.map(\.id)
-        if on { selectedBetIds.formUnion(ids) } else { selectedBetIds.subtract(ids) }
-    }
-
-    private var unidadesToggleSection: some View {
-        Group {
-            if !calculadoBets.isEmpty {
-                HStack {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("UNIDADES").font(.system(size: 11, weight: .bold)).foregroundColor(Color(red: 0.431, green: 0.416, blue: 0.361))
-                        Text(calculadoBets.map(\.name).joined(separator: ", "))
-                            .font(.system(size: 12)).foregroundColor(Color(red: 0.431, green: 0.416, blue: 0.361))
-                    }
-                    Spacer()
-                    Toggle("", isOn: Binding(get: { unidadesOn }, set: { setUnidadesOn($0) }))
-                        .labelsHidden().tint(Color(red: 0.122, green: 0.239, blue: 0.169))
-                }
-                .padding(16)
-                .background(Color.white)
-                .cornerRadius(14)
-                .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color(red: 0.890, green: 0.875, blue: 0.824), lineWidth: 1))
-            }
-        }
-    }
-
-    // Apuestas manuales (no las de unidades automáticas) — una lista con scroll por tipo, para ahorrar espacio.
-    private func betSelectionSection(title: String, type: BetType) -> some View {
-        let bets = matchManager.betCatalog.filter { $0.type == type && $0.mode == .manual }
-        return Group {
-            if !bets.isEmpty {
-                VStack(spacing: 0) {
-                    HStack {
-                        Text(title).font(.system(size: 11, weight: .bold)).kerning(0.5)
-                            .foregroundColor(Color(red: 0.431, green: 0.416, blue: 0.361))
-                        Spacer()
-                    }
-                    .padding(.horizontal, 16).padding(.top, 14).padding(.bottom, 8)
-
-                    ScrollView {
-                        VStack(spacing: 0) {
-                            ForEach(Array(bets.enumerated()), id: \.offset) { idx, bet in
-                                let isOn = selectedBetIds.contains(bet.id)
-                                Button {
-                                    if isOn { selectedBetIds.remove(bet.id) } else { selectedBetIds.insert(bet.id) }
-                                } label: {
-                                    HStack {
-                                        Image(systemName: isOn ? "checkmark.circle.fill" : "circle")
-                                            .foregroundColor(isOn ? Color(red: 0.122, green: 0.239, blue: 0.169) : Color(red: 0.855, green: 0.835, blue: 0.769))
-                                            .font(.system(size: 18))
-                                        Text(bet.name)
-                                            .font(.system(size: 14, weight: isOn ? .semibold : .regular))
-                                            .foregroundColor(isOn ? Color(red: 0.110, green: 0.137, blue: 0.129) : Color(red: 0.431, green: 0.416, blue: 0.361))
-                                        Spacer()
-                                    }
-                                    .padding(.horizontal, 16).padding(.vertical, 11)
-                                }
-                                .buttonStyle(.plain)
-                                .background(Color.white)
-                                if idx < bets.count - 1 {
-                                    Color(red: 0.941, green: 0.929, blue: 0.898).frame(height: 1).padding(.horizontal, 16)
-                                }
-                            }
-                        }
-                    }
-                    .frame(maxHeight: 160)
-                }
-                .background(Color.white)
-                .cornerRadius(14)
-                .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color(red: 0.890, green: 0.875, blue: 0.824), lineWidth: 1))
-            }
-        }
-    }
-
     // MARK: Helpers
 
     private func sectionLabel(_ text: String) -> some View {
@@ -373,7 +542,6 @@ struct BetSetupSheet: View {
         presionText = matchManager.presionValue > 0 ? "\(matchManager.presionValue)" : ""
         matchText   = matchManager.matchValue   > 0 ? "\(matchManager.matchValue)"   : ""
         unitText    = matchManager.unitValue    > 0 ? "\(matchManager.unitValue)"    : ""
-        selectedBetIds = Set(matchManager.activeBets.map { $0.definition.id })
     }
 
     private func loadTemplate(_ tpl: BetTemplate) {
@@ -388,12 +556,6 @@ struct BetSetupSheet: View {
         let u = Int(unitText)    ?? matchManager.unitValue
         matchManager.setApuestaValues(vuelta: v, presion: p, match: m)
         matchManager.setUnitValue(u)
-
-        matchManager.setActiveBets(
-            matchManager.betCatalog
-                .filter { selectedBetIds.contains($0.id) }
-                .map { ActiveBet(definition: $0, tagOverride: nil) }
-        )
         dismiss()
     }
 }
@@ -407,7 +569,6 @@ private struct BetTemplateEditView: View {
     @Environment(\.dismiss) private var dismiss
     @ObservedObject private var store = BetTemplateStore.shared
     let template: BetTemplate?
-    let catalogBets: [BetDefinition]
 
     @State private var name = ""
     @State private var vueltaText = ""
@@ -419,14 +580,6 @@ private struct BetTemplateEditView: View {
     @State private var puttsBetUnitsText = ""
     @State private var b9MultiplierAvailable = true
     @State private var carryMatchEnabled = true
-    @State private var activeTags: Set<String> = []
-
-    private var calculadoBets: [BetDefinition] { catalogBets.filter { $0.mode == .calculado } }
-    private var manualBets: [BetDefinition] { catalogBets.filter { $0.mode == .manual } }
-    private var calculadoOn: Bool {
-        let tags = calculadoBets.map { $0.tag.uppercased() }
-        return !tags.isEmpty && tags.allSatisfy { activeTags.contains($0) }
-    }
 
     var body: some View {
         NavigationStack {
@@ -463,36 +616,6 @@ private struct BetTemplateEditView: View {
                     Text("Si se apaga, el ganador del B9 no mueve el stroke del rival para el próximo match.")
                         .font(.system(size: 11)).foregroundColor(.secondary)
                 }
-                Section("Apuestas de campo activas") {
-                    // Las calculadas (Birdie, Águila, Albatros, Hole in One, Birdie 18) son un solo
-                    // concepto — un switch las prende/apaga todas, igual que unidadesToggleSection
-                    // en BetSetupSheet. No tiene caso enumerarlas una por una en el formulario.
-                    if !calculadoBets.isEmpty {
-                        Toggle(calculadoBets.map(\.name).joined(separator: ", "), isOn: Binding(
-                            get: { calculadoOn },
-                            set: { on in
-                                let ids = Set(calculadoBets.map { $0.tag.uppercased() })
-                                if on { activeTags.formUnion(ids) } else { activeTags.subtract(ids) }
-                            }
-                        ))
-                    }
-                    ForEach(manualBets) { bet in
-                        let tag = bet.tag.uppercased()
-                        let isOn = activeTags.contains(tag)
-                        Button {
-                            if isOn { activeTags.remove(tag) } else { activeTags.insert(tag) }
-                        } label: {
-                            HStack {
-                                Image(systemName: isOn ? "checkmark.circle.fill" : "circle")
-                                    .foregroundColor(isOn ? .accentColor : .secondary)
-                                Text(bet.name)
-                                    .foregroundColor(.primary)
-                                Spacer()
-                            }
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
                 if template != nil {
                     Section {
                         Button("Eliminar plantilla", role: .destructive) {
@@ -523,7 +646,6 @@ private struct BetTemplateEditView: View {
                     puttsBetUnitsText = "\(template.puttsBetUnits)"
                     b9MultiplierAvailable = template.b9MultiplierAvailable
                     carryMatchEnabled = template.carryMatchEnabled
-                    activeTags = template.activeUnitTags
                 }
             }
         }
@@ -542,7 +664,6 @@ private struct BetTemplateEditView: View {
             puttsBetMode: puttsBetMode,
             puttsBetUnits: Int(puttsBetUnitsText) ?? 0,
             b9MultiplierAvailable: b9MultiplierAvailable,
-            activeUnitTags: activeTags,
             carryMatchEnabled: carryMatchEnabled
         )
         store.upsert(tpl)

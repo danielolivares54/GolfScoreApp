@@ -25,74 +25,132 @@ private extension Color {
 
 struct RoundHistoryView: View {
     @Environment(\.dismiss) private var dismiss
+    @ObservedObject private var directory = PlayerDirectoryStore.shared
     @State private var rounds: [RoundResultFile] = []
-    @State private var selectedOpponent: String = "Todos"
+    @State private var selectedPlayerName: String
+    @State private var showingPlayerPicker = false
 
-    private var opponents: [String] {
-        let all = rounds.flatMap { round in
-            round.lines.filter { $0.scope == "individual" }.compactMap { $0.opponentAlias }
+    // Permite abrir el Log ya filtrado a un jugador específico — ej. desde la ficha de ese
+    // jugador en el Directorio, para resolver una disputa de stroke sin tener que buscarlo.
+    init(initialPlayerName: String = "Todos") {
+        self._selectedPlayerName = State(initialValue: initialPlayerName)
+    }
+
+    // Nombre real del rival, no el alias — un mismo rival puede haber tenido distinto alias
+    // en rondas viejas si cambió el roster. round.players trae el alias vigente DE ESA ronda.
+    private func name(for round: RoundResultFile, alias: String?) -> String? {
+        guard let alias else { return nil }
+        return round.players.first { $0.alias == alias }?.name
+    }
+
+    // Filtra por nombre, no solo por quien ya aparece en el log — también se puede filtrar por
+    // cualquier jugador activo del Directorio aunque todavía no tenga rondas cerradas.
+    private var playerNames: [String] {
+        var names = Set<String>()
+        for round in rounds {
+            for line in round.lines where line.scope == "individual" {
+                if let n = name(for: round, alias: line.opponentAlias) { names.insert(n) }
+            }
         }
-        return ["Todos"] + Array(Set(all)).sorted()
+        for entry in directory.entries where entry.active { names.insert(entry.name) }
+        return ["Todos"] + names.sorted()
     }
 
     private var filteredRounds: [RoundResultFile] {
-        guard selectedOpponent != "Todos" else { return rounds }
+        guard selectedPlayerName != "Todos" else { return rounds }
         return rounds.filter { round in
-            round.lines.contains { $0.scope == "individual" && $0.opponentAlias == selectedOpponent }
+            round.lines.contains { $0.scope == "individual" && name(for: round, alias: $0.opponentAlias) == selectedPlayerName }
         }
+    }
+
+    // La ronda más reciente contra cada rival es la que define el stroke del próximo match
+    // (ver ContentView.applyInterMatchStrokeCarry) — rounds ya viene ordenado por closedAt desc.
+    private var mostRecentRoundIdByName: [String: String] {
+        var out: [String: String] = [:]
+        for round in rounds {
+            for line in round.lines where line.scope == "individual" {
+                if let n = name(for: round, alias: line.opponentAlias), out[n] == nil {
+                    out[n] = round.roundId
+                }
+            }
+        }
+        return out
     }
 
     var body: some View {
         NavigationStack {
             ZStack {
                 Color.cBg.ignoresSafeArea()
-                VStack(spacing: 0) {
-                    opponentFilter
-                    if filteredRounds.isEmpty {
-                        emptyState
-                    } else {
-                        ScrollView {
-                            VStack(spacing: 10) {
-                                ForEach(filteredRounds, id: \.roundId) { round in
-                                    roundCard(round)
-                                }
+                if filteredRounds.isEmpty {
+                    emptyState
+                } else {
+                    ScrollView {
+                        VStack(spacing: 10) {
+                            ForEach(filteredRounds, id: \.roundId) { round in
+                                roundCard(round)
                             }
-                            .padding(.horizontal, 18).padding(.vertical, 14)
                         }
+                        .padding(.horizontal, 18).padding(.vertical, 14)
                     }
                 }
             }
             .navigationTitle("Historial de Rondas")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                // El selector de rival ya no vive en la pantalla principal — se abre aparte,
+                // como una lista vertical (igual que el Directorio), no chips horizontales.
+                ToolbarItem(placement: .topBarLeading) {
+                    Button { showingPlayerPicker = true } label: {
+                        HStack(spacing: 4) {
+                            Text(selectedPlayerName)
+                            Image(systemName: "chevron.down")
+                                .font(.system(size: 11, weight: .bold))
+                        }
+                        .font(.system(size: 14, weight: .bold))
+                    }
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Cerrar") { dismiss() }
                 }
             }
+            .sheet(isPresented: $showingPlayerPicker) { playerPicker }
         }
         .onAppear { rounds = RoundResultFile.loadAll() }
     }
 
-    // MARK: Filtro por rival
+    // MARK: Selector de rival — lista vertical, como el Directorio de jugadores
 
-    private var opponentFilter: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                ForEach(opponents, id: \.self) { alias in
-                    let sel = selectedOpponent == alias
-                    Button { selectedOpponent = alias } label: {
-                        Text(alias)
-                            .font(.system(size: 12.5, weight: .bold, design: .monospaced))
-                            .foregroundColor(sel ? .white : .cInk)
-                            .padding(.horizontal, 14).padding(.vertical, 8)
-                            .background(sel ? Color.cFairway : Color.cSurface)
-                            .clipShape(Capsule())
-                            .overlay(Capsule().stroke(sel ? Color.cFairway : Color.cBorder, lineWidth: 1))
+    private var playerPicker: some View {
+        NavigationStack {
+            List {
+                ForEach(playerNames, id: \.self) { name in
+                    let sel = selectedPlayerName == name
+                    Button {
+                        selectedPlayerName = name
+                        showingPlayerPicker = false
+                    } label: {
+                        HStack {
+                            Text(name)
+                                .font(.system(size: 17, weight: .semibold))
+                                .foregroundColor(.cInk)
+                            Spacer()
+                            if sel {
+                                Image(systemName: "checkmark")
+                                    .font(.system(size: 15, weight: .bold))
+                                    .foregroundColor(.cFairway)
+                            }
+                        }
                     }
                     .buttonStyle(.plain)
                 }
             }
-            .padding(.horizontal, 18).padding(.vertical, 12)
+            .navigationTitle("Filtrar por rival")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Cerrar") { showingPlayerPicker = false }
+                }
+            }
         }
     }
 
@@ -112,7 +170,8 @@ struct RoundHistoryView: View {
 
     private func roundCard(_ round: RoundResultFile) -> some View {
         let shownLines = round.lines.filter { line in
-            line.scope == "individual" && (selectedOpponent == "Todos" || line.opponentAlias == selectedOpponent)
+            guard line.scope == "individual" else { return false }
+            return selectedPlayerName == "Todos" || name(for: round, alias: line.opponentAlias) == selectedPlayerName
         }
         return VStack(alignment: .leading, spacing: 0) {
             HStack {
@@ -147,27 +206,84 @@ struct RoundHistoryView: View {
     private func opponentRow(round: RoundResultFile, line: RoundResultLine) -> some View {
         let strokes = round.players.first { $0.alias == line.opponentAlias }?.strokesVsBase ?? 0
         let isZero = abs(strokes) < 0.001
-        return HStack {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(line.opponentAlias ?? "—")
-                    .font(.system(size: 13, weight: .bold, design: .monospaced))
-                    .foregroundColor(.cInk)
-                Text("Vuelta \(line.vueltaPoints >= 0 ? "+" : "")\(line.vueltaPoints) · Match \(line.matchPoints >= 0 ? "+" : "")\(line.matchPoints)")
-                    .font(.system(size: 11)).foregroundColor(.cMuted)
+        let playerName = name(for: round, alias: line.opponentAlias)
+        // La ronda más reciente contra este rival es la que define el stroke del próximo
+        // match — se marca "VIGENTE" y se muestra el stroke vivo del Directorio (no el
+        // strokesVsBase archivado de esta ronda, que ya pudo moverse desde entonces).
+        let isCurrent = playerName.map { mostRecentRoundIdByName[$0] == round.roundId } ?? false
+        let liveStrokes = playerName.flatMap { n in directory.entries.first { $0.name == n }?.strokesVsBase }
+
+        return VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: 6) {
+                        Text(playerName ?? line.opponentAlias ?? "—")
+                            .font(.system(size: 13, weight: .bold, design: .monospaced))
+                            .foregroundColor(.cInk)
+                        if isCurrent {
+                            Text("VIGENTE")
+                                .font(.system(size: 8, weight: .black)).kerning(0.4)
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 6).padding(.vertical, 2)
+                                .background(Color.cFairway)
+                                .cornerRadius(5)
+                        }
+                    }
+                    Text("Vuelta \(line.vueltaPoints >= 0 ? "+" : "")\(line.vueltaPoints) · Match \(line.matchPoints >= 0 ? "+" : "")\(line.matchPoints)")
+                        .font(.system(size: 11)).foregroundColor(resultColor(line.matchPoints))
+                }
+                Spacer()
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text("Strokes esa ronda")
+                        .font(.system(size: 9, weight: .semibold)).foregroundColor(.cMuted)
+                    Text(strokeStr(strokes))
+                        .font(.system(size: 20, weight: .black, design: .monospaced))
+                        .foregroundColor(isZero ? .cBrick : .cGold)
+                }
+                .padding(.horizontal, 10).padding(.vertical, 4)
+                .background(isZero ? Color.cErrBg : Color.cGold.opacity(0.12))
+                .cornerRadius(8)
             }
-            Spacer()
-            VStack(alignment: .trailing, spacing: 2) {
-                Text("Strokes")
-                    .font(.system(size: 9, weight: .semibold)).foregroundColor(.cMuted)
-                Text(strokeStr(strokes))
-                    .font(.system(size: 20, weight: .black, design: .monospaced))
-                    .foregroundColor(isZero ? .cBrick : .cGold)
+
+            HStack(spacing: 8) {
+                segmentBadge("F9", points: line.f9Points)
+                segmentBadge("B9", points: line.b9Points)
+                moneyBadge(line.totalMoney)
+                Spacer()
+                if isCurrent, let liveStrokes {
+                    Text("Próximo match: \(strokeStr(liveStrokes)) strokes")
+                        .font(.system(size: 10.5, weight: .semibold)).foregroundColor(.cFairway)
+                }
             }
-            .padding(.horizontal, 10).padding(.vertical, 4)
-            .background(isZero ? Color.cErrBg : Color.cGold.opacity(0.12))
-            .cornerRadius(8)
         }
         .padding(.horizontal, 14).padding(.vertical, 10)
+    }
+
+    private func resultColor(_ points: Int) -> Color {
+        points > 0 ? .cFairway : points < 0 ? .cBrick : .cMuted
+    }
+
+    private func segmentBadge(_ label: String, points: Int?) -> some View {
+        HStack(spacing: 4) {
+            Text(label).font(.system(size: 9, weight: .black)).foregroundColor(.cMuted)
+            Text(points.map { "\($0 >= 0 ? "+" : "")\($0)" } ?? "—")
+                .font(.system(size: 12, weight: .bold, design: .monospaced))
+                .foregroundColor(points.map(resultColor) ?? .cDisabled)
+        }
+        .padding(.horizontal, 8).padding(.vertical, 4)
+        .background(Color.cBg)
+        .cornerRadius(6)
+    }
+
+    // Dinero ganado/perdido contra ESTE rival específico (line.totalMoney) — distinto del total
+    // de la ronda que ya se ve arriba en roundCard, que puede sumar varios rivales a la vez.
+    private func moneyBadge(_ value: Int) -> some View {
+        Text(caddyMoneyStr(value))
+            .font(.system(size: 12, weight: .bold, design: .monospaced))
+            .foregroundColor(resultColor(value))
+            .padding(.horizontal, 8).padding(.vertical, 4)
+            .background(Color.cBg)
+            .cornerRadius(6)
     }
 
     private func strokeStr(_ v: Double) -> String {
