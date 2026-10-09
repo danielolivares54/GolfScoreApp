@@ -67,6 +67,7 @@
 				PlayerDirectory.swift,
 				PlayerDirectoryView.swift,
 				RescueCaptureView.swift,
+				RoundHistoryView.swift,
 				ScorecardView.swift,
 				SetupWizardView.swift,
 				TextUtils.swift,

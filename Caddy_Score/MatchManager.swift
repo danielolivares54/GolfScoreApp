@@ -1780,6 +1780,16 @@ class MatchManager: ObservableObject {
         b9VueltaVsOpponent(opponentAlias: opponentAlias)
     }
 
+    // Conteo de hoyos ganados/perdidos de B9 (no el neto de vuelta) — lo usa el carry entre
+    // rondas cuando Ajuste 50 estuvo activo, para aplicar la misma fórmula de medio golpe por
+    // hoyo que usa individualAdjust50Profile dentro de la ronda, pero proyectada hacia la
+    // próxima ronda (como si el B9 recién jugado fuera el F9 de un ajuste nuevo).
+    func individualB9WinLossCount(opponentAlias: String) -> (wins: Int, losses: Int) {
+        let b9 = Array(playOrder().suffix(9))
+        let values = b9.compactMap { holeResultVsYo(opponentAlias: opponentAlias, hole: $0, carryAlias: nil) }
+        return (values.filter { $0 > 0 }.count, values.filter { $0 < 0 }.count)
+    }
+
     // Cada presión lleva su valor propio (CAMBIOS_CADDIE_v2.md #5: "5 3 1", nunca un conteo
     // colapsado "2 presiones"). Se lee directo de pressureStates — la MISMA fuente que
     // pressureNet() usa para el dinero real dentro de walletSnapshot() (cálculo congelado, no

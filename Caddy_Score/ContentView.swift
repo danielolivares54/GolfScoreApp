@@ -28,7 +28,7 @@ struct ScoreCorrection: Equatable {
 // MARK: - Archivo de resultado al cerrar ronda (CAMBIOS_CADDIE_v2.md #6)
 // DTOs propios en vez de hacer Codable a WalletLine/PlayerModel (archivos congelados).
 
-private struct RoundResultLine: Codable {
+struct RoundResultLine: Codable {
     let label: String
     let scope: String
     let opponentAlias: String?
@@ -46,7 +46,7 @@ private struct RoundResultLine: Codable {
     let totalMoney: Int
 }
 
-private struct RoundResultPlayer: Codable {
+struct RoundResultPlayer: Codable {
     let alias: String
     let name: String
     let strokesVsBase: Double
@@ -54,7 +54,7 @@ private struct RoundResultPlayer: Codable {
     let putts: [String: Int]   // "hoyo" -> putts
 }
 
-private struct RoundResultFile: Codable {
+struct RoundResultFile: Codable {
     let roundId: String
     let date: String
     let courseId: String
@@ -64,6 +64,27 @@ private struct RoundResultFile: Codable {
     let lines: [RoundResultLine]
     let totalMoney: Int
     let closedAt: Date
+
+    static func closedRoundsDirectory() -> URL? {
+        guard let dir = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.comDOG.Caddy-Score")
+            ?? FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else { return nil }
+        return dir.appendingPathComponent("closed_rounds", isDirectory: true)
+    }
+
+    // Usado por RoundHistoryView — lee todas las rondas cerradas desde disco, más reciente primero.
+    static func loadAll() -> [RoundResultFile] {
+        guard let roundsDir = closedRoundsDirectory(),
+              let files = try? FileManager.default.contentsOfDirectory(at: roundsDir, includingPropertiesForKeys: nil) else { return [] }
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let rounds = files
+            .filter { $0.pathExtension == "json" }
+            .compactMap { url -> RoundResultFile? in
+                guard let data = try? Data(contentsOf: url) else { return nil }
+                return try? decoder.decode(RoundResultFile.self, from: data)
+            }
+        return rounds.sorted { $0.closedAt > $1.closedAt }
+    }
 }
 
 struct ContentView: View {
@@ -76,6 +97,7 @@ struct ContentView: View {
     @State private var showAudit         = false
     @State private var showRescue        = false
     @State private var showCerrarRondaConfirm = false
+    @State private var showRoundHistory  = false
     @State private var tarjetaInitialMode: TarjetaSheetView.CardViewMode = .resultado
 
     @State private var correctionRequest: ScoreCorrection? = nil
@@ -93,7 +115,11 @@ struct ContentView: View {
     private var currentPar: Int { matchManager.getHole(currentHole)?.par ?? 4 }
     private var currentHC: Int  { matchManager.getHole(currentHole)?.si  ?? 9 }
 
-    var body: some View {
+    // Partido en dos del `body` original — una sola expresión con TODOS los modifiers
+    // (ScrollView + background + safeAreaInset + onAppear/onReceive/onChange + ~8 .sheet +
+    // confirmationDialog) hacía que el type-checker se rindiera ("unable to type-check this
+    // expression in reasonable time") en cuanto se agregó un .sheet más (showRoundHistory).
+    private var rootContent: some View {
         ScrollView(.vertical, showsIndicators: false) {
             VStack(spacing: 0) {
                 topBar
@@ -126,6 +152,10 @@ struct ContentView: View {
             inlineRecordingIdx = nil
             noteByKey = [:]
         }
+    }
+
+    var body: some View {
+        rootContent
         .sheet(isPresented: $showGuidedCapture) {
             GuidedCaptureView(matchManager: matchManager, targetHole: currentHole)
                 .presentationDetents([.medium, .large])
@@ -153,17 +183,10 @@ struct ContentView: View {
             }
             correctionRequest = nil
         }
-        .sheet(isPresented: $showTarjeta) {
-            TarjetaSheetView(
-                matchManager: matchManager,
-                correctionRequest: $correctionRequest,
-                initialMode: tarjetaInitialMode
-            )
-                .presentationDetents([.fraction(1.0)])
-                .presentationDragIndicator(.hidden)
-        }
+        .sheet(isPresented: $showTarjeta) { tarjetaSheetContent }
         .sheet(isPresented: $showAudit)        { HoleAuditView(matchManager: matchManager) }
         .sheet(isPresented: $showRescue)       { RescueCaptureView(matchManager: matchManager, autoStart: false) }
+        .sheet(isPresented: $showRoundHistory) { RoundHistoryView() }
         .confirmationDialog(
             "¿Cerrar ronda?",
             isPresented: $showCerrarRondaConfirm,
@@ -200,6 +223,21 @@ struct ContentView: View {
     }
 
     // MARK: Top bar
+
+    // Extraído del modifier chain de `body` — una sola expresión gigante con muchos
+    // .sheet/.onChange/.confirmationDialog hacía que el type-checker se rindiera
+    // ("unable to type-check this expression in reasonable time") en cuanto se agregó un
+    // .sheet más (showRoundHistory).
+    @ViewBuilder
+    private var tarjetaSheetContent: some View {
+        TarjetaSheetView(
+            matchManager: matchManager,
+            correctionRequest: $correctionRequest,
+            initialMode: tarjetaInitialMode
+        )
+            .presentationDetents([.fraction(1.0)])
+            .presentationDragIndicator(.hidden)
+    }
 
     private var topBar: some View {
         HStack(spacing: 8) {
@@ -249,6 +287,16 @@ struct ContentView: View {
 
             Button { showGuidedSetup = true } label: {
                 Image(systemName: "gearshape")
+                    .font(.body).foregroundColor(.cInk)
+                    .frame(width: 40, height: 40)
+                    .background(Color.cSurface)
+                    .clipShape(Circle())
+                    .overlay(Circle().stroke(Color.cDisabled, lineWidth: 1))
+            }
+            .buttonStyle(.plain)
+
+            Button { showRoundHistory = true } label: {
+                Image(systemName: "clock.arrow.circlepath")
                     .font(.body).foregroundColor(.cInk)
                     .frame(width: 40, height: 40)
                     .background(Color.cSurface)
@@ -1139,11 +1187,16 @@ struct ContentView: View {
         if metaStart > 0 { matchManager.startHole = metaStart }
         matchManager.syncFromScoreManager()
         matchManager.loadBetConfig()
-        // Siembra única (por ahora, pedida por Daniel): si no hay nada configurado todavía (ni
-        // base de pareja ni overrides individuales — primera vez, o justo después de Cerrar
-        // Ronda), usa "S y D" para cada rival individual y "S y D 4" para parejas, como apuesta
-        // pareja para todos mientras se decide el flujo real de configuración.
-        if matchManager.baseTeamAliases.isEmpty && matchManager.betValuesByOpponent.isEmpty {
+        // Siembra única DE VERDAD — antes el guard solo miraba "¿está vacío ahora?", y
+        // Cerrar Ronda (clearBetConfig + resetScores) deja todo vacío a propósito, así que la
+        // siembra de nombres/strokes/scores de ejemplo (DAN/ANS/ROB/RIC/FER) volvía a aparecer
+        // cada vez que se cerraba un match real — Daniel: "sigue sucediendo, son hardcode".
+        // Con el flag persistente, esta siembra corre como máximo una vez en la vida de la app
+        // (primera instalación / primer lanzamiento en el simulador), nunca después de cerrar
+        // una ronda real.
+        let didSeedKey = "didSeedDemoDataV1"
+        let alreadySeeded = UserDefaults.standard.bool(forKey: didSeedKey)
+        if !alreadySeeded && matchManager.baseTeamAliases.isEmpty && matchManager.betValuesByOpponent.isEmpty {
             let templates = BetTemplateStore.shared.entries
             if let syd4 = templates.first(where: { $0.id == "SYD4" }) {
                 matchManager.applyBetTemplate(syd4)
@@ -1173,12 +1226,11 @@ struct ContentView: View {
                     matchManager.setLaneCarrier(id: lane.id, carrier: lane.opp.first)
                 }
             }
-        }
-        // Scores de ejemplo — guard independiente del de apuestas arriba: si alguna vez queda
-        // la config de apuestas sembrada pero sin ningún score anotado (p.ej. tras reinstalar
-        // la app en el simulador), esto los repone sin esperar a que el guard de arriba corra.
-        if matchManager.getScore(hole: 1, player: matchManager.yoAlias) <= 0 {
-            seedDemoScores()
+            // Scores de ejemplo — mismo lanzamiento que siembra apuestas/strokes, mismo flag.
+            if matchManager.getScore(hole: 1, player: matchManager.yoAlias) <= 0 {
+                seedDemoScores()
+            }
+            UserDefaults.standard.set(true, forKey: didSeedKey)
         }
         if let next = matchManager.firstIncompleteHole(),
            let idx  = playOrder.firstIndex(of: next) { currentHoleIndex = idx }
@@ -1244,17 +1296,27 @@ struct ContentView: View {
                 + " · $\(line?.totalMoney ?? 0) · \(matchManager.dateString)"
 
             if matchManager.isIndividualAdjust50Active(opponentAlias: opp) {
-                let summary = "⚠️ AJUSTE 50 ACTIVO — revisar stroke a mano · " + base
+                // Con Ajuste 50 activo no se deja a mano: se aplica la misma fórmula de medio
+                // golpe por hoyo que usa individualAdjust50Profile dentro de la ronda (ganados
+                // se restan, perdidos se suman, 0.5 por hoyo), pero proyectada sobre el B9 recién
+                // jugado como si fuera el F9 de un ajuste nuevo de cara a la próxima ronda.
+                let (wins, losses) = matchManager.individualB9WinLossCount(opponentAlias: opp)
+                let delta = 0.5 * Double(wins - losses)
+                guard delta != 0 else { continue }
+                let summary = "⚖️ Ajuste 50 (B9 \(wins)-\(losses)) · " + base
                 PlayerDirectoryStore.shared.applyMatchStrokeShift(
-                    playerName: player.name, delta: 0, resultSummary: summary, roundId: matchManager.roundId
+                    playerName: player.name, delta: delta, resultSummary: summary, roundId: matchManager.roundId
                 )
                 continue
             }
 
-            // b9 > 0 = yo gané el duelo en B9 -> el rival perdió -> recibe un golpe más (+1).
-            // b9 < 0 = yo perdí -> el rival ganó -> da un golpe más -> su strokeVsBase baja (-1).
-            guard b9 != 0 else { continue }
-            let delta: Double = b9 > 0 ? 1 : -1
+            // El match completo (F9+B9, 18 hoyos) define quién gana — no solo el B9. Si el rival
+            // dio strokes y ganó el match, da uno más la próxima vez; si recibía y perdió, se le
+            // deduce uno. matchTotal > 0 = yo gané el match -> el rival perdió -> recibe un golpe
+            // más (+1). matchTotal < 0 = yo perdí -> el rival ganó -> da un golpe más (-1).
+            let matchTotal = f9 + b9
+            guard matchTotal != 0 else { continue }
+            let delta: Double = matchTotal > 0 ? 1 : -1
             PlayerDirectoryStore.shared.applyMatchStrokeShift(
                 playerName: player.name, delta: delta, resultSummary: base, roundId: matchManager.roundId
             )
@@ -1290,9 +1352,7 @@ struct ContentView: View {
             startHole: matchManager.startHole, players: players, lines: lines,
             totalMoney: snapshot.totalMoney, closedAt: Date()
         )
-        guard let dir = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.comDOG.Caddy-Score")
-            ?? FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else { return }
-        let roundsDir = dir.appendingPathComponent("closed_rounds", isDirectory: true)
+        guard let roundsDir = RoundResultFile.closedRoundsDirectory() else { return }
         try? FileManager.default.createDirectory(at: roundsDir, withIntermediateDirectories: true)
         let fileURL = roundsDir.appendingPathComponent("\(file.roundId).json")
         do {
