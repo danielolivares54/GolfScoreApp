@@ -428,6 +428,7 @@ struct BetSetupSheet: View {
                 VStack(spacing: 16) {
                     templatePickerSection
                     valoresSection
+                    activeTagsSection
                     Button { applyAndDismiss() } label: {
                         Text("Aplicar")
                             .font(.system(size: 15, weight: .bold))
@@ -506,6 +507,48 @@ struct BetSetupSheet: View {
         .background(Color.white)
         .cornerRadius(14)
         .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color(red: 0.890, green: 0.875, blue: 0.824), lineWidth: 1))
+    }
+
+    // Recap de solo-lectura de qué tags del catálogo global están activos ahora mismo — para
+    // que el valor de "Unidad" de arriba no quede en el aire sin saber a qué eventos aplica.
+    // Editar cuáles están activos o cuánto valen se hace en la página "Catálogo" del hub.
+    private var activeTagsSection: some View {
+        let individual = matchManager.betCatalog.filter { $0.type == .individual }.sorted { $0.name < $1.name }
+        let parejas = matchManager.betCatalog.filter { $0.type == .parejas }.sorted { $0.name < $1.name }
+        return VStack(alignment: .leading, spacing: 10) {
+            sectionLabel("UNIDADES ACTIVAS")
+            if individual.isEmpty && parejas.isEmpty {
+                Text("Ninguna activa — actívalas en el Catálogo.")
+                    .font(.system(size: 12.5)).foregroundColor(Color(red: 0.431, green: 0.416, blue: 0.361))
+            } else {
+                if !individual.isEmpty { tagChipRow("Individual", individual) }
+                if !parejas.isEmpty { tagChipRow("Parejas", parejas) }
+            }
+        }
+        .padding(16)
+        .background(Color.white)
+        .cornerRadius(14)
+        .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color(red: 0.890, green: 0.875, blue: 0.824), lineWidth: 1))
+    }
+
+    private func tagChipRow(_ label: String, _ defs: [BetDefinition]) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(label)
+                .font(.system(size: 10, weight: .bold))
+                .foregroundColor(Color(red: 0.431, green: 0.416, blue: 0.361))
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 6) {
+                    ForEach(defs) { def in
+                        Text("\(def.name) · \(def.units)")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundColor(Color(red: 0.122, green: 0.239, blue: 0.169))
+                            .padding(.horizontal, 10).padding(.vertical, 6)
+                            .background(Color(red: 0.122, green: 0.239, blue: 0.169).opacity(0.08))
+                            .clipShape(Capsule())
+                    }
+                }
+            }
+        }
     }
 
     private func valueField(_ label: String, text: Binding<String>) -> some View {

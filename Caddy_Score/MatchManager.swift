@@ -670,6 +670,12 @@ class MatchManager: ObservableObject {
         // de la app los perdía siempre, no solo al guardar el Setup.
         var pairAdjust50ByOppKey: [String] = []
         var pairDoublePressByOppKey: [String] = []
+        // Roster + campo — sin esto, syncFromScoreManager()/el resto de este snapshot no tienen
+        // a quién aplicarse tras matar la app a medio match: players arranca vacío en cada
+        // relanzamiento (setupDefaultPlayers), y el replay por alias/nombre no encuentra nada.
+        var playerNames: [String] = []
+        var courseId: String = ""
+        var matchStartHole: Int = 1
 
         init(activeTemplateId: String?, vueltaValue: Int, presionValue: Int, matchValue: Int, unitValue: Int,
              betValuesByOpponent: [String: OpponentBetValues], baseTeamAliases: [String],
@@ -677,7 +683,8 @@ class MatchManager: ObservableObject {
              individualCarryRequesterByOpponent: [String: String], individualCarryStartHoleByOpponent: [String: Int],
              pairCarryRequesterByOppKey: [String: String], pairCarryStartHoleByOppKey: [String: Int],
              laneCarrierByOppKey: [String: String],
-             pairAdjust50ByOppKey: [String] = [], pairDoublePressByOppKey: [String] = []) {
+             pairAdjust50ByOppKey: [String] = [], pairDoublePressByOppKey: [String] = [],
+             playerNames: [String] = [], courseId: String = "", matchStartHole: Int = 1) {
             self.activeTemplateId = activeTemplateId
             self.vueltaValue = vueltaValue
             self.presionValue = presionValue
@@ -694,6 +701,9 @@ class MatchManager: ObservableObject {
             self.laneCarrierByOppKey = laneCarrierByOppKey
             self.pairAdjust50ByOppKey = pairAdjust50ByOppKey
             self.pairDoublePressByOppKey = pairDoublePressByOppKey
+            self.playerNames = playerNames
+            self.courseId = courseId
+            self.matchStartHole = matchStartHole
         }
 
         init(from decoder: Decoder) throws {
@@ -714,6 +724,9 @@ class MatchManager: ObservableObject {
             laneCarrierByOppKey = try c.decodeIfPresent([String: String].self, forKey: .laneCarrierByOppKey) ?? [:]
             pairAdjust50ByOppKey = try c.decodeIfPresent([String].self, forKey: .pairAdjust50ByOppKey) ?? []
             pairDoublePressByOppKey = try c.decodeIfPresent([String].self, forKey: .pairDoublePressByOppKey) ?? []
+            playerNames = try c.decodeIfPresent([String].self, forKey: .playerNames) ?? []
+            courseId = try c.decodeIfPresent(String.self, forKey: .courseId) ?? ""
+            matchStartHole = try c.decodeIfPresent(Int.self, forKey: .matchStartHole) ?? 1
         }
     }
 
@@ -762,7 +775,8 @@ class MatchManager: ObservableObject {
             pairCarryStartHoleByOppKey: pairCarryStartByKey,
             laneCarrierByOppKey: laneCarrierKeys,
             pairAdjust50ByOppKey: pairAdjust50Keys,
-            pairDoublePressByOppKey: pairDoublePressKeys
+            pairDoublePressByOppKey: pairDoublePressKeys,
+            playerNames: players.map { $0.name }, courseId: courseId, matchStartHole: startHole
         )
         do {
             let data = try JSONEncoder().encode(snapshot)
@@ -777,6 +791,16 @@ class MatchManager: ObservableObject {
         do {
             let data = try Data(contentsOf: url)
             let snapshot = try JSONDecoder().decode(BetConfigSnapshot.self, from: data)
+            // Restaura roster + campo PRIMERO — todo lo demás (strokes, lanes, carry) se aplica
+            // por alias, y players arranca vacío en cada relanzamiento (ver comentario en
+            // BetConfigSnapshot). Sin esto, el resto del restore no encuentra a quién aplicarse.
+            if players.isEmpty, !snapshot.playerNames.isEmpty {
+                if let course = CourseCatalog.all.first(where: { $0.id == snapshot.courseId }) {
+                    setCourse(course, resetScores: false)
+                }
+                startHole = max(1, min(18, snapshot.matchStartHole))
+                setPlayers(names: snapshot.playerNames, preserveScores: false)
+            }
             activeTemplateId = snapshot.activeTemplateId
             vueltaValue = snapshot.vueltaValue
             presionValue = snapshot.presionValue

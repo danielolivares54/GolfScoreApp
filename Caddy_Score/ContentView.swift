@@ -69,6 +69,10 @@ struct RoundResultFile: Codable {
     let lines: [RoundResultLine]
     let totalMoney: Int
     let closedAt: Date
+    // Oyes ganados (rank 1) por alias en esta ronda — antes vivía solo en memoria
+    // (oyesRanksByHole) y se perdía al cerrar. Optional con default nil: los archivos
+    // guardados antes de este campo decodifican bien (ver MyHistoryView).
+    var oyesWinsByAlias: [String: Int]? = nil
 
     static func closedRoundsDirectory() -> URL? {
         guard let dir = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.comDOG.Caddy-Score")
@@ -1182,8 +1186,11 @@ struct ContentView: View {
         }
         let metaStart = SiriMatchManager.shared.getStartingHole()
         if metaStart > 0 { matchManager.startHole = metaStart }
-        matchManager.syncFromScoreManager()
+        // loadBetConfig() primero: restaura el roster (players) desde el snapshot persistido
+        // antes de que syncFromScoreManager() intente reaplicar scores por alias — si players
+        // sigue vacío en este punto, ese replay no encuentra a nadie y descarta todo en silencio.
         matchManager.loadBetConfig()
+        matchManager.syncFromScoreManager()
         if let next = matchManager.firstIncompleteHole(),
            let idx  = playOrder.firstIndex(of: next) { currentHoleIndex = idx }
         editingPlayerIdx = 0
@@ -1304,11 +1311,18 @@ struct ContentView: View {
             }
             return RoundResultPlayer(alias: p.alias, name: p.name, strokesVsBase: p.strokesVsBase, scores: scores, putts: putts)
         }
+        var oyesWins: [String: Int] = [:]
+        for (_, ranks) in matchManager.oyesRanksByHole {
+            for (alias, rank) in ranks where rank == 1 {
+                oyesWins[alias, default: 0] += 1
+            }
+        }
         let file = RoundResultFile(
             roundId: matchManager.roundId, date: matchManager.dateString,
             courseId: matchManager.courseId, courseName: matchManager.courseName,
             startHole: matchManager.startHole, players: players, lines: lines,
-            totalMoney: snapshot.totalMoney, closedAt: Date()
+            totalMoney: snapshot.totalMoney, closedAt: Date(),
+            oyesWinsByAlias: oyesWins
         )
         guard let roundsDir = RoundResultFile.closedRoundsDirectory() else { return }
         try? FileManager.default.createDirectory(at: roundsDir, withIntermediateDirectories: true)

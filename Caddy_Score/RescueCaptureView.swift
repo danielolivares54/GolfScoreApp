@@ -242,6 +242,12 @@ struct RescueCaptureView: View {
                 units: nil,
                 tags: nil
             ))
+            // Espejo a ScoreManager (persistencia real) — mismo fix que el dictado inline en
+            // ContentView.applyEntry: sin esto, "Dictar largo" solo vivía en memoria y matar la
+            // app antes de "Cerrar Ronda" perdía el hoyo.
+            _ = ScoreManager.shared.saveScore(record: GolfScoreRecord(
+                player: s.alias, hole: hole, strokes: s.gross, putts: s.putts ?? 0
+            ))
         }
 
         // Audit check: report any data quality issues for this hole
