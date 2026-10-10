@@ -10,7 +10,7 @@ struct CoursePickerView: View {
                 ForEach(CourseCatalog.all, id: \.id) { course in
                     Button(action: { matchManager.setCourse(course); dismiss() }) {
                         HStack {
-                            Image("CGMLogo").resizable().scaledToFit().frame(width: 20, height: 20)
+                            Image(systemName: "flag.fill").resizable().scaledToFit().frame(width: 20, height: 20).foregroundColor(.accentColor)
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(course.name).font(.headline)
                                 Text("ID: \(course.id)").font(.caption).foregroundColor(.secondary)

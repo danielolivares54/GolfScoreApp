@@ -16,12 +16,12 @@
 	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>LSSupportsOpeningDocumentsInPlace</key>
+	<true/>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Se requiere el micrófono para dictar scores por voz.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>Se requiere reconocimiento de voz para transcribir el dictado en el campo.</string>
-	<key>LSSupportsOpeningDocumentsInPlace</key>
-	<true/>
 	<key>NSUserActivityTypes</key>
 	<array>
 		<string>LogGolfscoreIntentIntent</string>
@@ -32,10 +32,10 @@
 	<true/>
 	<key>UILaunchScreen</key>
 	<dict>
-		<key>UIImageName</key>
-		<string>LaunchLogo</string>
 		<key>UIColorName</key>
 		<string>LaunchBG</string>
+		<key>UIImageName</key>
+		<string>LaunchLogo</string>
 	</dict>
 	<key>UIRequiresFullScreen</key>
 	<true/>

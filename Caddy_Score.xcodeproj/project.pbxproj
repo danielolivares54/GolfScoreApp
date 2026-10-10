@@ -53,6 +53,7 @@
 		F89643EB3054933F0019564E /* Exceptions for "Caddy_Score" folder in "Caddy_Score" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
+				Assets.xcassets,
 				BetCatalog.swift,
 				Caddy_Score.xcdatamodeld,
 				CatalogoEventos.swift,
@@ -142,6 +143,7 @@
 			buildPhases = (
 				F8667F692F413A6400F2F850 /* Sources */,
 				F8667F562F413A6400F2F850 /* Frameworks */,
+				F8114BC8307ABC13000A38E7 /* Resources */,
 			);
 			buildRules = (
 				F846F7DF302161FC0037E6A1 /* PBXBuildRule */,
@@ -188,6 +190,16 @@
 			);
 		};
 /* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		F8114BC8307ABC13000A38E7 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		F8667F692F413A6400F2F850 /* Sources */ = {
