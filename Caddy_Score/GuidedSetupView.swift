@@ -160,6 +160,9 @@ struct GuidedSetupView: View {
                         selectedCourseId = course.id
                     } label: {
                         HStack {
+                            Image(systemName: "flag.fill")
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundColor(.cFairway)
                             Text(course.name)
                                 .font(.system(size: 15, weight: .semibold))
                                 .foregroundColor(.cInk)
