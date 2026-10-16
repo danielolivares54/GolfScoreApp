@@ -30,28 +30,6 @@
       shouldUseLaunchSchemeArgsEnv = "YES"
       shouldAutocreateTestPlan = "YES">
       <Testables>
-         <TestableReference
-            skipped = "NO"
-            parallelizable = "YES">
-            <BuildableReference
-               BuildableIdentifier = "primary"
-               BlueprintIdentifier = "F8667F6C2F413A6400F2F850"
-               BuildableName = "Caddy_ScoreTests.xctest"
-               BlueprintName = "Caddy_ScoreTests"
-               ReferencedContainer = "container:Caddy_Score.xcodeproj">
-            </BuildableReference>
-         </TestableReference>
-         <TestableReference
-            skipped = "NO"
-            parallelizable = "YES">
-            <BuildableReference
-               BuildableIdentifier = "primary"
-               BlueprintIdentifier = "F8667F762F413A6400F2F850"
-               BuildableName = "Caddy_ScoreUITests.xctest"
-               BlueprintName = "Caddy_ScoreUITests"
-               ReferencedContainer = "container:Caddy_Score.xcodeproj">
-            </BuildableReference>
-         </TestableReference>
       </Testables>
    </TestAction>
    <LaunchAction
