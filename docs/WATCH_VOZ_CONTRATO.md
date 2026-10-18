@@ -9,6 +9,7 @@ Decisiones de la v1 (2026-10-18):
 | Quién interpreta | **El iPhone** (el mismo intérprete de la app). El Watch solo transcribe y muestra la propuesta |
 | Quién confirma | El usuario en el Watch (aceptar / avisar) y el iPhone **actualiza ese hoyo** y lo avisa con opción de deshacer |
 | Por jugador | Solo como **respaldo**: "Repetir" una fila cuando algo no se entendió |
+| Confianza | Umbral **0.80**: `>= 0.80` = `ok`, `< 0.80` = `dudoso`. La propuesta siempre muestra **lo que se va a anotar** con su confianza |
 
 ## 1. Por qué todo el hoyo y no por jugador
 
@@ -90,23 +91,29 @@ no los manda ni los muestra como unidades.
   "par": 3,
   "overwrites_existing": false,
   "entries": [
-    { "alias": "DAN", "strokes": 3, "putts": 2, "status": "ok",     "heard": "daniel tres con dos putts" },
-    { "alias": "FER", "strokes": 2, "putts": null, "status": "ok",  "heard": "fernando dos" },
-    { "alias": "ROB", "strokes": 4, "putts": null, "status": "ok",  "heard": "los demás cuatro" },
-    { "alias": "RIC", "strokes": 4, "putts": null, "status": "ok",  "heard": "los demás cuatro" },
-    { "alias": "ANS", "strokes": 4, "putts": null, "status": "dudoso", "heard": "los demás cuatro",
+    { "alias": "DAN", "strokes": 3, "putts": 2, "status": "ok",     "confidence": 0.96, "heard": "daniel tres con dos putts" },
+    { "alias": "FER", "strokes": 2, "putts": null, "status": "ok",  "confidence": 0.93, "heard": "fernando dos" },
+    { "alias": "ROB", "strokes": 4, "putts": null, "status": "ok",  "confidence": 0.88, "heard": "los demás cuatro" },
+    { "alias": "RIC", "strokes": 4, "putts": null, "status": "ok",  "confidence": 0.88, "heard": "los demás cuatro" },
+    { "alias": "ANS", "strokes": 4, "putts": null, "status": "dudoso", "confidence": 0.55, "heard": "los demás cuatro",
       "why": "ya tenía 5 en este hoyo" }
   ],
   "oyes_ranks": { "FER": 1, "ROB": 2, "DAN": 3, "RIC": 4, "ANS": 5 },
   "units": [
-    { "event_id": "sandy", "alias": "RIC", "status": "ok", "heard": "sandy ricardo" }
+    { "event_id": "sandy", "alias": "RIC", "status": "ok", "confidence": 0.91, "heard": "sandy ricardo" }
   ],
   "calculated_preview": [{ "alias": "FER", "event": "birdie" }],
   "unresolved": []
 }
 ```
 
-Valores de `status`: `ok` (entendido), `dudoso` (hay que confirmarlo: baja confianza, número alto, ya
+**Confianza (`confidence`, 0–1) y umbral 0.80:** `>= 0.80` → `ok`; `< 0.80` → `dudoso`. Además,
+**siempre** pasa a `dudoso` (aunque la confianza sea alta) un número alto (por ejemplo 12 golpes), una
+corrección hablada, sobrescribir un valor ya capturado, o un conflicto de oyes. La confianza la
+calcula **el iPhone** en el intérprete (alias exacto vs aproximado, número claro vs ambiguo, "los
+demás" vs jugador nombrado), así que no depende de que el reloj entregue confianza por palabra.
+
+Valores de `status`: `ok` (entendido), `dudoso` (hay que confirmarlo: confianza `< 0.80`, número alto, ya
 había otro valor, corrección hablada), `falta` (jugador esperado que no se dijo).
 `unresolved[]` = lo que no se pudo asignar, con `reason`: `alias_desconocido`, `numero_ambiguo`,
 `jugador_ausente`, `oyes_conflicto`, `oyes_fuera_de_par3`, `evento_desconocido`, `ruido`.
@@ -137,8 +144,10 @@ Pantalla única con scroll (Digital Crown). Colores del catálogo: ✓ verde `#3
 dudoso en dorado.
 
 1. **Encabezado fijo:** `HOYO 14 · PAR 3`. Si el hoyo ya tenía datos: etiqueta **"Reemplaza"**.
-2. **Golpes y putts** — una fila por jugador, en el orden del roster:
-   `DAN   3   ·2p` con un indicador de estado a la izquierda.
+2. **Golpes y putts** — una fila por jugador, en el orden del roster, con **lo que se va a anotar**:
+   `DAN   3   ·2p` con un indicador de estado a la izquierda. Las filas `dudoso` muestran además la
+   confianza (`62%`) y lo que se escuchó. Lo que se ve en esta pantalla es exactamente lo que el
+   iPhone escribirá al aceptar.
    - ✓ **entendido**: tocar abre un selector con la Digital Crown para cambiar golpes o putts.
    - **? dudoso**: se muestra con lo que se escuchó (`heard`) debajo; hay que tocarla para
      confirmarla o corregirla.
@@ -185,8 +194,12 @@ caso dice "pedir confirmación", "preguntar" o "señalar".
 
 ## 8. Preguntas que siguen abiertas
 
-1. Umbral de confianza para pasar de `ok` a `dudoso` (propuesta: `< 0.80`).
+1. ~~Umbral de confianza~~ — **resuelto: 0.80** (ver tabla de decisiones).
 2. ¿Se permite dictar sin iPhone cerca? El diseño lo soporta con cola; falta decidir si el reloj
    muestra algo mientras tanto.
 3. ¿Quién es "yo" cuando dicta otra persona con su Watch (`C06`)? Propuesta: el `is_me` del contexto.
 4. Orden de los hoyos: la ronda puede salir del 10 (`C24`); el reloj usa `play_order` del contexto.
+5. A verificar al programar el reloj: qué API de dictado se usa en watchOS (el dictado del sistema
+   devuelve texto sin confianza por palabra). Con el diseño actual no hace falta, porque la confianza
+   se calcula en el iPhone; si más adelante el reloj entrega confianza propia, se combina con la del
+   intérprete tomando la menor.
