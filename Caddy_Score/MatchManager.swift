@@ -225,6 +225,10 @@ struct WalletLine: Identifiable {
     let matchMoney: Int
     let unitsMoney: Int
     let totalMoney: Int
+    // Vuelta + Presión separadas por segmento (f9Money + b9Money == vueltaMoney + presionMoney) —
+    // para mostrar F9 y B9 por separado sin tocar los totales.
+    var f9Money: Int = 0
+    var b9Money: Int = 0
 }
 
 struct WalletSnapshot {
@@ -575,6 +579,31 @@ class MatchManager: ObservableObject {
         vueltaValue = max(0, value)
         unitValue = max(0, value / 2)
         objectWillChange.send()
+        saveBetConfig()
+    }
+
+    // Una plantilla se copia al match al elegirla (valores globales de parejas y valores propios de
+    // cada rival). Si después se edita la plantilla, esas copias quedaban con el monto viejo — aquí
+    // se re-sincronizan con la versión nueva. El dinero se deriva en walletSnapshot(), así que
+    // todo se recalcula solo; esto solo evita que se quede con valores desactualizados.
+    func refreshBetValues(fromTemplate tpl: BetTemplate) {
+        if activeTemplateId == tpl.id {
+            vueltaValue = tpl.vueltaValue
+            presionValue = tpl.presionValue
+            matchValue = tpl.matchValue
+            unitValue = tpl.unitValue
+        }
+        for (alias, v) in betValuesByOpponent where v.templateId == tpl.id {
+            betValuesByOpponent[alias] = OpponentBetValues(
+                templateId: tpl.id,
+                vueltaValue: tpl.vueltaValue,
+                presionValue: tpl.presionValue,
+                matchValue: tpl.matchValue,
+                unitValue: tpl.unitValue
+            )
+        }
+        objectWillChange.send()
+        saveBetConfig()
     }
 
     func setUnitValue(_ value: Int) {
@@ -1145,6 +1174,10 @@ class MatchManager: ObservableObject {
                 total -= e.units
             }
         }
+        // OYES (par 3) cuentan como unidades: positivo si yo quedo mejor rankeado que el rival.
+        for hole in zoomHolesForCurrentRound(segmentOverride: segmentOverride) {
+            total += oyesIndividualResult(hole: hole, opponentAlias: opponentAlias) ?? 0
+        }
         return total
     }
 
@@ -1158,6 +1191,10 @@ class MatchManager: ObservableObject {
             } else if lane.opp.contains(e.alias) {
                 total -= e.units
             }
+        }
+        // OYES de pareja (mejor rank de cada lado), positivo a favor del lado base.
+        for hole in zoomHolesForCurrentRound(segmentOverride: segmentOverride) {
+            total += oyesPairResult(hole: hole, lane: lane) ?? 0
         }
         return total
     }
@@ -1259,6 +1296,12 @@ class MatchManager: ObservableObject {
 
     func missingPlayersForHole(_ hole: Int) -> [String] {
         return players.filter { getScore(hole: hole, player: $0.alias) <= 0 }.map { $0.alias }
+    }
+
+    // Los 18 hoyos capturados por todos los jugadores — el Match solo se cobra al terminar la ronda.
+    func isRoundComplete() -> Bool {
+        let order = playOrder()
+        return order.count >= 18 && order.allSatisfy { isHoleComplete($0) }
     }
 
     func lastCompleteHole() -> Int? {
@@ -1843,8 +1886,12 @@ class MatchManager: ObservableObject {
     // (correcto al pedirlo por primera vez, incorrecto al recargar: el juego ya avanzó más hoyos
     // de los que había al momento original de la activación).
     private func restoreIndividualCarry(opponentAlias: String, requesterAlias: String, startHole: Int) {
-        guard let eligible = individualCarryEligibleRequester(opponentAlias: opponentAlias),
-              eligible == requesterAlias else { return }
+        // Sin chequeo de elegibilidad: loadBetConfig() corre ANTES de syncFromScoreManager(), así
+        // que al relanzar todavía no hay scores y el F9 sale 0 (nadie elegible) — el carry guardado
+        // se descartaba y el guardado final lo borraba del disco. isIndividualCarryActive() ya
+        // vuelve a validar requester == elegible cada vez que se usa.
+        guard players.contains(where: { $0.alias == opponentAlias }),
+              requesterAlias == yoAlias || requesterAlias == opponentAlias else { return }
         individualCarryRequesterByOpponent[opponentAlias] = requesterAlias
         individualCarryStartHoleByOpponent[opponentAlias] = startHole
     }
@@ -1972,7 +2019,10 @@ class MatchManager: ObservableObject {
         let alias = receiverIsYo ? yoAlias : opponentAlias
         let f9Value = receiverIsYo ? f9Yo : f9Opp
         let normalB9 = receiverIsYo ? b9Yo : b9Opp
-        let convenio = abs(playerStrokes(alias: alias))
+        // Convenio neto del matchup: quien recibe vs quien da (p. ej. si ROB le da 8 a DAN,
+        // el strokesVsBase de DAN puede ser 0 y el de ROB -8; el convenio real es 8).
+        let netConvenio = playerStrokes(alias: yoAlias) - playerStrokes(alias: opponentAlias)
+        let convenio = abs(netConvenio)
         let f9Part = "F9 \(fmtStroke(convenio))/\(fmtStroke(f9Value))"
 
         if isIndividualAdjust50Active(opponentAlias: opponentAlias) {
@@ -1981,10 +2031,18 @@ class MatchManager: ObservableObject {
             return "\(alias) \(f9Part) · B9 \(fmtStroke(convenio))/\(fmtStroke(normalB9))/\(fmtStroke(profile.amount))A\(whoSuffix)"
         }
         if isIndividualCarryActive(opponentAlias: opponentAlias), let carryAlias = individualCarryRequesterByOpponent[opponentAlias] {
-            let normalForCarrier = carryAlias == yoAlias ? b9Yo : b9Opp
             let carryPts = individualCarryResultB9(opponentAlias: opponentAlias)
             let cLabel = carryPts >= 0 ? "+\(carryPts)" : "\(carryPts)"
-            return "\(carryAlias) \(f9Part) · B9 \(fmtStroke(convenio))/\(fmtStroke(normalForCarrier)) C\(cLabel)"
+            // Convenio ajustado por el carry (±1 a favor de quien lo pidió) y sus strokes en B9.
+            let carrySigned = netConvenio + (carryAlias == yoAlias ? 1 : -1)
+            let carryTotal = abs(carrySigned)
+            let carryReceiver = carrySigned > 0.001 ? yoAlias : (carrySigned < -0.001 ? opponentAlias : nil)
+            let carryB9 = Array(playOrder().suffix(9)).reduce(0.0) { acc, h in
+                let s = individualMatchupStrokes(yoAlias: yoAlias, oppAlias: opponentAlias, hole: h, carryAlias: carryAlias)
+                return acc + (carryReceiver == yoAlias ? s.yo : s.opp)
+            }
+            let carryPart = carryReceiver.map { "\($0) \(fmtStroke(carryTotal))/\(fmtStroke(carryB9))" } ?? "0/0"
+            return "\(alias) \(f9Part) · B9 \(fmtStroke(convenio))/\(fmtStroke(normalB9)) → \(carryPart) C\(cLabel)"
         }
         return "\(alias) \(f9Part) · B9 \(fmtStroke(convenio))/\(fmtStroke(normalB9))"
     }
@@ -2075,8 +2133,12 @@ class MatchManager: ObservableObject {
               segmentForHole(hole) == "B9" else { return 0 }
         let start = individualCarryStartHoleByOpponent[opponentAlias] ?? firstBackNineHole()
         let order = playOrder()
-        guard let hIdx = order.firstIndex(of: hole), let startIdx = order.firstIndex(of: start) else { return 0 }
-        return hIdx >= startIdx ? 1 : 0
+        guard let hIdx = order.firstIndex(of: hole), let startIdx = order.firstIndex(of: start), hIdx >= startIdx else { return 0 }
+        // Diferencia entre el stroke con carry y el normal para ese jugador en ese hoyo
+        // (puede ser +1, 0 o negativo si el solicitante daba strokes).
+        let with = individualMatchupStrokes(yoAlias: yoAlias, oppAlias: opponentAlias, hole: hole, carryAlias: requester)
+        let without = individualMatchupStrokes(yoAlias: yoAlias, oppAlias: opponentAlias, hole: hole, carryAlias: nil)
+        return alias == yoAlias ? with.yo - without.yo : with.opp - without.opp
     }
 
     func pairCarryExtraStroke(laneId: UUID, alias: String, hole: Int) -> Double {
@@ -2085,20 +2147,21 @@ class MatchManager: ObservableObject {
               segmentForHole(hole) == "B9" else { return 0 }
         let start = pairCarryStartHoleByLane[laneId] ?? firstBackNineHole()
         let order = playOrder()
-        guard let hIdx = order.firstIndex(of: hole), let startIdx = order.firstIndex(of: start) else { return 0 }
-        return hIdx >= startIdx ? 1 : 0
+        guard let hIdx = order.firstIndex(of: hole), let startIdx = order.firstIndex(of: start), hIdx >= startIdx,
+              let lane = lanes.first(where: { $0.id == laneId }) else { return 0 }
+        // Diferencia real entre el stroke con carry (convenio ±1 repartido por SI) y el normal.
+        let with = laneCarrierStroke(lane: lane, alias: alias, hole: hole, carryRequesterAlias: requester)
+        let without = laneCarrierStroke(lane: lane, alias: alias, hole: hole, carryRequesterAlias: nil)
+        return with - without
     }
 
     // Mismo motivo que restoreIndividualCarry: preserva el startHole guardado en vez de
     // recalcularlo con el progreso actual del juego.
     private func restorePairCarry(laneId: UUID, requesterAlias: String, startHole: Int) {
+        // Sin chequeo de elegibilidad (ver restoreIndividualCarry): al relanzar aún no hay scores
+        // y no hay lado perdedor de F9. isPairCarryActive() lo valida al usarse.
         guard let lane = lanes.first(where: { $0.id == laneId }),
-              let eligible = pairCarryEligibleRequester(laneId: laneId) else { return }
-        let reqInBase = lane.base.contains(requesterAlias)
-        let reqInOpp = lane.opp.contains(requesterAlias)
-        let eligibleInBase = lane.base.contains(eligible)
-        let eligibleInOpp = lane.opp.contains(eligible)
-        guard (reqInBase && eligibleInBase) || (reqInOpp && eligibleInOpp) else { return }
+              lane.base.contains(requesterAlias) || lane.opp.contains(requesterAlias) else { return }
         pairCarryRequesterByLane[laneId] = requesterAlias
         pairCarryStartHoleByLane[laneId] = startHole
     }
@@ -2245,7 +2308,14 @@ class MatchManager: ObservableObject {
         if isPairCarryActive(laneId: laneId), let carryAlias = pairCarryRequesterByLane[laneId] {
             let carryPts = pairCarryResultB9(laneId: laneId)
             let cLabel = carryPts >= 0 ? "+\(carryPts)" : "\(carryPts)"
-            return "\(carryAlias) \(f9Part) · B9 \(fmtStroke(convenio))/\(fmtStroke(normalB9)) C\(cLabel)"
+            // Convenio ajustado por el carry (±1 a favor de quien lo pidió) y sus strokes en B9.
+            let adjusted = effectiveLaneStrokeProfile(lane: lane, carryRequesterAlias: carryAlias)
+            let b9Profile = laneB9CarryProfile(lane: lane, requesterAlias: carryAlias)
+            let carryB9 = b9Profile.carrier.map { c in
+                b9.reduce(0.0) { $0 + laneCarrierStroke(lane: lane, alias: c, hole: $1, carryRequesterAlias: carryAlias) }
+            } ?? 0
+            let carryPart = b9Profile.carrier.map { "\($0) \(fmtStroke(adjusted.total))/\(fmtStroke(carryB9))" } ?? "0/0"
+            return "\(carrier) \(f9Part) · B9 \(fmtStroke(convenio))/\(fmtStroke(normalB9)) → \(carryPart) C\(cLabel)"
         }
         return "\(carrier) \(f9Part) · B9 \(fmtStroke(convenio))/\(fmtStroke(normalB9))"
     }
@@ -2320,6 +2390,63 @@ class MatchManager: ObservableObject {
         return withCarry != withoutCarry
     }
 
+    // Resultado del hoyo sin Carry vs con Carry (perspectiva del lado base) — solo si el Carry de
+    // la pareja está activo y el hoyo es de B9. Para mostrar exactamente cómo cambia el resultado.
+    func pairCarryHoleResults(laneId: UUID, hole: Int) -> (without: Int, with: Int)? {
+        guard let lane = lanes.first(where: { $0.id == laneId }),
+              isPairCarryActive(laneId: laneId),
+              let requester = pairCarryRequesterByLane[laneId],
+              segmentForHole(hole) == "B9",
+              let withCarry = pairResult(hole: hole, lane: lane, carryRequesterAlias: requester),
+              let withoutCarry = pairResult(hole: hole, lane: lane) else { return nil }
+        return (withoutCarry, withCarry)
+    }
+
+    // Vuelta acumulada y presiones abiertas de B9 calculadas CON el stroke del Carry, hoyo por hoyo
+    // — para compararlas con el Acum normal (que no incluye el carry). Perspectiva del lado base
+    // (pareja) o de yo (individual). Vacío si el Carry no está activo.
+    func carryAccumByHole(laneId: UUID?, opponentAlias: String?) -> [Int: (vuelta: Int, pres: [Int])] {
+        let b9 = Array(playOrder().suffix(9))
+        var values: [(hole: Int, v: Int)] = []
+        let threshold: Int
+        if let laneId {
+            guard let lane = lanes.first(where: { $0.id == laneId }),
+                  isPairCarryActive(laneId: laneId),
+                  let requester = pairCarryRequesterByLane[laneId] else { return [:] }
+            threshold = 3
+            for h in b9 {
+                if let v = pairResult(hole: h, lane: lane, carryRequesterAlias: requester) { values.append((h, v)) }
+            }
+        } else if let opp = opponentAlias {
+            guard isIndividualCarryActive(opponentAlias: opp),
+                  let carryAlias = individualCarryRequesterByOpponent[opp] else { return [:] }
+            threshold = 2
+            for h in b9 {
+                if let v = holeResultVsYo(opponentAlias: opp, hole: h, carryAlias: carryAlias) { values.append((h, v)) }
+            }
+        } else {
+            return [:]
+        }
+        let states = pressureStates(values: values.map { $0.v }, threshold: threshold)
+        var out: [Int: (vuelta: Int, pres: [Int])] = [:]
+        var vuelta = 0
+        for (i, e) in values.enumerated() {
+            vuelta += e.v
+            out[e.hole] = (vuelta, states[i].filter { $0 != 0 })
+        }
+        return out
+    }
+
+    // Igual que pairCarryHoleResults, para individual (perspectiva de yo).
+    func individualCarryHoleResults(opponentAlias: String, hole: Int) -> (without: Int, with: Int)? {
+        guard isIndividualCarryActive(opponentAlias: opponentAlias),
+              let carryAlias = individualCarryRequesterByOpponent[opponentAlias],
+              segmentForHole(hole) == "B9",
+              let withCarry = holeResultVsYo(opponentAlias: opponentAlias, hole: hole, carryAlias: carryAlias),
+              let withoutCarry = holeResultVsYo(opponentAlias: opponentAlias, hole: hole, carryAlias: nil) else { return nil }
+        return (withoutCarry, withCarry)
+    }
+
     func pairF9Vuelta(laneId: UUID) -> Int {
         guard let lane = lanes.first(where: { $0.id == laneId }) else { return 0 }
         return pairF9Vuelta(lane: lane)
@@ -2365,6 +2492,7 @@ class MatchManager: ObservableObject {
         let order = playOrder()
         let f9Holes = Array(order.prefix(9))
         let b9Holes = Array(order.suffix(9))
+        let roundComplete = isRoundComplete()
 
         for opp in opps {
             let switches = betSwitchesForIndividual(opponentAlias: opp)
@@ -2426,12 +2554,30 @@ class MatchManager: ObservableObject {
                 pMoney = switches.presion
                     ? f9P * ov.presionValue + b9P * ov.presionValue * dpMultiplier
                     : 0
-                mMoney = switches.match ? mPts * ov.matchValue : 0
+                mMoney = (switches.match && roundComplete) ? mPts * ov.matchValue : 0
             }
-            let cMoney = cPts * ov.vueltaValue
+            // Carry = apuesta aparte con la apuesta original: la vuelta de B9 con los strokes del
+            // Carry vale 1 unidad (gane por lo que gane) + 1 unidad de presión por cada presión
+            // abierta (ej. 5 3 1 = vuelta + 2 presiones). No lleva Doble B9.
+            let carryOn = switches.carry && carryActive
+            let carryPres = (carryOn ? individualCarryRequesterByOpponent[opp] : nil).map {
+                pressureNet(values: individualCarryValuesB9(opponentAlias: opp, requester: $0), threshold: 2)
+            } ?? 0
+            let cMoney = carryOn ? signedUnit(carryPts) * ov.vueltaValue + carryPres * ov.presionValue : 0
             let aMoney = aPts * ov.vueltaValue
             let uMoney = uPts * ov.unitValue
             let total = vMoney + pMoney + cMoney + aMoney + mMoney + uMoney
+            let f9Money: Int
+            let b9Money: Int
+            if f9Tied {
+                f9Money = pMoney
+                b9Money = vMoney
+            } else {
+                f9Money = (switches.vuelta ? signedUnit(f9V) * ov.vueltaValue : 0)
+                    + (switches.presion ? f9P * ov.presionValue : 0)
+                b9Money = (switches.vuelta ? signedUnit(b9V) * ov.vueltaValue * dpMultiplier : 0)
+                    + (switches.presion ? b9P * ov.presionValue * dpMultiplier : 0)
+            }
             lines.append(
                 WalletLine(
                     label: "vs \(opp)",
@@ -2454,7 +2600,9 @@ class MatchManager: ObservableObject {
                     adjust50Money: aMoney,
                     matchMoney: mMoney,
                     unitsMoney: uMoney,
-                    totalMoney: total
+                    totalMoney: total,
+                    f9Money: f9Money,
+                    b9Money: b9Money
                 )
             )
         }
@@ -2493,11 +2641,21 @@ class MatchManager: ObservableObject {
             let pMoney = switches.presion
                 ? f9P * presionValue + b9P * presionValue * dpMultiplier
                 : 0
-            let cMoney = cPts * vueltaValue
+            // Carry de pareja: misma regla que individual (vuelta + una unidad por presión), con
+            // el valor original de la pareja y sin Doble B9.
+            let carryOn = switches.carry && carryActive
+            let carryPres = (carryOn ? pairCarryRequesterByLane[lane.id] : nil).map {
+                pressureNet(values: pairCarryValuesB9(lane: lane, requester: $0), threshold: 3)
+            } ?? 0
+            let cMoney = carryOn ? signedUnit(cPts) * vueltaValue + carryPres * presionValue : 0
             let aMoney = aPts * vueltaValue
-            let mMoney = mPts * matchValue
+            let mMoney = roundComplete ? mPts * matchValue : 0
             let uMoney = uPts * unitValue
             let total = vMoney + pMoney + cMoney + aMoney + mMoney + uMoney
+            let f9Money = (switches.vuelta ? signedUnit(f9V) * vueltaValue : 0)
+                + (switches.presion ? f9P * presionValue : 0)
+            let b9Money = (switches.vuelta ? signedUnit(b9V) * vueltaValue * dpMultiplier : 0)
+                + (switches.presion ? b9P * presionValue * dpMultiplier : 0)
             lines.append(
                 WalletLine(
                     label: "\(lane.base.joined(separator: "+"))/\(lane.opp.joined(separator: "+"))",
@@ -2520,7 +2678,9 @@ class MatchManager: ObservableObject {
                     adjust50Money: aMoney,
                     matchMoney: mMoney,
                     unitsMoney: uMoney,
-                    totalMoney: total
+                    totalMoney: total,
+                    f9Money: f9Money,
+                    b9Money: b9Money
                 )
             )
         }
@@ -2536,9 +2696,43 @@ class MatchManager: ObservableObject {
         return pairCarryComputedB9(lane: lane, requesterAlias: requester, startHole: firstBackNineHole())
     }
 
+    private func individualCarryValuesB9(opponentAlias: String, requester: String) -> [Int?] {
+        Array(playOrder().suffix(9)).map { holeResultVsYo(opponentAlias: opponentAlias, hole: $0, carryAlias: requester) }
+    }
+
+    private func pairCarryValuesB9(lane: LaneModel, requester: String) -> [Int?] {
+        Array(playOrder().suffix(9)).map { pairResult(hole: $0, lane: lane, carryRequesterAlias: requester) }
+    }
+
+    // Presiones del Carry (valor de cada una) — para la vista de tabla. Pareja: perspectiva del lado base.
+    func individualCarryPresionB9(opponentAlias: String) -> [Int] {
+        guard isIndividualCarryActive(opponentAlias: opponentAlias),
+              let requester = individualCarryRequesterByOpponent[opponentAlias] else { return [] }
+        return pressureValues(values: individualCarryValuesB9(opponentAlias: opponentAlias, requester: requester), threshold: 2)
+    }
+
+    func pairCarryPresionB9(laneId: UUID) -> [Int] {
+        guard let lane = lanes.first(where: { $0.id == laneId }),
+              isPairCarryActive(laneId: laneId),
+              let requester = pairCarryRequesterByLane[laneId] else { return [] }
+        return pressureValues(values: pairCarryValuesB9(lane: lane, requester: requester), threshold: 3)
+    }
+
+    // Convenio de strokes del matchup, siempre entero (para la línea de condiciones de la tabla).
+    func individualStrokesConvenio(opponentAlias: String) -> Int {
+        Int(abs(playerStrokes(alias: yoAlias) - playerStrokes(alias: opponentAlias)).rounded())
+    }
+
+    func pairStrokesConvenio(laneId: UUID) -> Int {
+        Int((lanes.first(where: { $0.id == laneId })?.strokes ?? 0).rounded())
+    }
+
     func pairCarryMoneyB9(laneId: UUID) -> Int {
-        guard isPairCarryActive(laneId: laneId) else { return 0 }
-        return pairCarryResultB9(laneId: laneId) * vueltaValue
+        guard isPairCarryActive(laneId: laneId),
+              let lane = lanes.first(where: { $0.id == laneId }),
+              let requester = pairCarryRequesterByLane[laneId] else { return 0 }
+        let pres = pressureNet(values: pairCarryValuesB9(lane: lane, requester: requester), threshold: 3)
+        return signedUnit(pairCarryResultB9(laneId: laneId)) * vueltaValue + pres * presionValue
     }
 
     // Resultado de la apuesta Carry en B9 (solo si está activa).
@@ -2582,8 +2776,11 @@ class MatchManager: ObservableObject {
     }
 
     func individualCarryMoneyB9(opponentAlias: String) -> Int {
-        guard isIndividualCarryActive(opponentAlias: opponentAlias) else { return 0 }
-        return individualCarryResultB9(opponentAlias: opponentAlias) * betValues(forOpponent: opponentAlias).vueltaValue
+        guard isIndividualCarryActive(opponentAlias: opponentAlias),
+              let requester = individualCarryRequesterByOpponent[opponentAlias] else { return 0 }
+        let ov = betValues(forOpponent: opponentAlias)
+        let pres = pressureNet(values: individualCarryValuesB9(opponentAlias: opponentAlias, requester: requester), threshold: 2)
+        return signedUnit(individualCarryResultB9(opponentAlias: opponentAlias)) * ov.vueltaValue + pres * ov.presionValue
     }
 
     private func f9VueltaVsOpponent(opponentAlias: String) -> Int {
@@ -2673,6 +2870,18 @@ class MatchManager: ObservableObject {
         if yoRank < oppRank { return unit }
         if yoRank > oppRank { return -unit }
         return 0
+    }
+
+    // Quién ganó el Oyes de un par 3 en un match — para pintarlo en Resultados y en la tarjeta.
+    // Individual: positivo = gana yo, negativo = gana el rival. nil si no hay ranks de ambos.
+    func oyesIndividualOutcome(hole: Int, opponentAlias: String) -> Int? {
+        oyesIndividualResult(hole: hole, opponentAlias: opponentAlias)
+    }
+
+    // Pareja: positivo = gana el lado base, negativo = gana el lado rival. nil si faltan ranks.
+    func oyesPairOutcome(hole: Int, laneId: UUID) -> Int? {
+        guard let lane = lanes.first(where: { $0.id == laneId }) else { return nil }
+        return oyesPairResult(hole: hole, lane: lane)
     }
 
     private func oyesPairResult(hole: Int, lane: LaneModel) -> Int? {
@@ -2784,12 +2993,22 @@ class MatchManager: ObservableObject {
             yoStroke += distributedStrokes(total: -oppTotal, hole: hole)
         }
 
-        if segmentForHole(hole) == "B9", let carry = carryAlias {
-            if carry == yoAlias {
-                yoStroke += 1
-            } else if carry == oppAlias {
-                oppStroke += 1
+        // Carry: ajusta el CONVENIO (total de strokes del matchup) en ±1 a favor de quien pidió
+        // el carry, no un stroke por hoyo. Si el solicitante recibía N pasa a N+1; si daba N pasa
+        // a dar N-1 (y si cruza 0 cambia la dirección). El nuevo total se reparte por Stroke
+        // Index igual que el convenio normal y solo se aplica a los hoyos de B9.
+        if segmentForHole(hole) == "B9", let carry = carryAlias, carry == yoAlias || carry == oppAlias {
+            // El ±1 se suma a los strokes que YA caen en B9 y se reparte solo entre los 9 hoyos de
+            // B9 (rank relativo de SI) — repartido sobre 18 hoyos podía caer en F9 y B9 no cambiaba.
+            // Positivo = recibe yo, negativo = recibe el oponente.
+            let b9 = Array(playOrder().suffix(9))
+            let normalB9 = b9.reduce(0.0) { acc, h in
+                let s = individualMatchupStrokes(yoAlias: yoAlias, oppAlias: oppAlias, hole: h, carryAlias: nil)
+                return acc + s.yo - s.opp
             }
+            let signed = normalB9 + (carry == yoAlias ? 1 : -1)
+            yoStroke = signed > 0 ? distributedStrokesWithinHoles(total: signed, hole: hole, holes: b9) : 0
+            oppStroke = signed < 0 ? distributedStrokesWithinHoles(total: -signed, hole: hole, holes: b9) : 0
         }
 
         return (yoStroke, oppStroke)
@@ -2913,7 +3132,44 @@ class MatchManager: ObservableObject {
         return nets.sorted()
     }
 
+    // Perfil del Carry de pareja en B9: el stroke extra (±1) se suma a los strokes que YA caen en
+    // B9 y se reparte solo entre los 9 hoyos de B9 (rank relativo de SI) — no sobre los 18 hoyos,
+    // donde el +1 podía caer en un hoyo de F9 y B9 quedaba igual (ej. 12 → 13: el SI 13 es de F9).
+    private func laneB9CarryProfile(lane: LaneModel, requesterAlias: String) -> (total: Double, carrier: String?) {
+        let normal = effectiveLaneStrokeProfile(lane: lane, carryRequesterAlias: nil)
+        let b9 = Array(playOrder().suffix(9))
+        var signedB9 = 0.0
+        if let c = normal.carrier {
+            let n = b9.reduce(0.0) { $0 + distributedStrokes(total: normal.total, hole: $1) }
+            signedB9 = lane.base.contains(c) ? n : -n
+        }
+        if lane.base.contains(requesterAlias) {
+            signedB9 += 1
+        } else if lane.opp.contains(requesterAlias) {
+            signedB9 -= 1
+        }
+        // Quien ya lleva el stroke lo sigue llevando. Solo si ese lado no tenía carrier (strokes en
+        // 0) el stroke lo lleva quien pidió el carry, no el primero de la lista.
+        let current = lane.strokeCarrier
+        if signedB9 > 0.001 {
+            let fallback = lane.base.contains(requesterAlias) ? requesterAlias : (lane.base.first ?? "")
+            let carrier = (current != nil && lane.base.contains(current!)) ? current! : fallback
+            return (signedB9, carrier.isEmpty ? nil : carrier)
+        }
+        if signedB9 < -0.001 {
+            let fallback = lane.opp.contains(requesterAlias) ? requesterAlias : (lane.opp.first ?? "")
+            let carrier = (current != nil && lane.opp.contains(current!)) ? current! : fallback
+            return (-signedB9, carrier.isEmpty ? nil : carrier)
+        }
+        return (0, nil)
+    }
+
     private func laneCarrierStroke(lane: LaneModel, alias: String, hole: Int, carryRequesterAlias: String? = nil) -> Double {
+        if let requester = carryRequesterAlias, segmentForHole(hole) == "B9" {
+            let p = laneB9CarryProfile(lane: lane, requesterAlias: requester)
+            guard p.carrier == alias, p.total > 0.001 else { return 0 }
+            return distributedStrokesWithinHoles(total: p.total, hole: hole, holes: Array(playOrder().suffix(9)))
+        }
         let profile = effectiveLaneStrokeProfile(lane: lane, carryRequesterAlias: carryRequesterAlias)
         guard profile.carrier == alias else { return 0 }
         return distributedStrokes(total: profile.total, hole: hole)
@@ -2960,10 +3216,12 @@ class MatchManager: ObservableObject {
             return (0, nil)
         }
         if signed > 0 {
-            let carrier = (currentCarrier != nil && lane.base.contains(currentCarrier!)) ? currentCarrier! : (lane.base.first ?? "")
+            let fallback = (carryRequesterAlias.map { lane.base.contains($0) } ?? false) ? carryRequesterAlias! : (lane.base.first ?? "")
+            let carrier = (currentCarrier != nil && lane.base.contains(currentCarrier!)) ? currentCarrier! : fallback
             return (signed, carrier.isEmpty ? nil : carrier)
         }
-        let carrier = (currentCarrier != nil && lane.opp.contains(currentCarrier!)) ? currentCarrier! : (lane.opp.first ?? "")
+        let fallback = (carryRequesterAlias.map { lane.opp.contains($0) } ?? false) ? carryRequesterAlias! : (lane.opp.first ?? "")
+        let carrier = (currentCarrier != nil && lane.opp.contains(currentCarrier!)) ? currentCarrier! : fallback
         return (-signed, carrier.isEmpty ? nil : carrier)
     }
 
@@ -3261,5 +3519,207 @@ class MatchManager: ObservableObject {
             }
         }
         return badges
+    }
+}
+
+#if DEBUG
+// Ronda demo de 18 hoyos para probar en el simulador (se activa con el default "demo18" = true).
+// Los golpes de DAN y ROB en F9 y los de B9 de los 5 jugadores salen de las capturas reales del CGM;
+// el F9 de FER/RIC/ANS es inventado. Nada de esto se compila en Release.
+extension MatchManager {
+    func loadDemo18() {
+        setCourse(CourseCatalog.cgm, resetScores: true)
+        startHole = 1
+        setPlayers(names: ["Daniel", "Fernando", "Roberto", "Ricardo", "Anselmo"], preserveScores: false)
+
+        // Golpes por hoyo 1...18
+        let scores: [String: [Int]] = [
+            "DAN": [4, 9, 4, 6, 2, 6, 5, 5, 7,   6, 7, 9, 6, 3, 7, 4, 10, 6],
+            "ROB": [5, 8, 3, 5, 4, 7, 5, 6, 5,   6, 7, 9, 7, 3, 7, 4, 9, 6],
+            "FER": [5, 7, 3, 5, 3, 6, 5, 5, 6,   5, 6, 5, 7, 2, 5, 4, 6, 6],
+            "RIC": [5, 8, 4, 6, 4, 7, 6, 6, 6,   5, 7, 7, 5, 6, 7, 5, 8, 6],
+            "ANS": [5, 8, 4, 6, 3, 7, 5, 6, 6,   7, 7, 8, 7, 3, 7, 5, 7, 5],
+        ]
+        for (alias, holes) in scores {
+            for (i, g) in holes.enumerated() {
+                applyHoleEntry(HoleEntryData(hole_number: i + 1, player_alias: alias, strokes: g, putts: nil, units: nil, tags: nil))
+            }
+        }
+
+        // Strokes: ROB le da 8 a DAN; pareja DAN+FER vs RIC+ANS con 12 a favor de ANS.
+        setApuestaValues(vuelta: 50, presion: 50, match: 50)
+        setUnitValue(25)
+        setStrokesVsBase(alias: "ROB", value: -8)
+        if setBaseTeam(["DAN", "FER"]) {
+            setLaneStrokesForMatch(base: ["DAN", "FER"], opp: ["RIC", "ANS"], value: 12)
+            setLaneCarrierForMatch(base: ["DAN", "FER"], opp: ["RIC", "ANS"], carrier: "ANS")
+        }
+
+        // Oyes en los par 3 (H14 y H16): DAN 3 vs ROB 2 en H14; DAN 3 vs ROB 4 en H16.
+        setOyesRanks(hole: 14, ranksByAlias: ["FER": 1, "ROB": 2, "DAN": 3, "RIC": 4, "ANS": 5])
+        setOyesRanks(hole: 16, ranksByAlias: ["FER": 1, "RIC": 2, "DAN": 3, "ROB": 4, "ANS": 5])
+
+        // Apuestas activas: Carry + Doble B9 contra ROB; Carry de ANS en RIC+ANS.
+        if let eligible = individualCarryEligibleRequester(opponentAlias: "ROB") {
+            setIndividualCarryRequest(opponentAlias: "ROB", requesterAlias: eligible)
+        }
+        setIndividualDoublePress(opponentAlias: "ROB", active: true)
+        if let lane = lanes.first(where: { Set($0.opp) == Set(["RIC", "ANS"]) }) {
+            setPairCarryRequest(laneId: lane.id, requesterAlias: "ANS")
+        }
+        objectWillChange.send()
+    }
+}
+#endif
+
+// MARK: - Tarjeta "Carry B9" (B9 normal vs B9 con el stroke del Carry)
+
+struct CarryCardPlayer: Identifiable {
+    let id = UUID()
+    let alias: String
+    let isMySide: Bool          // yo / lado base
+    let gross: Int
+    let strokesNormal: Double
+    let strokesCarry: Double
+}
+
+struct CarryCardRow: Identifiable {
+    let id = UUID()
+    let hole: Int
+    let par: Int
+    let si: Int
+    let players: [CarryCardPlayer]
+    let resultNormal: Int
+    let resultCarry: Int
+    let accumNormal: Int
+    let presNormal: [Int]
+    let accumCarry: Int
+    let presCarry: [Int]
+    // +1 = el carry agrega un stroke en este hoyo, -1 = lo quita, 0 = igual que B9.
+    let strokeChange: Double
+    var diverges: Bool { resultNormal != resultCarry }
+}
+
+struct CarryCardData {
+    let title: String
+    let requester: String
+    let normalStrokes: Double       // strokes que caen en B9 sin carry (de quien los recibe)
+    let carryStrokes: Double
+    let receiverNormal: String?
+    let receiverCarry: String?
+    let changeHole: Int?            // hoyo donde el carry agrega o quita el stroke
+    let changeRank: Int?            // "ventaja" N de B9 (rank de SI entre los 9 hoyos)
+    let rows: [CarryCardRow]
+    var vueltaNormal: Int { rows.last?.accumNormal ?? 0 }
+    var vueltaCarry: Int { rows.last?.accumCarry ?? 0 }
+    var presNormal: [Int] { rows.last?.presNormal ?? [] }
+    var presCarry: [Int] { rows.last?.presCarry ?? [] }
+    var hasDifference: Bool { rows.contains { $0.diverges } }
+}
+
+extension MatchManager {
+    // Todo lo que muestra la tarjeta Carry B9: strokes con y sin carry, resultado por hoyo en las dos
+    // versiones, acumulado y presiones de cada una. nil si el Carry de ese match no está activo.
+    // Pareja: perspectiva del lado base; individual: perspectiva de yo.
+    func carryCardData(target: UnitLogTarget) -> CarryCardData? {
+        let b9 = Array(playOrder().suffix(9))
+        let title: String
+        let requester: String
+        let mine: [String]
+        let other: [String]
+        let threshold: Int
+        let resNormal: (Int) -> Int?
+        let resCarry: (Int) -> Int?
+        let strokesNormal: (String, Int) -> Double
+        let strokesCarry: (String, Int) -> Double
+
+        switch target {
+        case .individual(let opp):
+            guard isIndividualCarryActive(opponentAlias: opp),
+                  let req = individualCarryRequesterByOpponent[opp] else { return nil }
+            title = "\(yoAlias) vs \(opp)"
+            requester = req
+            mine = [yoAlias]
+            other = [opp]
+            threshold = 2
+            resNormal = { self.holeResultVsYo(opponentAlias: opp, hole: $0, carryAlias: nil) }
+            resCarry = { self.holeResultVsYo(opponentAlias: opp, hole: $0, carryAlias: req) }
+            strokesNormal = { alias, h in
+                let s = self.individualMatchupStrokes(yoAlias: self.yoAlias, oppAlias: opp, hole: h, carryAlias: nil)
+                return alias == self.yoAlias ? s.yo : s.opp
+            }
+            strokesCarry = { alias, h in
+                let s = self.individualMatchupStrokes(yoAlias: self.yoAlias, oppAlias: opp, hole: h, carryAlias: req)
+                return alias == self.yoAlias ? s.yo : s.opp
+            }
+        case .pair(let laneId):
+            guard let lane = lanes.first(where: { $0.id == laneId }),
+                  isPairCarryActive(laneId: laneId),
+                  let req = pairCarryRequesterByLane[laneId] else { return nil }
+            title = "\(lane.base.joined(separator: "+")) vs \(lane.opp.joined(separator: "+"))"
+            requester = req
+            mine = lane.base
+            other = lane.opp
+            threshold = 3
+            resNormal = { self.pairResult(hole: $0, lane: lane) }
+            resCarry = { self.pairResult(hole: $0, lane: lane, carryRequesterAlias: req) }
+            strokesNormal = { alias, h in self.laneCarrierStroke(lane: lane, alias: alias, hole: h) }
+            strokesCarry = { alias, h in self.laneCarrierStroke(lane: lane, alias: alias, hole: h, carryRequesterAlias: req) }
+        }
+
+        let aliases = mine + other
+
+        // Strokes de B9 (todos los hoyos, hayan o no sido jugados) y hoyo donde cambia el carry.
+        var totalNormal: [String: Double] = [:]
+        var totalCarry: [String: Double] = [:]
+        var changeHole: Int? = nil
+        for h in b9 {
+            var delta = 0.0
+            for a in aliases {
+                let sn = strokesNormal(a, h), sc = strokesCarry(a, h)
+                totalNormal[a, default: 0] += sn
+                totalCarry[a, default: 0] += sc
+                delta += sc - sn
+            }
+            if changeHole == nil, abs(delta) > 0.001 { changeHole = h }
+        }
+        let receiverNormal = totalNormal.filter { $0.value > 0.001 }.max { $0.value < $1.value }?.key
+        let receiverCarry = totalCarry.filter { $0.value > 0.001 }.max { $0.value < $1.value }?.key
+        let bySI = b9.sorted { (getHole($0)?.si ?? 99) < (getHole($1)?.si ?? 99) }
+        let changeRank = changeHole.flatMap { bySI.firstIndex(of: $0) }.map { $0 + 1 }
+
+        // Filas con resultado normal y con carry, acumulados y presiones de cada versión.
+        var rows: [CarryCardRow] = []
+        var normVals: [Int] = []
+        var carryVals: [Int] = []
+        for h in b9 {
+            guard let rn = resNormal(h), let rc = resCarry(h) else { continue }
+            normVals.append(rn)
+            carryVals.append(rc)
+            let presN = (pressureStates(values: normVals, threshold: threshold).last ?? []).filter { $0 != 0 }
+            let presC = (pressureStates(values: carryVals, threshold: threshold).last ?? []).filter { $0 != 0 }
+            var change = 0.0
+            let players: [CarryCardPlayer] = aliases.map { a in
+                let sn = strokesNormal(a, h), sc = strokesCarry(a, h)
+                change += sc - sn
+                return CarryCardPlayer(alias: a, isMySide: mine.contains(a), gross: getScore(hole: h, player: a),
+                                       strokesNormal: sn, strokesCarry: sc)
+            }
+            rows.append(CarryCardRow(
+                hole: h, par: getHole(h)?.par ?? 0, si: getHole(h)?.si ?? 0, players: players,
+                resultNormal: rn, resultCarry: rc,
+                accumNormal: normVals.reduce(0, +), presNormal: presN,
+                accumCarry: carryVals.reduce(0, +), presCarry: presC,
+                strokeChange: change
+            ))
+        }
+
+        return CarryCardData(
+            title: title, requester: requester,
+            normalStrokes: receiverNormal.flatMap { totalNormal[$0] } ?? 0,
+            carryStrokes: receiverCarry.flatMap { totalCarry[$0] } ?? 0,
+            receiverNormal: receiverNormal, receiverCarry: receiverCarry,
+            changeHole: changeHole, changeRank: changeRank, rows: rows
+        )
     }
 }

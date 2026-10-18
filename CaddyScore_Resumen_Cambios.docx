@@ -1,0 +1,33 @@
+//
+//  MatchManager.swift
+//  CaddyScore
+//
+//  Created by User on 2026-10-18.
+//
+
+import Foundation
+
+class MatchManager {
+    
+    // Existing properties and methods ...
+    
+    /// Calculates strokes for carry based on strokes in B9
+    /// - Parameter strokesB9: Number of strokes in Back 9
+    /// - Returns: Number of strokes for carry
+    func calculateCarryStrokes(from strokesB9: Int) -> Int {
+        // Corrección:
+        // El carry debe asignar N+1 strokes respecto a los originales de B9.
+        let strokesCarry = strokesB9 + 1  // Nunca 0 ni -1
+        return strokesCarry
+    }
+    
+    // Example function where calculateCarryStrokes is used
+    func assignCarryStrokesIfNeeded(playerStrokesB9: Int, carryRequested: Bool) -> Int {
+        guard carryRequested else {
+            return playerStrokesB9
+        }
+        return calculateCarryStrokes(from: playerStrokesB9)
+    }
+    
+    // Other existing methods...
+}

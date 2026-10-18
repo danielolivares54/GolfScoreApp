@@ -151,3 +151,4 @@ struct MatchSummaryView: View {
         (value > 0 ? "+" : "") + formatStroke(value)
     }
 }
+

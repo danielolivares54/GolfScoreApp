@@ -1191,6 +1191,10 @@ struct ContentView: View {
         // sigue vacío en este punto, ese replay no encuentra a nadie y descarta todo en silencio.
         matchManager.loadBetConfig()
         matchManager.syncFromScoreManager()
+        #if DEBUG
+        // Solo simulador/debug: carga una ronda de 18 hoyos con `defaults write <bundle> demo18 -bool YES`.
+        if UserDefaults.standard.bool(forKey: "demo18") { matchManager.loadDemo18() }
+        #endif
         if let next = matchManager.firstIncompleteHole(),
            let idx  = playOrder.firstIndex(of: next) { currentHoleIndex = idx }
         editingPlayerIdx = 0
@@ -1693,6 +1697,8 @@ struct ContentView_Previews: PreviewProvider {
 
 private func caddyMoneyColor(_ v: Int) -> Color { v > 0 ? .cFairwayL : v < 0 ? .cBrick : .cMuted }
 private func caddyMoneyStr(_ v: Int) -> String { v == 0 ? "$0" : (v > 0 ? "+$\(v)" : "-$\(abs(v))") }
+// Resultado de un hoyo como "E", "+2", "-1" (mismo formato que la columna Res del Zoom).
+private func caddyResultStr(_ v: Int) -> String { v == 0 ? "E" : (v > 0 ? "+\(v)" : "\(v)") }
 
 // Muestra strokes sin decimal cuando es entero, con un decimal cuando hay medio punto (ej. "1", "1.5").
 private func caddyStrokeStr(_ v: Double) -> String {
@@ -1702,6 +1708,13 @@ private func caddyStrokeStr(_ v: Double) -> String {
 // MARK: - Resultados sheet — Caddie Briefing por oponente
 
 // Destino del detalle de unidades (Manual punto 14) — un matchup individual o una lane de parejas.
+// Petición de log de unidades: match + segmento ("F9", "B9", "ALL" o nil = el segmento en juego).
+struct UnitLogRequest: Identifiable {
+    let id = UUID()
+    let target: UnitLogTarget
+    let segment: String?
+}
+
 enum UnitLogTarget: Identifiable {
     case individual(String)
     case pair(UUID)
@@ -1864,6 +1877,9 @@ struct MatchZoomView: View {
             (opp, oppStrokesTotal, .cInk)
         ]
 
+        // Con el Carry activo, cada hoyo de B9 muestra además cómo queda con carry (dorado).
+        let carryAccumInd: [Int: (vuelta: Int, pres: [Int])] = segment == "B9"
+            ? matchManager.carryAccumByHole(laneId: nil, opponentAlias: opp) : [:]
         zoomHeaderRow(rightAliases: [opp])
         ForEach(Array(holes.enumerated()), id: \.offset) { idx, hole in
             if let r = rowsByHole[hole] {
@@ -1871,8 +1887,8 @@ struct MatchZoomView: View {
                     zoomHoleCell(hole)
                     playerScoreCell(alias: matchManager.yoAlias, hole: hole, gross: r.yoGross, net: r.yoNet, strokes: r.yoStrokes, carryExtra: matchManager.individualCarryExtraStroke(opponentAlias: opp, alias: matchManager.yoAlias, hole: hole), carryDiverges: matchManager.individualCarryDivergesAtHole(opponentAlias: opp, hole: hole), isMySide: true, color: .cInk, width: playerColWidth)
                     playerScoreCell(alias: opp, hole: hole, gross: r.oppGross, net: r.oppNet, strokes: r.oppStrokes, carryExtra: matchManager.individualCarryExtraStroke(opponentAlias: opp, alias: opp, hole: hole), carryDiverges: matchManager.individualCarryDivergesAtHole(opponentAlias: opp, hole: hole), isMySide: false, color: .cInk, width: playerColWidth)
-                    zoomResultCell(r.result)
-                    zoomAccumCell(vuelta: r.vueltaAccum, pres: presionSeries[idx])
+                    zoomResultCell(r.result, carry: carryAccumInd[hole] != nil ? matchManager.individualCarryHoleResults(opponentAlias: opp, hole: hole)?.with : nil)
+                    zoomAccumCell(vuelta: r.vueltaAccum, pres: presionSeries[idx], carry: carryAccumInd[hole])
                 }
                 .padding(.horizontal, 16).padding(.vertical, 13)
             } else {
@@ -1913,6 +1929,8 @@ struct MatchZoomView: View {
             let subtotalPres = subtotalPresRaw.map { $0 * sign }
             let strokeTotals = pairStrokeTotals(lane: lane, holes: holes, rowsByHole: rowsByHole)
 
+            let carryAccumPair: [Int: (vuelta: Int, pres: [Int])] = segment == "B9"
+                ? matchManager.carryAccumByHole(laneId: laneId, opponentAlias: nil) : [:]
             zoomHeaderRow(rightAliases: lane.opp, leftAliases: lane.base)
             ForEach(Array(holes.enumerated()), id: \.offset) { idx, hole in
                 if let r = rowsByHole[hole] {
@@ -1921,8 +1939,8 @@ struct MatchZoomView: View {
                         zoomHoleCell(hole)
                         pairSideCell(r.basePlayers, hole: hole, laneId: laneId, isMySide: sign == 1, width: playerColWidth)
                         pairSideCell(r.oppPlayers, hole: hole, laneId: laneId, isMySide: sign == -1, width: playerColWidth)
-                        zoomResultCell(r.result * sign)
-                        zoomAccumCell(vuelta: r.vueltaAccum * sign, pres: pres)
+                        zoomResultCell(r.result * sign, carry: carryAccumPair[hole] != nil ? matchManager.pairCarryHoleResults(laneId: laneId, hole: hole).map { $0.with * sign } : nil)
+                        zoomAccumCell(vuelta: r.vueltaAccum * sign, pres: pres, carry: carryAccumPair[hole].map { ($0.vuelta * sign, $0.pres.map { $0 * sign }) })
                     }
                     .padding(.horizontal, 16).padding(.vertical, 13)
                 } else {
@@ -2066,20 +2084,28 @@ struct MatchZoomView: View {
         .frame(width: holeColWidth, alignment: .leading)
     }
 
-    private func zoomResultCell(_ result: Int) -> some View {
+    private func zoomResultCell(_ result: Int, carry: Int? = nil) -> some View {
         let color: Color = result > 0 ? .cFairwayL : result < 0 ? .cBrick : .cMuted
         let label = result == 0 ? "E" : result > 0 ? "+\(result)" : "\(result)"
-        return Text(label)
-            .font(.system(size: 17, weight: .bold, design: .monospaced))
-            .foregroundColor(color)
-            .frame(width: resColWidth, alignment: .leading)
+        // Si el Carry cambia el resultado de este hoyo, se muestra debajo en dorado cómo queda con carry.
+        return VStack(alignment: .leading, spacing: 1) {
+            Text(label)
+                .font(.system(size: 17, weight: .bold, design: .monospaced))
+                .foregroundColor(color)
+            if let c = carry, c != result {
+                Text("C \(c == 0 ? "E" : c > 0 ? "+\(c)" : "\(c)")")
+                    .font(.system(size: 11, weight: .bold, design: .monospaced))
+                    .foregroundColor(.cGold)
+            }
+        }
+        .frame(width: resColWidth, alignment: .leading)
     }
 
     // Acumulado corrido hasta este hoyo — vuelta Y presión juntas (completo, no solo vuelta),
     // para auditar a mano, fila por fila, que el total final cuadra con ambos conceptos.
     // Mismo tamaño que zoomResultCell (17pt) — este número es el que define el resultado real
     // del segmento (no el resultado aislado de un solo hoyo), no puede verse más chico que ese.
-    private func zoomAccumCell(vuelta: Int, pres: [Int]) -> some View {
+    private func zoomAccumCell(vuelta: Int, pres: [Int], carry: (vuelta: Int, pres: [Int])? = nil) -> some View {
         let color: Color = vuelta > 0 ? .cFairwayL : vuelta < 0 ? .cBrick : .cMuted
         let label = vuelta == 0 ? "E" : vuelta > 0 ? "+\(vuelta)" : "\(vuelta)"
         // Vuelta arriba, presiones abajo en una segunda línea que envuelve si hace falta —
@@ -2095,6 +2121,13 @@ struct MatchZoomView: View {
                 Text(presText)
                     .font(.system(size: 13, weight: .bold, design: .monospaced))
                     .foregroundColor(.cInk)
+            }
+            // Acumulado con Carry (vuelta + presiones) cuando difiere del normal.
+            if let c = carry, c.vuelta != vuelta || c.pres != pres {
+                Text("C \(c.vuelta == 0 ? "E" : c.vuelta > 0 ? "+\(c.vuelta)" : "\(c.vuelta)")"
+                     + (c.pres.isEmpty ? "" : " " + c.pres.map { $0 > 0 ? "+\($0)" : "\($0)" }.joined(separator: " ")))
+                    .font(.system(size: 11, weight: .bold, design: .monospaced))
+                    .foregroundColor(.cGold)
             }
         }
         .frame(width: accumColWidth, alignment: .leading)
@@ -2171,7 +2204,19 @@ struct ResultsSheetView: View {
     }
     @State private var selection: MatchSelection? = nil
     @State private var detailHole: Int? = nil
-    @State private var unitLogTarget: UnitLogTarget? = nil
+    @State private var unitLogRequest: UnitLogRequest? = nil
+    // Tarjeta Carry B9 (B9 normal vs con el stroke del carry) del match seleccionado.
+    @State private var carryCardTarget: UnitLogTarget? = nil
+    // Vista de resultados: false = tarjeta actual, true = tabla (MatchResumenView). Se recuerda.
+    // ──────────────────────────────────────────────────────────────────────────────────────
+    // TARJETA DE RESULTADOS ANTERIOR — DESACTIVADA (2026-10-18).
+    // La pantalla Resultado y la vista de Tabla (MatchResumenView) mostraban la misma información;
+    // quedó solo la Tabla, que además abre el zoom por concepto (F9, B9, Carry, Unidades) y la
+    // tarjeta Carry B9. El código de la tarjeta anterior NO se borró: sigue en matchCard() (celdas
+    // F9/B9 con sus chips U, línea de strokes, Total y fila de dinero F9/B9/Carry/Unidades/Match).
+    // Para volver a verla (y ocultar la Tabla) cambia este valor a `true`.
+    // ──────────────────────────────────────────────────────────────────────────────────────
+    private let legacyResultCardEnabled = false
     @State private var matchZoomTarget: UnitLogTarget? = nil
     @State private var matchZoomInitialSegment: String = "F9"
     // Qué compañero del lado elegible queda seleccionado en el picker de Carry de pareja —
@@ -2415,9 +2460,28 @@ struct ResultsSheetView: View {
             }
         }
         .onChange(of: selection) { _, _ in detailHole = nil }
-        .sheet(item: $unitLogTarget) { target in
+        .sheet(item: $unitLogRequest) { req in
             NavigationStack {
-                UnitLogDetailView(title: unitLogTitle(target), entries: unitLogEntries(target))
+                UnitLogDetailView(title: unitLogTitle(req.target), entries: unitLogEntries(req.target, segment: req.segment))
+            }
+        }
+        .sheet(item: $carryCardTarget) { target in
+            NavigationStack {
+                Group {
+                    if let data = matchManager.carryCardData(target: target) {
+                        let line = matchManager.walletSnapshot().lines.first { l in
+                            switch target {
+                            case .individual(let opp): return l.opponentAlias == opp
+                            case .pair(let id): return l.laneId == id
+                            }
+                        }
+                        CarryB9CardView(data: data, moneyB9: line?.b9Money ?? 0, moneyCarry: line?.carryMoney ?? 0)
+                    } else {
+                        Text("El Carry no está activo en este match.").foregroundColor(.secondary).padding()
+                    }
+                }
+                .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("Cerrar") { carryCardTarget = nil } } }
+                .navigationBarTitleDisplayMode(.inline)
             }
         }
         .sheet(item: $matchZoomTarget) { target in
@@ -2436,17 +2500,21 @@ struct ResultsSheetView: View {
         }
     }
 
-    private func unitLogEntries(_ target: UnitLogTarget) -> [UnitLogEntry] {
+    private func unitLogEntries(_ target: UnitLogTarget, segment: String?) -> [UnitLogEntry] {
         switch target {
         case .individual(let opp):
-            return matchManager.unitLogEntriesForZoom(includeIndividual: true, includePair: false)
+            let segs: [String?] = segment == "ALL" ? ["F9", "B9"] : [segment]
+            return segs.flatMap { matchManager.unitLogEntriesForZoom(segmentOverride: $0, includeIndividual: true, includePair: false) }
                 .filter { $0.scope == .individual && $0.vs == opp }
+                .sorted { $0.hole < $1.hole }
         case .pair(let laneId):
             guard let lane = matchManager.lanes.first(where: { $0.id == laneId }) else { return [] }
             let player = lane.base.joined(separator: "+")
             let vs     = lane.opp.joined(separator: "+")
-            return matchManager.unitLogEntriesForZoom(includeIndividual: false, includePair: true)
+            let segs: [String?] = segment == "ALL" ? ["F9", "B9"] : [segment]
+            return segs.flatMap { matchManager.unitLogEntriesForZoom(segmentOverride: $0, includeIndividual: false, includePair: true) }
                 .filter { $0.scope == .parejas && $0.player == player && $0.vs == vs }
+                .sorted { $0.hole < $1.hole }
         }
     }
 
@@ -2591,7 +2659,7 @@ struct ResultsSheetView: View {
         let oppL     = lane.opp.joined(separator: "+")
         let wallet   = matchManager.walletSnapshot().lines.first { $0.laneId == lane.id }
         let carryEligibleTeam = matchManager.pairCarryEligibleTeam(laneId: lane.id)
-        let carrySelected = carrySelection[lane.id] ?? carryEligibleTeam.first
+        let carrySelected = carrySelection[lane.id] ?? matchManager.pairCarryRequesterByLane[lane.id] ?? carryEligibleTeam.first
         let adjust50On = matchManager.isPairAdjust50Active(laneId: lane.id)
         let doublePressOn = matchManager.isPairDoublePressActive(laneId: lane.id)
 
@@ -2677,31 +2745,58 @@ struct ResultsSheetView: View {
                 // mismo patrón que bruto/neto "5/3" de scoreCell: cifras relacionadas van juntas).
                 // Carry solo puede existir en B9 — se pega igual si está activo. Cada segmento es
                 // tocable y abre el Zoom directo en ese segmento (no solo desde el header).
-                HStack(spacing: 0) {
-                    Button { matchZoomInitialSegment = "F9"; matchZoomTarget = zoomTarget } label: {
-                        segmentCell("F9", vuelta: f9V, pres: f9Pres)
+                if !legacyResultCardEnabled {
+                    MatchResumenView(resumen: buildResumen(zoomTarget: zoomTarget, wallet: wallet,
+                                                           f9V: f9V, b9V: b9V, f9Pres: f9Pres, b9Pres: b9Pres,
+                                                           carryActive: carryActive, doublePressActive: doublePressActive,
+                                                           adjust50Active: adjust50Active),
+                                       onZoom: { concepto in
+                        // Zoom al concepto: F9/B9/Carry abren el Zoom hoyo por hoyo en ese segmento,
+                        // Match en el segmento en juego, Unidades abre el log completo (F9 + B9).
+                        if concepto.hasPrefix("Carry") {
+                            carryCardTarget = zoomTarget
+                        } else if concepto.hasPrefix("Unidades") {
+                            unitLogRequest = UnitLogRequest(target: zoomTarget, segment: "ALL")
+                        } else {
+                            matchZoomInitialSegment = concepto.hasPrefix("F9") ? "F9"
+                                : (concepto.hasPrefix("Match") ? currentSegment : "B9")
+                            matchZoomTarget = zoomTarget
+                        }
+                    })
+                        .padding(.horizontal, 10).padding(.bottom, 14)
+                } else {
+                    HStack(spacing: 0) {
+                        VStack(spacing: 0) {
+                            Button { matchZoomInitialSegment = "F9"; matchZoomTarget = zoomTarget } label: {
+                                segmentCell("F9", vuelta: f9V, pres: f9Pres)
+                            }
+                            .buttonStyle(.plain)
+                            segmentUnitsChip("F9", target: zoomTarget)
+                        }
+                        Color.cRowDiv.frame(width: 1)
+                        VStack(spacing: 0) {
+                            Button { matchZoomInitialSegment = "B9"; matchZoomTarget = zoomTarget } label: {
+                                segmentCell("B9", vuelta: b9V, pres: b9Pres, carry: b9Carry)
+                            }
+                            .buttonStyle(.plain)
+                            segmentUnitsChip("B9", target: zoomTarget)
+                        }
                     }
-                    .buttonStyle(.plain)
-                    Color.cRowDiv.frame(width: 1)
-                    Button { matchZoomInitialSegment = "B9"; matchZoomTarget = zoomTarget } label: {
-                        segmentCell("B9", vuelta: b9V, pres: b9Pres, carry: b9Carry)
-                    }
-                    .buttonStyle(.plain)
-                }
 
-                // Strokes reales (no puntos) que recibe/da cada jugador en F9 y B9 — separado del
-                // resultado de Vuelta/Presión/Carry de arriba. Dato clave para la discusión en
-                // cancha, así que se resalta en dorado (no texto gris chico) y se permite envolver
-                // a 2 líneas en vez de esconderse en un scroll horizontal sin indicador — antes el
-                // texto se recortaba y no había pista visual de que había más contenido.
-                if let line = strokesLine {
-                    Text(line)
-                        .font(.system(size: 12, weight: .bold, design: .monospaced))
-                        .foregroundColor(.cGold)
-                        .lineLimit(2)
-                        .minimumScaleFactor(0.7)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .padding(.horizontal, 14).padding(.bottom, 6)
+                    // Strokes reales (no puntos) que recibe/da cada jugador en F9 y B9 — separado del
+                    // resultado de Vuelta/Presión/Carry de arriba. Dato clave para la discusión en
+                    // cancha, así que se resalta en dorado (no texto gris chico) y se permite envolver
+                    // a 2 líneas en vez de esconderse en un scroll horizontal sin indicador — antes el
+                    // texto se recortaba y no había pista visual de que había más contenido.
+                    if let line = strokesLine {
+                        Text(line)
+                            .font(.system(size: 12, weight: .bold, design: .monospaced))
+                            .foregroundColor(.cGold)
+                            .lineLimit(2)
+                            .minimumScaleFactor(0.7)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .padding(.horizontal, 14).padding(.bottom, 6)
+                    }
                 }
 
                 // B9 Refresh — visible siempre que ya se está jugando B9, no solo cuando hay un
@@ -2726,6 +2821,14 @@ struct ResultsSheetView: View {
                                 .font(.system(size: 11, weight: (carryActive || adjust50Active) ? .semibold : .regular))
                                 .foregroundColor((carryActive || adjust50Active) ? .cGold : f9Tied ? .cDisabled : .cMuted)
                             Spacer()
+                            if carryActive {
+                                Button { carryCardTarget = zoomTarget } label: {
+                                    Text("Ver tarjeta Carry ›")
+                                        .font(.system(size: 11, weight: .bold))
+                                        .foregroundColor(.cGold)
+                                }
+                                .buttonStyle(.plain)
+                            }
                         }
                         HStack(spacing: 6) {
                             b9RefreshChip(label: "Carry", active: carryActive, disabled: f9Tied) {
@@ -2771,7 +2874,7 @@ struct ResultsSheetView: View {
                 // (ej. +7 +4 +1 y a veces alguna negativa) es fácil leer solo los positivos y
                 // pensar que vas ganando cuando en realidad una presión se perdió. El total real
                 // en dinero queda aquí mismo, no solo hasta abajo en el desglose completo.
-                if let w = wallet {
+                if let w = wallet, legacyResultCardEnabled {
                     HStack(spacing: 4) {
                         Spacer()
                         Text("Total")
@@ -2793,7 +2896,7 @@ struct ResultsSheetView: View {
             // El dinero (Vuelta/Presión/Carry/Match/Unidades) es un cálculo independiente de
             // walletSnapshot() — siempre se muestra completo aunque el historial de zoom (arriba)
             // todavía no tenga filas (regla dura: nunca resumido, nunca oculto).
-            if let w = wallet {
+            if let w = wallet, legacyResultCardEnabled {
                 Color.cBorder.frame(height: 1)
                 walletBreakdownRow(w)
             }
@@ -2806,22 +2909,40 @@ struct ResultsSheetView: View {
     // Fila de dinero completa: Vuelta, Presión, Carry, Match, Unidades y Total.
     // Siempre se despliegan los 5 conceptos — nunca resumido (regla de Daniel).
     private func walletBreakdownRow(_ w: WalletLine) -> some View {
-        HStack(spacing: 10) {
-            moneyChip("V", w.vueltaMoney)
-            moneyChip("P", w.presionMoney)
-            if w.carryActive { moneyChip("C", w.carryMoney) } else { moneyChip("C", nil) }
-            moneyChip("M", w.matchMoney)
-            Button { unitLogTarget = unitTarget(for: w) } label: {
-                moneyChip("U", w.unitsMoney)
+        // Cada apuesta con su etiqueta y su monto en texto grande: F9, B9, Carry B9, Unidades y
+        // Match (F9 y B9 ya incluyen su vuelta + presión; el Carry es una apuesta aparte).
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 16) {
+                labeledMoney("F9", w.f9Money)
+                labeledMoney("B9", w.b9Money)
+                labeledMoney("Carry B9", w.carryActive ? w.carryMoney : nil)
+                Spacer(minLength: 0)
             }
-            .buttonStyle(.plain)
-            .disabled(unitTarget(for: w) == nil)
-            Spacer()
-            Text(caddyMoneyStr(w.totalMoney))
-                .font(.system(size: 14, weight: .black, design: .monospaced))
-                .foregroundColor(caddyMoneyColor(w.totalMoney))
+            HStack(spacing: 16) {
+                Button { if let t = unitTarget(for: w) { unitLogRequest = UnitLogRequest(target: t, segment: nil) } } label: {
+                    labeledMoney("Unidades", w.unitsMoney)
+                }
+                .buttonStyle(.plain)
+                .disabled(unitTarget(for: w) == nil)
+                labeledMoney("Match", w.matchMoney)
+                Spacer(minLength: 0)
+                Text(caddyMoneyStr(w.totalMoney))
+                    .font(.system(size: 20, weight: .black, design: .monospaced))
+                    .foregroundColor(caddyMoneyColor(w.totalMoney))
+            }
         }
         .padding(.horizontal, 14).padding(.vertical, 10)
+    }
+
+    private func labeledMoney(_ label: String, _ value: Int?) -> some View {
+        VStack(alignment: .leading, spacing: 1) {
+            Text(label)
+                .font(.system(size: 11, weight: .bold))
+                .foregroundColor(.cMuted)
+            Text(value == nil ? "–" : caddyMoneyStr(value!))
+                .font(.system(size: 17, weight: .bold, design: .monospaced))
+                .foregroundColor(value == nil ? .cDisabled : caddyMoneyColor(value!))
+        }
     }
 
     private func moneyChip(_ label: String, _ value: Int?) -> some View {
@@ -2832,6 +2953,145 @@ struct ResultsSheetView: View {
             Text(value == nil ? "–" : caddyMoneyStr(value!))
                 .font(.system(size: 11, weight: .semibold, design: .monospaced))
                 .foregroundColor(value == nil ? .cDisabled : caddyMoneyColor(value!))
+        }
+    }
+
+    // Arma el MatchResumen de la tabla con valores YA calculados (billetera, vueltas y presiones de
+    // la tarjeta, carry y log de unidades) — no calcula dinero ni resultados.
+    private func buildResumen(zoomTarget: UnitLogTarget, wallet w: WalletLine?,
+                              f9V: Int, b9V: Int, f9Pres: [Int], b9Pres: [Int],
+                              carryActive: Bool, doublePressActive: Bool, adjust50Active: Bool) -> MatchResumen {
+        func sg(_ v: Int) -> String { v > 0 ? "+\(v)" : "\(v)" }
+        func chips(_ vuelta: Int, _ pres: [Int]) -> [String] { [sg(vuelta)] + pres.map(sg) }
+
+        let yo = matchManager.yoAlias
+        var jugador = yo, oponente = "", strokes = 0
+        var carryVuelta = 0, carryPres: [Int] = []
+        var entries: [UnitLogEntry] = []
+        var sign = 1
+        switch zoomTarget {
+        case .individual(let opp):
+            oponente = opp
+            strokes = matchManager.individualStrokesConvenio(opponentAlias: opp)
+            carryVuelta = matchManager.individualCarryResultB9(opponentAlias: opp)
+            carryPres = matchManager.individualCarryPresionB9(opponentAlias: opp)
+            for seg in ["F9", "B9"] {
+                entries += matchManager.unitLogEntriesForZoom(segmentOverride: seg, includeIndividual: true, includePair: false)
+                    .filter { $0.scope == .individual && $0.vs == opp }
+            }
+        case .pair(let laneId):
+            if let lane = matchManager.lanes.first(where: { $0.id == laneId }) {
+                // El dinero de la billetera de pareja viene del lado base; los chips ya vienen desde
+                // la perspectiva de yo, así que se regresan a la del lado base para que coincidan.
+                sign = lane.base.contains(yo) ? 1 : -1
+                jugador = lane.base.joined(separator: "+")
+                oponente = lane.opp.joined(separator: "+")
+                strokes = matchManager.pairStrokesConvenio(laneId: laneId)
+                carryVuelta = matchManager.pairCarryResultB9(laneId: laneId)
+                carryPres = matchManager.pairCarryPresionB9(laneId: laneId)
+                for seg in ["F9", "B9"] {
+                    entries += matchManager.unitLogEntriesForZoom(segmentOverride: seg, includeIndividual: false, includePair: true)
+                        .filter { $0.scope == .parejas && $0.player == jugador && $0.vs == oponente }
+                }
+            }
+        }
+        entries.sort { $0.hole < $1.hole }
+        let f9 = f9V * sign, b9 = b9V * sign
+        let f9p = f9Pres.map { $0 * sign }, b9p = b9Pres.map { $0 * sign }
+        let matchRaw = f9 + b9
+        let unidades = w?.unitsPoints ?? 0
+        let roundDone = matchManager.isRoundComplete()
+
+        let unitLines: [String] = entries.isEmpty ? ["Sin unidades registradas"] : entries.map { e in
+            "H\(e.hole) · \(e.player) · \(e.detail ?? e.type) (\(sg(e.units)))"
+        }
+        let campoTotal = entries.filter { !$0.type.hasPrefix("OYES") }.reduce(0) { $0 + $1.units }
+        let oyesTotal = entries.filter { $0.type.hasPrefix("OYES") }.reduce(0) { $0 + $1.units }
+
+        return MatchResumen(
+            jugador: jugador, oponente: oponente, strokes: strokes,
+            tag: matchManager.betValues(forOpponent: oponente).vueltaValue,
+            carryActivo: carryActive, dobleB9: doublePressActive,
+            f9: ConceptoMatch(nombre: "F9", chips: chips(f9, f9p), monto: w?.f9Money ?? 0,
+                              detalle: ["Vuelta F9: \(sg(f9))", "Presiones F9: " + (f9p.isEmpty ? "—" : f9p.map(sg).joined(separator: " · "))]),
+            b9: ConceptoMatch(nombre: "B9", chips: chips(b9, b9p), monto: w?.b9Money ?? 0,
+                              detalle: ["Vuelta B9: \(sg(b9))", "Presiones B9: " + (b9p.isEmpty ? "—" : b9p.map(sg).joined(separator: " · "))]
+                                + (doublePressActive ? ["Doble B9: vuelta y presión de B9 ×2"] : [])),
+            match: ConceptoMatch(nombre: "Match", chips: [sg(matchRaw)], monto: w?.matchMoney ?? 0,
+                                 detalle: ["Suma de F9 + B9: \(sg(matchRaw))",
+                                           roundDone ? "Ronda completa: el match ya se cobra" : "Se suma al terminar los 18 hoyos"]),
+            carry: ConceptoMatch(nombre: "Carry", chips: chips(carryVuelta * sign, carryPres.map { $0 * sign }), monto: w?.carryMoney ?? 0,
+                                 detalle: ["Vuelta del Carry B9: \(sg(carryVuelta * sign))",
+                                           "Presiones del Carry: " + (carryPres.isEmpty ? "—" : carryPres.map { sg($0 * sign) }.joined(separator: " · ")),
+                                           "Carry se paga con la apuesta original (Doble B9 no lo afecta)"]),
+            unidades: ConceptoMatch(nombre: "Unidades", chips: [sg(unidades)], monto: w?.unitsMoney ?? 0,
+                                    detalle: ["Campo \(sg(campoTotal)) · Oyes \(sg(oyesTotal))"] + unitLines),
+            ajuste: (adjust50Active && (w?.adjust50Money ?? 0) != 0)
+                ? ConceptoMatch(nombre: "Ajuste 50", chips: [sg(w?.adjust50Points ?? 0)], monto: w?.adjust50Money ?? 0,
+                                detalle: ["Ajuste 50 activo en B9"])
+                : nil
+        )
+    }
+
+    // Oyes con ganador en este match, por hoyo: result > 0 = gana mi lado (yo / lado base de yo).
+    private func oyesOutcomes(for target: UnitLogTarget) -> [(hole: Int, result: Int, label: String)] {
+        let yo = matchManager.yoAlias
+        var out: [(hole: Int, result: Int, label: String)] = []
+        for h in matchManager.playOrder() where matchManager.getHole(h)?.par == 3 {
+            switch target {
+            case .individual(let opp):
+                guard let r = matchManager.oyesIndividualOutcome(hole: h, opponentAlias: opp), r != 0 else { continue }
+                out.append((h, r, r > 0 ? yo : opp))
+            case .pair(let laneId):
+                guard let lane = matchManager.lanes.first(where: { $0.id == laneId }),
+                      let r = matchManager.oyesPairOutcome(hole: h, laneId: laneId), r != 0 else { continue }
+                let sign = lane.base.contains(yo) ? 1 : -1
+                out.append((h, r * sign, (r > 0 ? lane.base : lane.opp).joined(separator: "+")))
+            }
+        }
+        return out
+    }
+
+    // Unidades netas del segmento (incluye oyes) como número; al tocarlo abre el log de ese segmento.
+    private func segmentUnitsChip(_ segment: String, target: UnitLogTarget) -> some View {
+        let units: Int
+        switch target {
+        case .individual(let opp):
+            units = matchManager.unitStakeForIndividual(opponentAlias: opp, segmentOverride: segment)
+        case .pair(let laneId):
+            units = matchManager.unitStakeForPair(laneId: laneId, segmentOverride: segment)
+        }
+        let color: Color = units > 0 ? .cFairwayL : units < 0 ? .cBrick : .cMuted
+        let label = units > 0 ? "+\(units)" : "\(units)"
+        let oyes = oyesOutcomes(for: target).filter { matchManager.segmentForHole($0.hole) == segment }
+        return VStack(spacing: 0) { Button {
+            unitLogRequest = UnitLogRequest(target: target, segment: segment)
+        } label: {
+            HStack(spacing: 3) {
+                Text("U")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundColor(.cDisabled)
+                Text(label)
+                    .font(.system(size: 13, weight: .bold, design: .monospaced))
+                    .foregroundColor(color)
+            }
+            .padding(.horizontal, 10).padding(.vertical, 4)
+            .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.cBorder, lineWidth: 1))
+        }
+        .buttonStyle(.plain)
+        .padding(.bottom, oyes.isEmpty ? 8 : 4)
+        // Los oyes ganados de ese segmento van pegados a la U — un solo lugar para las unidades.
+        if !oyes.isEmpty {
+            HStack(spacing: 4) {
+                ForEach(oyes, id: \.hole) { o in
+                    Text("H\(o.hole) \(o.label) \(o.result > 0 ? "+" : "-")\(abs(o.result))")
+                        .font(.system(size: 10, weight: .bold, design: .monospaced))
+                        .foregroundColor(o.result > 0 ? .cFairwayL : .cBrick)
+                        .lineLimit(1).minimumScaleFactor(0.6)
+                }
+            }
+            .padding(.horizontal, 6).padding(.bottom, 8)
+        }
         }
     }
 
@@ -3157,14 +3417,16 @@ struct ResultsSheetView: View {
                                     ? matchManager.pairStrokeForPlayer(laneId: laneId!, alias: p.alias, hole: h)
                                     : matchManager.distributedStrokes(total: p.strokesVsBase, hole: h)
                                 let carryExtra: Double = laneId != nil
-                                    ? 0
+                                    ? matchManager.pairCarryExtraStroke(laneId: laneId!, alias: p.alias, hole: h)
                                     : matchManager.individualCarryExtraStroke(opponentAlias: opp.alias, alias: p.alias, hole: h)
                                 // La "C" solo se marca cuando el Carry realmente cambia el
                                 // resultado de ese hoyo vs sin Carry — mismo criterio que en la
                                 // tabla Zoom, no en cada hoyo donde el stroke aplica mecánicamente.
                                 let carryDiverges: Bool = laneId != nil
-                                    ? false
+                                    ? matchManager.pairCarryDivergesAtHole(laneId: laneId!, hole: h)
                                     : matchManager.individualCarryDivergesAtHole(opponentAlias: opp.alias, hole: h)
+                                // Stroke que da el Carry y cambia el resultado: se resalta en dorado.
+                                let carryHighlight = carryExtra > 0.001 && carryDiverges
 
                                 Button {
                                     correctionRequest = ScoreCorrection(hole: h, alias: p.alias)
@@ -3183,17 +3445,19 @@ struct ResultsSheetView: View {
                                                     .font(.system(size: 11, weight: .bold))
                                                     .foregroundColor(sideColor)
                                             }
-                                            if carryExtra > 0.001, carryDiverges {
+                                            if carryHighlight {
                                                 Text("C")
                                                     .font(.system(size: 11, weight: .bold))
-                                                    .foregroundColor(sideColor)
+                                                    .foregroundColor(.cGold)
                                             }
                                         }
                                     }
                                     .frame(width: 88, height: 56)
-                                    .background(h == hole ? (isYo ? Color.cFairway.opacity(0.06) : isOpp ? Color.cBrick.opacity(0.04) : Color.clear) : Color.clear)
+                                    .background(carryHighlight ? Color.cGold.opacity(0.18)
+                                                : h == hole ? (isYo ? Color.cFairway.opacity(0.06) : isOpp ? Color.cBrick.opacity(0.04) : Color.clear) : Color.clear)
                                     .overlay(
-                                        h == hole ? RoundedRectangle(cornerRadius: 6).stroke(Color.cGold.opacity(0.4), lineWidth: 1) : nil
+                                        carryHighlight ? RoundedRectangle(cornerRadius: 6).stroke(Color.cGold, lineWidth: 1.5)
+                                        : (h == hole ? RoundedRectangle(cornerRadius: 6).stroke(Color.cGold.opacity(0.4), lineWidth: 1) : nil)
                                     )
                                 }
                                 .buttonStyle(.plain)
@@ -3232,6 +3496,108 @@ struct ResultsSheetView: View {
                             }
                         }
                         .padding(.vertical, 6)
+                    }
+
+                    // ── Carry: cómo cambia el resultado de cada hoyo de B9 (sin Carry → con Carry).
+                    // Solo aparece si el Carry de este match está activo y algún hoyo de la
+                    // ventana cambia de resultado; va en la misma columna que el hoyo.
+                    let carryRows: [Int: (without: Int, with: Int)] = Dictionary(uniqueKeysWithValues: holesWindow.compactMap { h in
+                        let r = laneId != nil
+                            ? matchManager.pairCarryHoleResults(laneId: laneId!, hole: h)
+                            : matchManager.individualCarryHoleResults(opponentAlias: opp.alias, hole: h)
+                        guard let r, r.without != r.with else { return nil }
+                        return (h, r)
+                    })
+                    // ── Oyes: quién ganó el oyes de cada par 3 de la ventana en ESTE match
+                    // (individual contra el rival, o lado contra lado en pareja), con sus unidades.
+                    let oyesByHole: [Int: (result: Int, label: String)] = {
+                        var out: [Int: (result: Int, label: String)] = [:]
+                        for h in holesWindow where matchManager.getHole(h)?.par == 3 {
+                            if let laneId, let lane = matchManager.lanes.first(where: { $0.id == laneId }) {
+                                guard let r = matchManager.oyesPairOutcome(hole: h, laneId: laneId), r != 0 else { continue }
+                                let sign = lane.base.contains(yo) ? 1 : -1
+                                out[h] = (r * sign, (r > 0 ? lane.base : lane.opp).joined(separator: "+"))
+                            } else {
+                                guard let r = matchManager.oyesIndividualOutcome(hole: h, opponentAlias: opp.alias), r != 0 else { continue }
+                                out[h] = (r, r > 0 ? yo : opp.alias)
+                            }
+                        }
+                        return out
+                    }()
+                    if !oyesByHole.isEmpty {
+                        Color.cBorder.frame(height: 1)
+                        HStack(spacing: 0) {
+                            Text("Oyes")
+                                .font(.system(size: 12, weight: .semibold)).foregroundColor(.cMuted)
+                                .frame(width: 58, alignment: .leading).padding(.leading, 14)
+                            ForEach(holesWindow, id: \.self) { h in
+                                if let o = oyesByHole[h] {
+                                    let c: Color = o.result > 0 ? .cFairwayL : .cBrick
+                                    VStack(spacing: 1) {
+                                        Text(o.label)
+                                            .font(.system(size: 12, weight: .bold, design: .monospaced))
+                                            .foregroundColor(c).lineLimit(1).minimumScaleFactor(0.7)
+                                        Text("\(o.result > 0 ? "+" : "-")\(abs(o.result)) u")
+                                            .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                                            .foregroundColor(c)
+                                    }
+                                    .frame(width: 88)
+                                } else {
+                                    Text("·")
+                                        .font(.system(size: 14, design: .monospaced))
+                                        .foregroundColor(.cDisabled)
+                                        .frame(width: 88)
+                                }
+                            }
+                        }
+                        .padding(.vertical, 6)
+                    }
+
+                    // Acum con Carry (vuelta + presiones de B9 recalculadas con el stroke del Carry),
+                    // en la misma columna que el Acum normal, para ver cuánto cambia la racha.
+                    let carryAccum: [Int: (vuelta: Int, pres: [Int])] = {
+                        if let laneId, let lane = matchManager.lanes.first(where: { $0.id == laneId }) {
+                            let sign = lane.base.contains(yo) ? 1 : -1
+                            return matchManager.carryAccumByHole(laneId: laneId, opponentAlias: nil)
+                                .mapValues { ($0.vuelta * sign, $0.pres.map { $0 * sign }) }
+                        }
+                        return matchManager.carryAccumByHole(laneId: nil, opponentAlias: opp.alias)
+                    }()
+                    if holesWindow.contains(where: { carryAccum[$0] != nil }) {
+                        Color.cBorder.frame(height: 1)
+                        HStack(spacing: 0) {
+                            Text("Carry")
+                                .font(.system(size: 12, weight: .semibold)).foregroundColor(.cGold)
+                                .frame(width: 58, alignment: .leading).padding(.leading, 14)
+                            ForEach(holesWindow, id: \.self) { h in
+                                if let a = carryAccum[h] {
+                                    VStack(spacing: 2) {
+                                        Text(caddyResultStr(a.vuelta))
+                                            .font(.system(size: 18, weight: .bold, design: .monospaced))
+                                            .foregroundColor(.cGold)
+                                        if !a.pres.isEmpty {
+                                            Text(a.pres.map { $0 > 0 ? "+\($0)" : "\($0)" }.joined(separator: " "))
+                                                .font(.system(size: 12, weight: .bold, design: .monospaced))
+                                                .foregroundColor(.cGold)
+                                        }
+                                        // Hoyos donde el carry cambia el resultado: sin carry → con carry.
+                                        if let r = carryRows[h] {
+                                            Text("\(caddyResultStr(r.without))→\(caddyResultStr(r.with))")
+                                                .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                                                .foregroundColor(.cMuted)
+                                        }
+                                    }
+                                    .frame(width: 88)
+                                } else {
+                                    Text("·")
+                                        .font(.system(size: 14, design: .monospaced))
+                                        .foregroundColor(.cDisabled)
+                                        .frame(width: 88)
+                                }
+                            }
+                        }
+                        .padding(.vertical, 6)
+                        .background(Color.cGold.opacity(0.08))
                     }
                 }
             }

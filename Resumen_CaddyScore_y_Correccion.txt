@@ -1,0 +1,27 @@
+// MatchManager.swift
+
+import Foundation
+
+class MatchManager {
+    // Properties representing strokes for Front 9, Back 9 and Carry
+    var strokesF9: Int
+    var strokesB9: Int
+    var strokesCarry: Int
+    
+    init(strokesF9: Int, strokesB9: Int) {
+        self.strokesF9 = strokesF9
+        self.strokesB9 = strokesB9
+        self.strokesCarry = 0
+    }
+    
+    func calculateCarryStrokes(rivalRequestsCarry: Bool, wonB9: Bool) {
+        if rivalRequestsCarry && wonB9 {
+            // Corrección 2026-10-18: el carry ahora recibe strokesPrevios + 1.
+            strokesCarry = strokesB9 + 1
+        } else {
+            strokesCarry = 0
+        }
+    }
+    
+    // Other methods related to match management...
+}

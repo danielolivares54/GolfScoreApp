@@ -443,10 +443,10 @@ struct BetSetupSheet: View {
         }
         .onAppear { syncFromManager() }
         .sheet(item: $editingTemplate) { tpl in
-            BetTemplateEditView(template: tpl)
+            BetTemplateEditView(template: tpl, matchManager: matchManager)
         }
         .sheet(isPresented: $showingNewTemplate) {
-            BetTemplateEditView(template: nil)
+            BetTemplateEditView(template: nil, matchManager: matchManager)
         }
     }
 
@@ -612,6 +612,8 @@ private struct BetTemplateEditView: View {
     @Environment(\.dismiss) private var dismiss
     @ObservedObject private var store = BetTemplateStore.shared
     let template: BetTemplate?
+    // Para propagar los valores editados al match en curso (ver save()).
+    let matchManager: MatchManager
 
     @State private var name = ""
     @State private var vueltaText = ""
@@ -710,6 +712,9 @@ private struct BetTemplateEditView: View {
             carryMatchEnabled: carryMatchEnabled
         )
         store.upsert(tpl)
+        // Los valores de la plantilla se copian al match al elegirla — sin esto, editar el monto
+        // (ej. 100 → 50) no cambiaba el match en curso. Recalcula todo con el valor nuevo.
+        matchManager.refreshBetValues(fromTemplate: tpl)
         dismiss()
     }
 }

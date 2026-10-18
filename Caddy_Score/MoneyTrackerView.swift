@@ -423,6 +423,10 @@ struct UnitLogDetailView: View {
     private let lostColor = Color(red: 0xA8 / 255.0, green: 0x46 / 255.0, blue: 0x2F / 255.0)  // #A8462F
 
     private var total: Int { entries.reduce(0) { $0 + $1.units } }
+    // Oyes (OYES_RANK / OYESP_RANK) vs unidades de campo (birdie, S, etc.) — el Total es la suma de ambas.
+    private var oyesTotal: Int { entries.filter { $0.type.hasPrefix("OYES") }.reduce(0) { $0 + $1.units } }
+    private var campoTotal: Int { total - oyesTotal }
+    private func signedLabel(_ v: Int) -> String { v > 0 ? "+\(v)" : "\(v)" }
 
     var body: some View {
         ScrollView {
@@ -440,6 +444,15 @@ struct UnitLogDetailView: View {
                             .font(.system(size: 22, weight: .black, design: .monospaced))
                             .foregroundColor(total > 0 ? wonColor : total < 0 ? lostColor : .secondary)
                     }
+                    .padding(.bottom, 4)
+                    // Desglose del total: unidades de campo + oyes = unidades hechas en este match.
+                    HStack(spacing: 14) {
+                        Text("Campo \(signedLabel(campoTotal))")
+                        Text("Oyes \(signedLabel(oyesTotal))")
+                        Spacer()
+                    }
+                    .font(.system(size: 13, weight: .semibold, design: .monospaced))
+                    .foregroundColor(.secondary)
                     .padding(.bottom, 4)
                     Divider()
                     ForEach(entries) { e in entryRow(e) }
@@ -471,5 +484,407 @@ struct UnitLogDetailView: View {
             .font(.caption)
             .foregroundColor(color)
         }
+    }
+}
+
+// MARK: - Resumen de match (Opción A · Tabla)
+
+// Vista "Resumen de match" (Opción A · Tabla) — ver Caddie_MatchResumen_spec.
+// Esta vista NO calcula nada: solo muestra valores ya calculados (MatchResumen).
+
+// MARK: - Modelo (solo datos, sin cálculo)
+
+struct ConceptoMatch: Identifiable {
+    let id = UUID()
+    var nombre: String          // "F9", "B9", "Match", "Carry", "Unidades"
+    var chips: [String]         // ej. ["5","3","1"]
+    var monto: Int              // pesos, ya calculado (+ gana jugador, − pierde)
+    var detalle: [String]       // líneas del detalle al tocar
+}
+
+struct MatchResumen {
+    var jugador: String
+    var oponente: String
+    var strokes: Int
+    var tag: Int
+    var carryActivo: Bool
+    var dobleB9: Bool
+    var f9: ConceptoMatch
+    var b9: ConceptoMatch
+    var match: ConceptoMatch
+    var carry: ConceptoMatch
+    var unidades: ConceptoMatch
+    // Fila extra solo si Ajuste 50 está activo (no está en el spec original) — su dinero ya
+    // forma parte del total de la billetera, así que se muestra para que la suma cuadre.
+    var ajuste: ConceptoMatch? = nil
+
+    var filas: [ConceptoMatch] {
+        var b = b9
+        b.nombre = dobleB9 ? "B9 ×2" : "B9"
+        var r = [f9, b, match]
+        if carryActivo { r.append(carry) }
+        if let ajuste { r.append(ajuste) }
+        r.append(unidades)
+        return r
+    }
+    var total: Int { filas.reduce(0) { $0 + $1.monto } }
+}
+
+// MARK: - Helpers
+
+private func formatoMonto(_ n: Int) -> String {
+    let s = n > 0 ? "+" : (n < 0 ? "−" : "")
+    return "\(s)$\(abs(n).formatted(.number.locale(Locale(identifier: "es_MX"))))"
+}
+private func colorMonto(_ n: Int) -> Color {
+    n > 0 ? .green : (n < 0 ? .red : .secondary)
+}
+
+// MARK: - Vista
+
+struct MatchResumenView: View {
+    let resumen: MatchResumen
+    // Zoom al concepto (F9, B9, Match, Carry, Unidades) — recibe el nombre de la fila. nil = sin botón.
+    var onZoom: ((String) -> Void)? = nil
+    @State private var abiertos: Set<UUID> = []
+
+    private var condiciones: String {
+        var p = ["Strokes \(resumen.strokes)"]
+        if resumen.carryActivo { p.append("Carry activo") }
+        if resumen.dobleB9 { p.append("Doble B9") }
+        return p.joined(separator: " · ")
+    }
+    private var quienPaga: String {
+        let t = resumen.total
+        if t > 0 { return "\(resumen.oponente) paga a \(resumen.jugador)" }
+        if t < 0 { return "\(resumen.jugador) paga a \(resumen.oponente)" }
+        return "Empate"
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            // Encabezado
+            HStack {
+                Text("\(resumen.jugador) vs \(resumen.oponente)")
+                    .font(.headline)
+                Spacer()
+                Text("Tag $\(resumen.tag)")
+                    .font(.caption)
+                    .padding(.horizontal, 8).padding(.vertical, 3)
+                    .background(Color.accentColor.opacity(0.15), in: RoundedRectangle(cornerRadius: 6))
+                    .foregroundStyle(Color.accentColor)
+            }
+            Text(condiciones)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .padding(.top, 2).padding(.bottom, 10)
+
+            // Títulos de columnas
+            HStack {
+                Text("Concepto").frame(width: 80, alignment: .leading)
+                Text("Resultado")
+                Spacer()
+                Text("$")
+                Color.clear.frame(width: 20)
+            }
+            .font(.caption2).foregroundStyle(.tertiary)
+            .padding(.bottom, 4)
+            Divider()
+
+            // Filas
+            ForEach(resumen.filas) { fila in
+                filaView(fila)
+                Divider()
+            }
+
+            // Total
+            HStack(alignment: .firstTextBaseline) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Total").font(.subheadline.weight(.semibold))
+                    Text(quienPaga).font(.caption).foregroundStyle(.secondary)
+                }
+                Spacer()
+                Text(formatoMonto(resumen.total))
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(colorMonto(resumen.total))
+                Color.clear.frame(width: 20)
+            }
+            .padding(.top, 10)
+        }
+        .padding(14)
+        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16))
+    }
+
+    @ViewBuilder
+    private func filaView(_ fila: ConceptoMatch) -> some View {
+        let abierto = abiertos.contains(fila.id)
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text(fila.nombre).frame(width: 80, alignment: .leading)
+                HStack(spacing: 4) {
+                    ForEach(Array(fila.chips.enumerated()), id: \.offset) { _, c in
+                        Text(c)
+                            .font(.footnote.monospacedDigit())
+                            .frame(minWidth: 22)
+                            .padding(.horizontal, 4).padding(.vertical, 2)
+                            .background(Color(.tertiarySystemFill), in: RoundedRectangle(cornerRadius: 6))
+                    }
+                }
+                Spacer()
+                Text(formatoMonto(fila.monto))
+                    .font(.subheadline.weight(.semibold).monospacedDigit())
+                    .foregroundStyle(colorMonto(fila.monto))
+                Image(systemName: abierto ? "chevron.up" : "chevron.down")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+                    .frame(width: 20)
+            }
+            .font(.subheadline)
+
+            if abierto {
+                VStack(alignment: .leading, spacing: 3) {
+                    ForEach(fila.detalle, id: \.self) { Text($0) }
+                    if let onZoom {
+                        Button {
+                            onZoom(fila.nombre)
+                        } label: {
+                            Label(fila.nombre == "Carry" ? "Ver tarjeta Carry B9 vs B9" : "Ver \(fila.nombre.replacingOccurrences(of: " ×2", with: "")) hoyo por hoyo", systemImage: "arrow.up.left.and.arrow.down.right")
+                                .font(.caption.weight(.semibold))
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(Color.accentColor)
+                        .padding(.top, 4)
+                    }
+                }
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(8)
+                .background(Color(.tertiarySystemFill), in: RoundedRectangle(cornerRadius: 8))
+            }
+        }
+        .padding(.vertical, 9)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            withAnimation(.easeInOut(duration: 0.2)) {
+                if abierto { abiertos.remove(fila.id) } else { abiertos.insert(fila.id) }
+            }
+        }
+    }
+}
+
+// MARK: - Preview con datos de ejemplo
+
+extension MatchResumen {
+    static let ejemplo = MatchResumen(
+        jugador: "Dan", oponente: "Fer", strokes: 3, tag: 100,
+        carryActivo: true, dobleB9: true,
+        f9: .init(nombre: "F9", chips: ["5","3","1"], monto: 300, detalle: ["Presiones F9: 5 · 3 · 1"]),
+        b9: .init(nombre: "B9", chips: ["4","2"], monto: -200, detalle: ["Presiones B9: 4 · 2"]),
+        match: .init(nombre: "Match", chips: ["9"], monto: 100, detalle: ["Match 9"]),
+        carry: .init(nombre: "Carry", chips: ["2"], monto: 200, detalle: ["Carry de ronda anterior"]),
+        unidades: .init(nombre: "Unidades", chips: ["3"], monto: -100,
+                        detalle: ["Hoyo 4 · Dan · Birdie", "Hoyo 7 · Fer · Oyes", "Hoyo 12 · Dan · Oyes"])
+    )
+}
+
+#Preview("Doble y carry activos") {
+    MatchResumenView(resumen: .ejemplo).padding()
+}
+
+#Preview("Sin doble, sin carry") {
+    var r = MatchResumen.ejemplo
+    r.dobleB9 = false
+    r.carryActivo = false
+    return MatchResumenView(resumen: r).padding()
+}
+
+// MARK: - Tarjeta Carry B9 (B9 normal vs B9 con el stroke del Carry)
+
+struct CarryB9CardView: View {
+    let data: CarryCardData
+    let moneyB9: Int
+    let moneyCarry: Int
+
+    private let gold = Color.cGold
+
+    private func signed(_ v: Int) -> String { v == 0 ? "E" : (v > 0 ? "+\(v)" : "\(v)") }
+    private func presLabel(_ p: [Int]) -> String { p.isEmpty ? "—" : p.map { $0 > 0 ? "+\($0)" : "\($0)" }.joined(separator: " ") }
+    private func money(_ n: Int) -> String { n == 0 ? "$0" : (n > 0 ? "+$\(n)" : "−$\(abs(n))") }
+    private func fmt(_ v: Double) -> String { abs(v - v.rounded()) < 0.01 ? "\(Int(v.rounded()))" : String(format: "%.1f", v) }
+
+    // Orden de juego de los hoyos de la tarjeta, para atenuar los hoyos previos al cambio.
+    private var changeIndex: Int? {
+        guard let h = data.changeHole else { return nil }
+        return data.rows.firstIndex { $0.hole == h }
+    }
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 12) {
+                header
+                ventajaCard
+                resultadoCard
+                tabla
+                leyenda
+            }
+            .padding(14)
+        }
+        .background(Color(.systemGroupedBackground))
+    }
+
+    // MARK: Encabezado
+    private var header: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text("Carry B9").font(.title3.weight(.bold))
+            Text("\(data.title) · pide el carry: \(data.requester)")
+                .font(.subheadline).foregroundStyle(.secondary)
+        }
+    }
+
+    // MARK: Ventaja — lo que hace distinto al carry vs B9
+    private var ventajaCard: some View {
+        let delta = data.carryStrokes - data.normalStrokes
+        return VStack(alignment: .leading, spacing: 6) {
+            Text("VENTAJA").font(.caption2.weight(.bold)).foregroundStyle(.secondary)
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text("Strokes en B9").font(.subheadline)
+                Spacer()
+                Text("\(fmt(data.normalStrokes))").font(.title3.weight(.semibold).monospacedDigit()).foregroundStyle(.secondary)
+                Image(systemName: "arrow.right").font(.caption).foregroundStyle(.secondary)
+                Text("\(fmt(data.carryStrokes))").font(.title2.weight(.bold).monospacedDigit()).foregroundStyle(gold)
+                if abs(delta) > 0.001 {
+                    Text(delta > 0 ? "+\(fmt(delta))" : "\(fmt(delta))")
+                        .font(.caption.weight(.bold))
+                        .padding(.horizontal, 6).padding(.vertical, 2)
+                        .background(gold.opacity(0.2), in: RoundedRectangle(cornerRadius: 6))
+                        .foregroundStyle(gold)
+                }
+            }
+            if let h = data.changeHole, let r = data.changeRank {
+                let added = delta > 0
+                let who = (added ? data.receiverCarry : data.receiverNormal) ?? ""
+                Text(added
+                     ? "\(who) recibe un stroke más: cae en H\(h) (ventaja \(r) de B9). Antes de ese hoyo las dos tarjetas son iguales."
+                     : "Se quita un stroke a \(who): el de H\(h) (ventaja \(r) de B9). Antes de ese hoyo las dos tarjetas son iguales.")
+                    .font(.caption).foregroundStyle(.secondary)
+            } else {
+                Text("El carry no cambia los strokes de B9.").font(.caption).foregroundStyle(.secondary)
+            }
+        }
+        .padding(12)
+        .background(gold.opacity(0.12), in: RoundedRectangle(cornerRadius: 12))
+    }
+
+    // MARK: Resultado B9 vs Carry
+    private var resultadoCard: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("RESULTADO").font(.caption2.weight(.bold)).foregroundStyle(.secondary)
+            HStack {
+                Spacer().frame(width: 74)
+                Text("B9").font(.caption.weight(.bold)).frame(maxWidth: .infinity)
+                Text("Carry").font(.caption.weight(.bold)).foregroundStyle(gold).frame(maxWidth: .infinity)
+            }
+            compareRow("Vuelta", signed(data.vueltaNormal), signed(data.vueltaCarry), changed: data.vueltaNormal != data.vueltaCarry)
+            compareRow("Presiones", presLabel(data.presNormal), presLabel(data.presCarry), changed: data.presNormal != data.presCarry)
+            compareRow("Dinero", money(moneyB9), money(moneyCarry), changed: moneyB9 != moneyCarry)
+            if !data.hasDifference {
+                Text("El stroke extra no cambió ningún hoyo: el Carry da igual que B9 (se cobra aparte, como otra apuesta).")
+                    .font(.caption).foregroundStyle(gold)
+            }
+        }
+        .padding(12)
+        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 12))
+    }
+
+    private func compareRow(_ label: String, _ a: String, _ b: String, changed: Bool) -> some View {
+        HStack {
+            Text(label).font(.subheadline).frame(width: 74, alignment: .leading)
+            Text(a).font(.subheadline.weight(.semibold).monospacedDigit()).frame(maxWidth: .infinity)
+            Text(b).font(.subheadline.weight(.bold).monospacedDigit())
+                .foregroundStyle(changed ? gold : .primary)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 2)
+                .background(changed ? gold.opacity(0.18) : .clear, in: RoundedRectangle(cornerRadius: 6))
+        }
+    }
+
+    // MARK: Tabla hoyo por hoyo
+    private var tabla: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 0) {
+                Text("H").frame(width: 30, alignment: .leading)
+                Text("Golpes").frame(maxWidth: .infinity, alignment: .leading)
+                Text("B9").frame(width: 36)
+                Text("Carry").frame(width: 40).foregroundStyle(gold)
+                Text("Acum B9").frame(width: 56)
+                Text("Acum C").frame(width: 56).foregroundStyle(gold)
+            }
+            .font(.caption2.weight(.bold)).foregroundStyle(.secondary)
+            .padding(.horizontal, 10).padding(.vertical, 6)
+            Divider()
+            ForEach(Array(data.rows.enumerated()), id: \.element.id) { idx, row in
+                let before = (changeIndex.map { idx < $0 } ?? false)
+                filaTabla(row).opacity(before ? 0.45 : 1)
+                Divider()
+            }
+        }
+        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 12))
+    }
+
+    private func filaTabla(_ r: CarryCardRow) -> some View {
+        HStack(alignment: .center, spacing: 0) {
+            VStack(alignment: .leading, spacing: 0) {
+                Text("\(r.hole)").font(.subheadline.weight(.bold).monospacedDigit())
+                Text("H\(r.si)").font(.system(size: 9)).foregroundStyle(gold)
+            }
+            .frame(width: 30, alignment: .leading)
+            HStack(spacing: 6) {
+                ForEach(r.players) { p in playerCell(p) }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            Text(signed(r.resultNormal)).font(.subheadline.monospacedDigit())
+                .foregroundStyle(color(r.resultNormal)).frame(width: 36)
+            Text(signed(r.resultCarry)).font(.subheadline.weight(r.diverges ? .bold : .regular).monospacedDigit())
+                .foregroundStyle(r.diverges ? gold : color(r.resultCarry)).frame(width: 40)
+            VStack(spacing: 0) {
+                Text(signed(r.accumNormal)).font(.subheadline.monospacedDigit()).foregroundStyle(color(r.accumNormal))
+                if !r.presNormal.isEmpty { Text(presLabel(r.presNormal)).font(.system(size: 10, weight: .semibold, design: .monospaced)).foregroundStyle(.secondary) }
+            }.frame(width: 56)
+            VStack(spacing: 0) {
+                Text(signed(r.accumCarry)).font(.subheadline.weight(.bold).monospacedDigit()).foregroundStyle(gold)
+                if !r.presCarry.isEmpty { Text(presLabel(r.presCarry)).font(.system(size: 10, weight: .semibold, design: .monospaced)).foregroundStyle(gold) }
+            }.frame(width: 56)
+        }
+        .padding(.horizontal, 10).padding(.vertical, 6)
+        .background((r.diverges || abs(r.strokeChange) > 0.001) ? gold.opacity(0.14) : .clear)
+    }
+
+    private func playerCell(_ p: CarryCardPlayer) -> some View {
+        let added = p.strokesCarry > p.strokesNormal + 0.001
+        let removed = p.strokesCarry < p.strokesNormal - 0.001
+        return VStack(spacing: 0) {
+            Text(p.gross > 0 ? "\(p.gross)" : "—")
+                .font(.subheadline.weight(.semibold).monospacedDigit())
+                .foregroundStyle(p.isMySide ? Color.green : Color.red)
+            Text(p.alias).font(.system(size: 8)).foregroundStyle(.secondary)
+            if added {
+                Text("●+").font(.system(size: 10, weight: .bold)).foregroundStyle(gold)
+            } else if removed {
+                Text("●−").font(.system(size: 10, weight: .bold)).foregroundStyle(gold).strikethrough()
+            } else if p.strokesNormal > 0.001 {
+                Text("●").font(.system(size: 10)).foregroundStyle(.secondary)
+            } else {
+                Text(" ").font(.system(size: 10))
+            }
+        }
+        .frame(minWidth: 28)
+    }
+
+    private func color(_ v: Int) -> Color { v > 0 ? .green : (v < 0 ? .red : .secondary) }
+
+    private var leyenda: some View {
+        Text("● stroke de B9 · ●+ stroke que agrega el carry · ●− stroke que quita el carry. Los hoyos en dorado son donde el carry cambia el resultado; los hoyos atenuados son anteriores al cambio y las dos tarjetas son iguales.")
+            .font(.caption2).foregroundStyle(.secondary)
     }
 }
