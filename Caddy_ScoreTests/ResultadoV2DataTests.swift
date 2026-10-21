@@ -47,8 +47,8 @@ struct ResultadoV2DataTests {
         let pairs = rows.filter { $0.isPair }
         // En el demo la pareja base es DAN+FER: todas se llaman "con FER".
         #expect(pairs.allSatisfy { $0.title == "con FER" })
-        #expect(Set(pairs.compactMap { $0.rivalsText }) == ["ROB · RIC", "ROB · ANS", "RIC · ANS"])
-        let ricAns = try #require(pairs.first { $0.rivalsText == "RIC · ANS" })
+        #expect(Set(pairs.compactMap { $0.rivalsText }) == ["ROB – RIC", "ROB – ANS", "RIC – ANS"])
+        let ricAns = try #require(pairs.first { $0.rivalsText == "RIC – ANS" })
         #expect(ricAns.strokesReceiver == "ANS")
         #expect(ricAns.strokesAmount == 12)
         #expect(ricAns.money == 200)
@@ -71,9 +71,9 @@ struct ResultadoV2DataTests {
 
     @Test func pairPressuresAndCarryMatchV1() throws {
         let pairs = DemoFixture.make().resultadoRowsV2().filter { $0.isPair }
-        let robRic = try #require(pairs.first { $0.rivalsText == "ROB · RIC" })
-        let robAns = try #require(pairs.first { $0.rivalsText == "ROB · ANS" })
-        let ricAns = try #require(pairs.first { $0.rivalsText == "RIC · ANS" })
+        let robRic = try #require(pairs.first { $0.rivalsText == "ROB – RIC" })
+        let robAns = try #require(pairs.first { $0.rivalsText == "ROB – ANS" })
+        let ricAns = try #require(pairs.first { $0.rivalsText == "RIC – ANS" })
         #expect(robRic.f9Presiones == [3] && robRic.b9Presiones == [2])
         #expect(robAns.f9Presiones == [2, -2] && robAns.b9Presiones == [4, 1])
         // Carry de pareja activo pero en $0 (la v1 lo muestra como "Carry $0").

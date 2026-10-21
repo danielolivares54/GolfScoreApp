@@ -21,7 +21,7 @@ extension MatchManager {
         let kind: Kind
         /// "ROB" (individual) o "con FER" (pareja: el compañero de yo).
         let title: String
-        /// Solo parejas: "RIC · ANS".
+        /// Solo parejas: "RIC – ANS" (nombres unidos con guion, nunca con "+").
         let rivalsText: String?
         /// Quién recibe los golpes del match (nil = nadie / sin definir) y cuántos (admite ½).
         let strokesReceiver: String?
@@ -104,8 +104,8 @@ extension MatchManager {
             let b9Rows = pairZoomRows(laneId: lane.id, segmentOverride: "B9")
             rows.append(ResultadoRowV2(
                 kind: .pair(laneId: lane.id),
-                title: partners.isEmpty ? "pareja" : "con " + partners.joined(separator: " + "),
-                rivalsText: rivalSide.joined(separator: " · "),
+                title: partners.isEmpty ? "pareja" : "con " + partners.joined(separator: " – "),
+                rivalsText: rivalSide.joined(separator: " – "),
                 strokesReceiver: lane.strokes > 0 ? lane.strokeCarrier : nil,
                 strokesAmount: lane.strokes,
                 f9Net: pairF9Vuelta(laneId: lane.id) * sign,
