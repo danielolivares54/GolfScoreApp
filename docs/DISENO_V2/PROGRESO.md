@@ -60,3 +60,8 @@
 - `V2/HoleScreenV2.swift`: barra superior (semáforo de auditoría, Setup, Historial, 🏁 con el mismo diálogo, Vista v1), tarjeta verde del hoyo con ‹ ›, tira de estado por rival/pareja, filas de jugador (−/score/+, putts según R8, strokes en palabras), Oyes en par 3, "Hoyo N listo →", `RoundBarV2` (Evento, Mic y Nota son ganchos vacíos hasta el Paso 4 y v2t).
 - Cambios en v1 (movimientos literales para compartir lógica): `cerrarRonda` y la carga inicial pasaron de `ContentView` a `MatchManager.closeRound()` y `MatchManager.loadInitialMatchState()` (la app puede abrir primero en v2). Mismo orden de llamadas.
 - Compila, 41 pruebas verdes, vista previa en `~/Desktop/CaddyScore_V2_Screens/P3_01_HoleScreen_demo.png`. Falta: prueba en simulador capturando la misma ronda en v1 y v2.
+
+## Paso 4 — EventSheetV2 y NoteSheetV2 (21-oct)
+- Pedido de Daniel: el Oyes debe aparecer en el hoyo como en la v1 (distintivo "Oyes"), y poder agregar eventos y notas.
+- `HoleScreenV2`: tarjeta "Eventos y notas del hoyo" (arriba de los jugadores) con "DAN Oyes 1º", los eventos de unidad (manuales y calculados, sin BIRD) y las notas. `Evento` y `Nota` de la barra abren `EventSheetV2` (fichas del catálogo manual, agregar/quitar con upsert/removeUnitEvent) y `NoteSheetV2` (upsert "NOTA" / borra si queda vacía). Mismas llamadas que la v1.
+- Compila, 41 pruebas verdes; vistas previas P3_02 a P3_04. Falta revisión en simulador (agregar/quitar en v2 y verlo en v1).

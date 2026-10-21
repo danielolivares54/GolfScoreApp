@@ -43,8 +43,8 @@ v1 shows / does — all must exist in v2:
 - [x] Per player: code, score (gross), dictation state/transcript ("sin anotar" / text), tap name = dictate this player
 - [x] Putts stepper (own always; others only when putts bet is on — R8)
 - [x] Par 3: oye rank per player (v1 "Oye 1–4")
-- [ ] Manual units (3 Putt, Hole Out, catalog) per player → moves to `EventSheetV2`, pills visible on the hole
-- [ ] Hole note ("penalidad o comentario…") → `NoteSheetV2`, preview visible on the hole
+- [x] Manual units (3 Putt, Hole Out, catalog) per player → moves to `EventSheetV2`, pills visible on the hole
+- [x] Hole note ("penalidad o comentario…") → `NoteSheetV2`, preview visible on the hole
 - [x] Stroke info for this hole (who receives) — v1 shows it only on Tarjeta/Resultado; v2 adds it here
 - [x] Live match status per rival and per lane — v2 addition (data from `resultadoRowsV2()`)
 - [ ] Bottom: Tarjeta · Evento · Mic · Nota · Resultado

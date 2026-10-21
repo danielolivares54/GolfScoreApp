@@ -22,6 +22,8 @@ struct HoleScreenV2: View {
     @State private var showSetup = false
     @State private var showHistory = false
     @State private var showCloseConfirm = false
+    @State private var showEvento = false
+    @State private var showNota = false
 
     private var playOrder: [Int] { matchManager.playOrder() }
     private var currentHole: Int {
@@ -37,6 +39,7 @@ struct HoleScreenV2: View {
                     topBar
                     holeCard
                     statusStrip
+                    holeEventsCard
                     playersCard
                     if par == 3 && !matchManager.players.isEmpty { oyesCard }
                     nextHoleButton
@@ -45,9 +48,9 @@ struct HoleScreenV2: View {
             }
             RoundBarV2(
                 onTarjeta: { showTarjeta = true },
-                onEvento: {},   // Paso 4: EventSheetV2
+                onEvento: { showEvento = true },
                 onMic: {},      // v2t (iPhone + Watch)
-                onNota: {},     // Paso 4: NoteSheetV2
+                onNota: { showNota = true },
                 onResultado: { showResultado = true }
             )
         }
@@ -58,6 +61,8 @@ struct HoleScreenV2: View {
         .sheet(isPresented: $showAudit) { HoleAuditView(matchManager: matchManager) }
         .sheet(isPresented: $showSetup) { GuidedSetupView(matchManager: matchManager).caddySheetDetents() }
         .sheet(isPresented: $showHistory) { RoundHistoryView() }
+        .sheet(isPresented: $showEvento) { EventSheetV2(matchManager: matchManager, hole: currentHole).presentationDetents([.medium, .large]) }
+        .sheet(isPresented: $showNota) { NoteSheetV2(matchManager: matchManager, hole: currentHole).presentationDetents([.medium, .large]) }
         .confirmationDialog("¿Cerrar ronda?", isPresented: $showCloseConfirm, titleVisibility: .visible) {
             Button("Cerrar Ronda", role: .destructive) {
                 matchManager.closeRound()
@@ -313,6 +318,56 @@ struct HoleScreenV2: View {
         .accessibilityLabel("\(player.alias) puesto \(rank)\(selected ? ", seleccionado" : "")")
     }
 
+    // MARK: Eventos y notas del hoyo (lo que la v1 muestra en la tira de unidades y en el campo de nota)
+
+    /// Eventos de unidad del hoyo (manuales y calculados). BIRD ya lo dice el color del score; NOTA no es evento.
+    private var holeEvents: [UnitEvent] {
+        matchManager.unitEventsForZoom(segmentOverride: matchManager.segmentForHole(currentHole))
+            .filter { $0.hole == currentHole && $0.code.uppercased() != "BIRD" && $0.code.uppercased() != "NOTA" }
+    }
+
+    private var holeNotes: [UnitEvent] {
+        (matchManager.unitEventsByHole[currentHole] ?? []).filter { $0.code.uppercased() == "NOTA" }
+    }
+
+    /// Quien ganó el Oyes (puesto 1), igual que el distintivo "Oyes" de la v1.
+    private var oyesWinners: [String] {
+        guard par == 3 else { return [] }
+        return matchManager.players.map(\.alias).filter { matchManager.oyesRanksByHole[currentHole]?[$0] == 1 }
+    }
+
+    private func eventLabel(_ code: String) -> String {
+        matchManager.betCatalog.first { $0.tag.uppercased() == code.uppercased() }?.name ?? code
+    }
+
+    @ViewBuilder private var holeEventsCard: some View {
+        let events = holeEvents, notes = holeNotes, winners = oyesWinners
+        if !(events.isEmpty && notes.isEmpty && winners.isEmpty) {
+            CardV2 {
+                VStack(alignment: .leading, spacing: CSV2.s1) {
+                    Text("Eventos y notas del hoyo").font(.v2Caps).textCase(.uppercase).foregroundStyle(CSV2.secondary)
+                    FlowPillsV2 {
+                        ForEach(winners, id: \.self) { alias in
+                            Text("\(alias) Oyes 1º").font(.v2Label).foregroundStyle(CSV2.unitFg)
+                                .padding(.horizontal, 12).frame(minHeight: 32)
+                                .background(CSV2.unitBg, in: Capsule())
+                        }
+                        ForEach(events) { event in
+                            EventPillV2(alias: event.alias, label: eventLabel(event.code), units: event.units)
+                        }
+                    }
+                    ForEach(notes) { note in
+                        HStack(alignment: .firstTextBaseline, spacing: 6) {
+                            Text(note.alias).font(.v2Label).bold().foregroundStyle(CSV2.ink)
+                            Text(note.note ?? "").font(.v2Label).foregroundStyle(CSV2.secondary)
+                        }
+                    }
+                }
+                .padding(CSV2.s2).frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+    }
+
     // MARK: "Hoyo N listo →"
 
     private var nextHoleButton: some View {
@@ -346,10 +401,51 @@ struct HoleScreenV2: View {
     }
 }
 
+/// Píldoras que saltan de renglón cuando no caben.
+private struct FlowPillsV2: Layout {
+    var spacing: CGFloat = 8
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        arrange(width: proposal.width ?? .infinity, subviews: subviews).size
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let result = arrange(width: bounds.width, subviews: subviews)
+        for (index, origin) in result.origins.enumerated() {
+            subviews[index].place(at: CGPoint(x: bounds.minX + origin.x, y: bounds.minY + origin.y), proposal: .unspecified)
+        }
+    }
+
+    private func arrange(width: CGFloat, subviews: Subviews) -> (size: CGSize, origins: [CGPoint]) {
+        var origins: [CGPoint] = []
+        var x: CGFloat = 0, y: CGFloat = 0, rowHeight: CGFloat = 0, maxX: CGFloat = 0
+        for view in subviews {
+            let size = view.sizeThatFits(.unspecified)
+            if x > 0, x + size.width > width { x = 0; y += rowHeight + spacing; rowHeight = 0 }
+            origins.append(CGPoint(x: x, y: y))
+            x += size.width + spacing
+            rowHeight = max(rowHeight, size.height)
+            maxX = max(maxX, x - spacing)
+        }
+        return (CGSize(width: maxX, height: y + rowHeight), origins)
+    }
+}
+
 #if DEBUG
+#Preview("HoleScreenV2 · hoyo 14 (par 3) con evento y nota") {
+    UserDefaults.standard.set(13, forKey: "currentHoleIndex")
+    let manager = MatchManager()
+    manager.loadDemo18()
+    if let tag = manager.manualUnitBetsV2.first?.tag {
+        manager.upsertUnitEvent(hole: 14, alias: "ROB", code: tag, units: 1)
+    }
+    manager.upsertUnitEvent(hole: 14, alias: "DAN", code: "NOTA", units: 0, note: "Penalidad: bola al agua")
+    return HoleScreenV2(matchManager: manager)
+}
 #Preview("HoleScreenV2 · ronda demo") {
     let manager = MatchManager()
     manager.loadDemo18()
     return HoleScreenV2(matchManager: manager)
 }
+
 #endif
