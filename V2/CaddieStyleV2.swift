@@ -82,6 +82,10 @@ struct ScoreMarkV2: View {
     var size: CGFloat = 44
     var strokeDots: Double = 0      // strokes received on this hole for the match being viewed (0.5 = half)
     var hasEvent = false            // gold marker: event or oye on this hole
+    // Decisión de Daniel (21-oct): sin contornos (círculos/cuadros dobles) — la tabla se veía saturada.
+    // El resultado vs par lo dice el COLOR del número; el único marcador redondo extra es el de
+    // evento/oye (dorado). `outlined: true` conserva el dibujo estándar de golf para poder compararlo.
+    var outlined = false
 
     private var diff: Int { (gross ?? par) - par }
     private var color: Color {
@@ -94,7 +98,7 @@ struct ScoreMarkV2: View {
             .font(.system(size: size * 0.58, weight: .heavy).monospacedDigit())
             .foregroundStyle(color)
             .frame(width: size, height: size)
-            .overlay { outline }
+            .overlay { if outlined { outline } }
             .overlay(alignment: .topTrailing) {
                 if strokeDots > 0 {
                     Circle()
@@ -107,7 +111,7 @@ struct ScoreMarkV2: View {
             }
             .overlay(alignment: .bottomLeading) {
                 if hasEvent {
-                    RoundedRectangle(cornerRadius: 2).fill(CSV2.unitLine)
+                    Circle().fill(CSV2.unitLine)
                         .frame(width: 8, height: 8).offset(x: -7, y: 5)
                 }
             }

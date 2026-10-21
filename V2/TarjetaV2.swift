@@ -71,16 +71,20 @@ struct TarjetaV2: View {
     }
 
     private var legend: some View {
-        HStack(spacing: 12) {
-            legendItem("birdie") { ScoreMarkV2(gross: 3, par: 4, size: 22) }
-            legendItem("bogey") { ScoreMarkV2(gross: 5, par: 4, size: 22) }
-            legendItem("stroke") { Circle().fill(CSV2.stroke).frame(width: 9, height: 9) }
-            legendItem("evento / oye") {
-                RoundedRectangle(cornerRadius: 2).fill(CSV2.unitLine).frame(width: 9, height: 9)
+        // Sin contornos: el color del número dice el resultado; los dos puntos redondos son lo único extra.
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 14) {
+                legendItem("bajo par") { Text("3").font(.system(size: 15, weight: .heavy)).foregroundStyle(CSV2.green) }
+                legendItem("par") { Text("4").font(.system(size: 15, weight: .heavy)).foregroundStyle(CSV2.ink) }
+                legendItem("sobre par") { Text("5").font(.system(size: 15, weight: .heavy)).foregroundStyle(CSV2.red) }
+            }
+            HStack(spacing: 14) {
+                legendItem("recibe stroke") { Circle().fill(CSV2.stroke).frame(width: 9, height: 9) }
+                legendItem("unidad / oye") { Circle().fill(CSV2.unitLine).frame(width: 9, height: 9) }
             }
         }
         .font(.v2Label).foregroundStyle(CSV2.secondary)
-        .minimumScaleFactor(0.85).lineLimit(1)
+        .lineLimit(1)
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .combine)
     }
@@ -152,7 +156,7 @@ struct TarjetaV2: View {
         .foregroundStyle(.white)
         .padding(.horizontal, CSV2.s1 + 4)
         .frame(height: 52)
-        .background(CSV2.ink)
+        .background { Rectangle().fill(CSV2.ink) }
     }
 
     /// Los 18 hoyos: par y golpes por jugador (suma de los dos nueves).
@@ -175,7 +179,7 @@ struct TarjetaV2: View {
         .foregroundStyle(.white.opacity(0.85))
         .padding(.horizontal, CSV2.s1 + 4)
         .frame(height: 40)
-        .background(CSV2.ink)
+        .background { Rectangle().fill(CSV2.ink) }
         .overlay(alignment: .top) { Rectangle().fill(.white.opacity(0.18)).frame(height: 1) }
     }
 

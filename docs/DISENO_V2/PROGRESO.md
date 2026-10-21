@@ -25,3 +25,7 @@
 - Decisiones de Daniel: opción B (marcas del diseño) también para oyes y birdie; la columna de yo se queda como la v1 — los puntos de golpe solo salen en rivales que reciben de yo (regla v1: `distributedStrokes(total: strokesVsBase)`), nunca en la columna de yo.
 - Pruebas: `TarjetaV2DataTests` (9); 31 verdes. Vista previa renderizada (salida 1 y salida 10 con FER recibiendo 3½).
 - Pendiente: fila del hoyo actual en verde y "‹ Hoyo N" (necesitan el hoyo actual compartido, P4); el Golpes de v1 muestra el mismo número de columnas pero sin marcas golf; no se probó con Dynamic Type grande ni modo oscuro.
+
+## Revisión de diseño — pantalla 1: Tarjeta (decisión de Daniel, 21-oct)
+- Se quitan los contornos de las marcas (círculos/cuadros/dobles): se veía saturada. El resultado vs par lo dice el COLOR del número (verde bajo par, tinta par, rojo sobre par); se conservan el punto azul de golpe y un punto REDONDO dorado para unidad/oye (antes cuadro). `ScoreMarkV2(outlined:)` conserva el dibujo estándar, apagado por defecto.
+- Leyenda: "bajo par / par / sobre par" y los dos puntos. Fila de cierre dibujada con rectángulo (esquinas redondas solo en la tarjeta).
