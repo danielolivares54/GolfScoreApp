@@ -147,6 +147,8 @@ struct MoneyTrackerView: View {
                         .foregroundColor(.cMuted)
 
                     HStack(spacing: 2) {
+                        puttsSegBtn("F9",    .f9)
+                        puttsSegBtn("B9",    .b9)
                         puttsSegBtn("H18",   .hole18)
                         puttsSegBtn("Vuelta", .byRound)
                     }
@@ -326,7 +328,11 @@ struct MoneyTrackerView: View {
     private func parsedPuttsUnits()  -> Int { max(0, Int(puttsUnitsText)  ?? matchManager.puttsBetUnits) }
 
     private func applyUnitValue()   { matchManager.setUnitValue(parsedUnitValue()) }
-    private func applyPuttsValues() { matchManager.setPuttsBet(mode: puttsMode, units: parsedPuttsUnits()) }
+    // Elegir el alcance (F9/B9/18) no abre la apuesta: encenderla se hace con el tag PUTTS del
+    // Catálogo. Si está cerrada, solo se guarda el alcance.
+    private func applyPuttsValues() {
+        matchManager.setPuttsBet(mode: puttsMode, units: matchManager.puttsBetActive ? parsedPuttsUnits() : 0)
+    }
 
     private func zoomTitle(_ target: MoneyUnitTarget) -> String {
         switch target {

@@ -151,6 +151,43 @@ final class BetDefinitionStore: ObservableObject {
     init() {
         load()
         if entries.isEmpty { seedDefaults() }
+        ensurePuttsTag()
+    }
+
+    // Tag de la apuesta de putts. Encendido = apuesta abierta, "Vale" = precio en unidades,
+    // puttsScope = F9 / B9 / 18. Nace APAGADO: los putts del usuario siempre se registran como
+    // estadística; solo con el tag encendido se piden y se auditan los de los demás.
+    static let puttsTag = "PUTTS"
+
+    private static func defaultPuttsDefinition() -> BetDefinition {
+        BetDefinition(tag: puttsTag, name: "Putts", type: .individual, mode: .calculado, units: 2,
+                      description: "Menos putts en el alcance", isEnabled: false, puttsScope: .hole18)
+    }
+
+    // Catálogos guardados antes de existir el tag no lo traen — se agrega (apagado) sin tocar el resto.
+    private func ensurePuttsTag() {
+        guard !entries.contains(where: { $0.tag == Self.puttsTag }) else { return }
+        entries.append(Self.defaultPuttsDefinition())
+        save()
+    }
+
+    func setPuttsScope(_ def: BetDefinition, scope: PuttsBetMode) {
+        guard let idx = entries.firstIndex(where: { $0.id == def.id }) else { return }
+        entries[idx].puttsScope = scope
+        save()
+    }
+
+    // Escritura desde la pantalla de dinero: units > 0 abre la apuesta con ese precio, 0 la cierra.
+    func setPutts(scope: PuttsBetMode, units: Int) {
+        guard let idx = entries.firstIndex(where: { $0.tag == Self.puttsTag }) else { return }
+        entries[idx].puttsScope = scope
+        if units > 0 {
+            entries[idx].units = units
+            entries[idx].isEnabled = true
+        } else {
+            entries[idx].isEnabled = false
+        }
+        save()
     }
 
     func upsert(_ def: BetDefinition) {
@@ -304,6 +341,20 @@ struct BetDefinitionEditorView: View {
                 Text(def.units == 1 ? "unidad" : "unidades")
                     .font(.system(size: 15))
                     .foregroundColor(.secondary)
+            }
+            // Apuesta de putts: alcance F9 / B9 / 18. Encendida = apuesta abierta (se piden y
+            // auditan los putts de todos); apagada = solo se registran los míos como estadística.
+            if def.tag == BetDefinitionStore.puttsTag {
+                Picker("Alcance", selection: Binding(
+                    get: { def.puttsScope ?? .hole18 },
+                    set: { store.setPuttsScope(def, scope: $0) }
+                )) {
+                    Text("F9").tag(PuttsBetMode.f9)
+                    Text("B9").tag(PuttsBetMode.b9)
+                    Text("18").tag(PuttsBetMode.hole18)
+                    Text("Vuelta").tag(PuttsBetMode.byRound)
+                }
+                .pickerStyle(.segmented)
             }
         }
         .padding(.vertical, 8)
@@ -645,16 +696,8 @@ private struct BetTemplateEditView: View {
                     TextField("Match", text: $matchText).keyboardType(.numberPad)
                     TextField("Unidad", text: $unitText).keyboardType(.numberPad)
                 }
-                Section("Putts") {
-                    Toggle("Apuesta de putts", isOn: $puttsEnabled)
-                    if puttsEnabled {
-                        Picker("Modo", selection: $puttsBetMode) {
-                            Text("18 hoyos").tag(PuttsBetMode.hole18)
-                            Text("Por vuelta").tag(PuttsBetMode.byRound)
-                        }
-                        TextField("Unidades de putts", text: $puttsBetUnitsText).keyboardType(.numberPad)
-                    }
-                }
+                // La apuesta de putts (encendida, precio y alcance F9/B9/18) vive en el tag PUTTS
+                // del Catálogo, no en la plantilla. Los valores guardados aquí se conservan tal cual.
                 Section("Otros ajustes") {
                     Toggle("Multiplicador en B9 disponible", isOn: $b9MultiplierAvailable)
                     Toggle("Ajusta stroke entre rondas", isOn: $carryMatchEnabled)

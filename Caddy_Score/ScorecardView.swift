@@ -230,10 +230,9 @@ struct ScorecardRow: View {
     private func scoreCell(hole: Int, colIdx: Int) -> some View {
         let holeData  = matchManager.getHole(hole)
         let par       = holeData?.par ?? 4
-        let si        = holeData?.si ?? 0
         let gross     = matchManager.getScore(hole: hole, player: player.alias)
         let putts     = matchManager.getPutts(hole: hole, player: player.alias)
-        let dots      = strokesOnHole(si: si, strokesVsBase: player.strokesVsBase)
+        let dots      = matchManager.distributedStrokes(total: player.strokesVsBase, hole: hole)
         let isOyes    = matchManager.hasIndividualUnitWin(hole: hole, alias: player.alias)
                      || matchManager.hasPairUnitWin(hole: hole, alias: player.alias)
         let badges    = Array(matchManager.unitBadges(alias: player.alias, hole: hole).prefix(3))
@@ -305,15 +304,5 @@ struct ScorecardRow: View {
         case 2:       return d2C
         default:      return d3C
         }
-    }
-
-    private func strokesOnHole(si: Int, strokesVsBase: Double) -> Double {
-        guard si > 0 else { return 0 }
-        let n    = Int(strokesVsBase)
-        let base = n / 18
-        let extra = n % 18
-        let full = Double(base + (si <= extra ? 1 : 0))
-        let half = (strokesVsBase - Double(n) >= 0.5 && si == 1) ? 0.5 : 0.0
-        return full + half
     }
 }

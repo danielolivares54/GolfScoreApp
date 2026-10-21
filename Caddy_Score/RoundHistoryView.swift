@@ -316,8 +316,64 @@ struct MyHistoryView: View {
 
     private enum HoleResult { case win, tie, loss }
 
+    // Conteo de hoyos por resultado vs. par. "Doble o peor" se separó en Doble (+2), Triple (+3)
+    // y +4 o más para ver cuánto pesa cada tipo de desastre.
+    private struct ScoreCounts {
+        var eagleOrBetter = 0, birdie = 0, par = 0, bogey = 0, double = 0, triple = 0, quadOrMore = 0
+
+        mutating func add(diff: Int) {
+            switch diff {
+            case ..<(-1): eagleOrBetter += 1
+            case -1:      birdie += 1
+            case 0:       par += 1
+            case 1:       bogey += 1
+            case 2:       double += 1
+            case 3:       triple += 1
+            default:      quadOrMore += 1
+            }
+        }
+    }
+
+    // Cifras de UNA ronda cerrada (mías = round.players.first). F9/B9 siguen el orden de juego de
+    // esa ronda (su startHole). Un nueve incompleto deja el valor en nil — no se promedia.
+    private struct RoundFigures {
+        var counts = ScoreCounts()
+        var strokesF9: Int?, strokesB9: Int?, strokesTotal: Int?
+        var puttsF9: Int?, puttsB9: Int?, puttsTotal: Int?
+    }
+
+    private static func figures(for round: RoundResultFile) -> RoundFigures? {
+        guard let yo = round.players.first,
+              let course = CourseCatalog.all.first(where: { $0.id == round.courseId }) else { return nil }
+        let parByHole = Dictionary(course.holes.map { ($0.number, $0.par) }, uniquingKeysWith: { a, _ in a })
+
+        var f = RoundFigures()
+        for (holeStr, gross) in yo.scores {
+            guard let holeNum = Int(holeStr), let par = parByHole[holeNum] else { continue }
+            f.counts.add(diff: gross - par)
+        }
+
+        let start = max(1, min(18, round.startHole))
+        let order = (0..<18).map { ((start - 1 + $0) % 18) + 1 }
+        func sum(_ values: [String: Int], _ holes: ArraySlice<Int>) -> Int? {
+            var total = 0
+            for hole in holes {
+                guard let v = values["\(hole)"], v > 0 else { return nil }
+                total += v
+            }
+            return total
+        }
+        f.strokesF9 = sum(yo.scores, order[0..<9])
+        f.strokesB9 = sum(yo.scores, order[9..<18])
+        if let a = f.strokesF9, let b = f.strokesB9 { f.strokesTotal = a + b }
+        f.puttsF9 = sum(yo.putts, order[0..<9])
+        f.puttsB9 = sum(yo.putts, order[9..<18])
+        if let a = f.puttsF9, let b = f.puttsB9 { f.puttsTotal = a + b }
+        return f
+    }
+
     private struct Stats {
-        var eagleOrBetter = 0, birdie = 0, par = 0, bogey = 0, doubleOrWorse = 0
+        var counts = ScoreCounts()
         var oyesWins = 0
         var moneyIndividual = 0
         var moneyParejas = 0
@@ -367,13 +423,7 @@ struct MyHistoryView: View {
             for (holeStr, gross) in yo.scores {
                 guard let holeNum = Int(holeStr), let hole = holesByNumber[holeNum] else { continue }
                 let diff = gross - hole.par
-                switch diff {
-                case ..<(-1): s.eagleOrBetter += 1
-                case -1:      s.birdie += 1
-                case 0:       s.par += 1
-                case 1:       s.bogey += 1
-                default:      s.doubleOrWorse += 1
-                }
+                s.counts.add(diff: diff)
                 s.diffsByPar[hole.par, default: []].append(diff)
             }
 
@@ -389,7 +439,9 @@ struct MyHistoryView: View {
                 for (holeStr, oppGross) in opp.scores {
                     guard let holeNum = Int(holeStr), let hole = holesByNumber[holeNum],
                           let yoGross = yo.scores[holeStr] else { continue }
-                    let strokeCount = Self.distributedStrokes(total: abs(opp.strokesVsBase), hole: hole)
+                    let strokeCount = MatchManager.distributedStrokes(
+                        total: abs(opp.strokesVsBase), hole: hole.number,
+                        startHole: round.startHole, holes: course.holes)
                     guard strokeCount > 0.001 else { continue }
                     let yoReceives = opp.strokesVsBase < 0  // negativo = él me da el golpe a mí
                     let rawResult = Self.result(yoGross: Double(yoGross), oppGross: Double(oppGross))
@@ -419,23 +471,6 @@ struct MyHistoryView: View {
         return .tie
     }
 
-    // Misma fórmula que MatchManager.distributedStrokes — se duplica aquí porque esta vista
-    // trabaja sobre rondas ya cerradas, sin una instancia viva de MatchManager.
-    private static func distributedStrokes(total: Double, hole: HoleModel) -> Double {
-        guard total > 0 else { return 0 }
-        let fullRounds = Int(total / 18.0)
-        let remainder = total - Double(fullRounds * 18)
-        let whole = Int(floor(remainder))
-        let fraction = remainder - Double(whole)
-        var strokes = Double(fullRounds)
-        if hole.si <= whole {
-            strokes += 1
-        } else if fraction >= 0.5, hole.si == whole + 1 {
-            strokes += 0.5
-        }
-        return strokes
-    }
-
     var body: some View {
         NavigationStack {
             ZStack {
@@ -447,6 +482,7 @@ struct MyHistoryView: View {
                         VStack(spacing: 14) {
                             headerCard
                             histogramCard
+                            strokesPuttsCard
                             parTypeCard
                             strokeImpactCard
                             oyesMoneyCard
@@ -495,14 +531,81 @@ struct MyHistoryView: View {
         }
     }
 
+    // MARK: Dos columnas — Acumulado (todas las rondas cerradas) y Este match (la última cerrada)
+
+    private var allFigures: [RoundFigures] { rounds.compactMap { Self.figures(for: $0) } }
+    // rounds ya viene ordenado por closedAt desc (RoundResultFile.loadAll): first = último match cerrado.
+    private var lastFigures: RoundFigures? { rounds.first.flatMap { Self.figures(for: $0) } }
+
+    private func columnHeader(accumulated: String) -> some View {
+        HStack {
+            Spacer()
+            Text(accumulated).frame(width: 92, alignment: .trailing)
+            Text("ESTE MATCH").frame(width: 92, alignment: .trailing)
+        }
+        .font(.system(size: 10, weight: .bold)).kerning(0.5).foregroundColor(.cMuted)
+    }
+
+    private func twoColRow(_ label: String, acc: String, last: String, color: Color = .cInk) -> some View {
+        HStack {
+            Text(label).font(.system(size: 15)).foregroundColor(.cMuted)
+            Spacer()
+            Text(acc).font(.system(size: 20, weight: .black, design: .monospaced))
+                .foregroundColor(color).frame(width: 92, alignment: .trailing)
+            Text(last).font(.system(size: 20, weight: .black, design: .monospaced))
+                .foregroundColor(color).frame(width: 92, alignment: .trailing)
+        }
+    }
+
+    private func countRow(_ label: String, _ keyPath: KeyPath<ScoreCounts, Int>, color: Color) -> some View {
+        twoColRow(label,
+                  acc: "\(stats.counts[keyPath: keyPath])",
+                  last: lastFigures.map { "\($0.counts[keyPath: keyPath])" } ?? "—",
+                  color: color)
+    }
+
+    // Promedio por ronda (solo rondas con ese nueve completo) y valor del último match.
+    private func averageRow(_ label: String, _ keyPath: KeyPath<RoundFigures, Int?>) -> some View {
+        let values = allFigures.compactMap { $0[keyPath: keyPath] }
+        let avg = values.isEmpty ? "—" : String(format: "%.1f", Double(values.reduce(0, +)) / Double(values.count))
+        let last = lastFigures?[keyPath: keyPath].map { "\($0)" } ?? "—"
+        return twoColRow(label, acc: avg, last: last)
+    }
+
     private var histogramCard: some View {
         card(
             VStack(spacing: 10) {
-                statRow("Águila o mejor", stats.eagleOrBetter, color: .cFairway)
-                statRow("Birdie", stats.birdie, color: .cFairway)
-                statRow("Par", stats.par, color: .cInk)
-                statRow("Bogey", stats.bogey, color: .cBrick)
-                statRow("Doble o peor", stats.doubleOrWorse, color: .cBrick)
+                columnHeader(accumulated: "ACUMULADO")
+                countRow("Águila o mejor", \.eagleOrBetter, color: .cFairway)
+                countRow("Birdie", \.birdie, color: .cFairway)
+                countRow("Par", \.par, color: .cInk)
+                countRow("Bogey", \.bogey, color: .cBrick)
+                countRow("Doble bogey (+2)", \.double, color: .cBrick)
+                countRow("Triple bogey (+3)", \.triple, color: .cBrick)
+                countRow("+4 o más", \.quadOrMore, color: .cBrick)
+            }
+        )
+    }
+
+    private var strokesPuttsCard: some View {
+        card(
+            VStack(alignment: .leading, spacing: 10) {
+                Text("GOLPES (MEDAL, BRUTO)").font(.system(size: 11, weight: .bold)).kerning(0.5).foregroundColor(.cMuted)
+                columnHeader(accumulated: "PROM.")
+                averageRow("F9", \.strokesF9)
+                averageRow("B9", \.strokesB9)
+                averageRow("Total 18", \.strokesTotal)
+
+                Color.cBorder.frame(height: 1)
+
+                Text("PUTTS").font(.system(size: 11, weight: .bold)).kerning(0.5).foregroundColor(.cMuted)
+                columnHeader(accumulated: "PROM.")
+                averageRow("F9", \.puttsF9)
+                averageRow("B9", \.puttsB9)
+                averageRow("Total 18", \.puttsTotal)
+
+                Text("F9 y B9 siguen el orden de juego de cada ronda. Solo cuentan rondas con ese nueve completo.")
+                    .font(.system(size: 11)).foregroundColor(.cMuted).lineSpacing(3)
             }
         )
     }

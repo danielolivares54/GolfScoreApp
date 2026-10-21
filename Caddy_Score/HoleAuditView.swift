@@ -27,10 +27,14 @@ struct HoleAuditStatus {
     // strokes = golpes propios recibidos ese hoyo (0 si da golpes o no tiene handicap) — el
     // "neto personal" de cada jugador, sin depender de contra quién se compare.
     let playerData: [(alias: String, score: Int, putts: Int, strokes: Double)]
+    // Jugadores cuyos putts se registran: el usuario siempre, los demás solo con apuesta de putts.
+    let puttsTracked: Set<String>
 
     var isComplete: Bool     { playerData.allSatisfy { $0.score > 0 } }
     var missingScores: [String] { playerData.filter { $0.score == 0 }.map { $0.alias } }
-    var missingPutts:  [String] { playerData.filter { $0.score > 0 && $0.putts == 0 }.map { $0.alias } }
+    var missingPutts:  [String] {
+        playerData.filter { $0.score > 0 && $0.putts == 0 && puttsTracked.contains($0.alias) }.map { $0.alias }
+    }
     var hasWarning: Bool     { !missingScores.isEmpty || !missingPutts.isEmpty }
 }
 
@@ -49,7 +53,8 @@ enum HoleAudit {
             return HoleAuditStatus(
                 hole: hole,
                 par: manager.getHole(hole)?.par ?? 4,
-                playerData: pd
+                playerData: pd,
+                puttsTracked: Set(manager.players.map { $0.alias }.filter { manager.tracksPutts(alias: $0) })
             )
         }
     }
@@ -355,7 +360,9 @@ struct HoleAuditView: View {
                 }
             }
 
-            Text(pd.putts > 0 ? "\(pd.putts)p" : hasScore ? "—p" : "")
+            // Sin apuesta de putts, los putts de los demás no se piden: no se marcan como faltantes.
+            let tracked = matchManager.tracksPutts(alias: pd.alias)
+            Text(pd.putts > 0 ? "\(pd.putts)p" : (hasScore && tracked) ? "—p" : "")
                 .font(.system(size: 12))
                 .foregroundColor(pd.putts > 0 ? .cMuted : .orange)
 
@@ -406,7 +413,7 @@ struct HoleAuditView: View {
 
     private func cellBackground(pd: (alias: String, score: Int, putts: Int, strokes: Double), par: Int) -> Color {
         if pd.score == 0 { return Color.cErrBg }
-        if pd.putts == 0 { return Color.cWarnBg }
+        if pd.putts == 0 && matchManager.tracksPutts(alias: pd.alias) { return Color.cWarnBg }
         return Color.clear
     }
 

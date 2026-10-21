@@ -95,7 +95,13 @@ struct GuidedSetupView: View {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button(stepIndex == Step.allCases.count - 1 ? "Guardar" : "Siguiente") {
                         if stepIndex == Step.allCases.count - 1 { applySetup(); dismiss() }
-                        else { stepIndex = min(Step.allCases.count - 1, stepIndex + 1) }
+                        else {
+                            // Campo + hoyo de salida se aplican al avanzar (no esperan al Guardar
+                            // final): no dependen de jugadores ni parejas, y el resto del Setup
+                            // ya se ve reflejado con el nuevo orden de juego.
+                            if step == .campo { applyCampo() }
+                            stepIndex = min(Step.allCases.count - 1, stepIndex + 1)
+                        }
                     }
                     .font(.system(size: 14, weight: .bold))
                     .foregroundColor(canAdvance() ? .cFairway : .cDisabled)
@@ -208,6 +214,8 @@ struct GuidedSetupView: View {
                 }
                 Text("La vuelta se anota en el orden real de juego, empezando por este hoyo — no necesariamente el 1.")
                     .font(.system(size: 12)).foregroundColor(.cMuted).lineSpacing(4)
+                Text("Al tocar Siguiente se aplica el campo y el hoyo de salida: los golpes se reparten de nuevo según el orden de juego y se apagan Carry, Ajuste 50 y Doble Press si estaban activos.")
+                    .font(.system(size: 12, weight: .semibold)).foregroundColor(.cMuted).lineSpacing(4)
             }
             .padding(16)
             .background(Color.cSurface)
@@ -770,18 +778,12 @@ struct GuidedSetupView: View {
         let aliases = playerAliases.map { $0.alias }.filter { $0 != matchManager.yoAlias }
         for a in aliases where strokesByAlias[a] == nil {
             let current = matchManager.players.first(where: { $0.alias == a })
-            // Un jugador ya en el match con strokes en 0 suele significar que nunca se le asignó
-            // nada (se agregó antes de que existiera el directorio, o sin pasar por el mini-search)
-            // — en ese caso preferimos lo que el directorio tiene guardado para ese nombre en vez
-            // de perpetuar el 0. Si el match ya trae un valor explícito distinto de 0, se respeta.
-            if let current, current.strokesVsBase != 0 {
-                strokesByAlias[a] = current.strokesVsBase
-            } else if let name = current?.name,
-                      let dirEntry = PlayerDirectoryStore.shared.entries.first(where: { $0.name.caseInsensitiveCompare(name) == .orderedSame }) {
-                strokesByAlias[a] = dirEntry.strokesVsBase
-            } else {
-                strokesByAlias[a] = current?.strokesVsBase ?? 0
-            }
+            // Un jugador que YA está en el match conserva exactamente sus strokes, también si son
+            // 0. Antes, con 0 se rellenaba desde el directorio y guardar el Setup (por ejemplo para
+            // ajustar a otro rival a mitad del match) cambiaba los strokes de jugadores que nadie
+            // había tocado. Un jugador nuevo arranca en 0 y addPlayerName() le pone los del
+            // directorio al agregarlo.
+            strokesByAlias[a] = current?.strokesVsBase ?? 0
         }
         for key in strokesByAlias.keys where !aliases.contains(key) { strokesByAlias.removeValue(forKey: key) }
 
@@ -831,7 +833,25 @@ struct GuidedSetupView: View {
         }
     }
 
+    // Paso Campo: aplica campo y hoyo de salida al avanzar. Si mueven el F9 (campo u hoyo de
+    // salida distintos), Carry/Ajuste 50/Doble Press se invalidan igual que en applySetup.
+    private func applyCampo() {
+        let signatureBefore = matchManager.strokeSetupSignature
+        if let course = CourseCatalog.all.first(where: { $0.id == selectedCourseId }) {
+            matchManager.setCourse(course, resetScores: false)
+        }
+        matchManager.updateStartHole(startHole, resetScores: false)
+        if matchManager.strokeSetupSignature != signatureBefore {
+            matchManager.clearCarryDependentState()
+        }
+        matchManager.finishSetupApply()
+    }
+
     private func applySetup() {
+        // Si algo que alimenta el reparto de golpes cambia (hoyo de salida, strokes, parejas,
+        // quién carga), el F9 y todo lo que se decidió con él (Carry, Ajuste 50, Doble Press)
+        // queda calculado sobre datos viejos — se compara antes/después para invalidarlo.
+        let signatureBefore = matchManager.strokeSetupSignature
         if let course = CourseCatalog.all.first(where: { $0.id == selectedCourseId }) {
             matchManager.setCourse(course, resetScores: false)
         }
@@ -869,6 +889,12 @@ struct GuidedSetupView: View {
         } else if let v = Int(vueltaValueText) {
             matchManager.setVueltaValue(v)
         }
+        if matchManager.strokeSetupSignature != signatureBefore {
+            matchManager.clearCarryDependentState()
+        }
+        // Un solo guardado al final con el Setup completo (setCourse no guarda por sí solo) y un
+        // refresh explícito para que tarjeta, auditoría y dinero se recalculen con lo nuevo.
+        matchManager.finishSetupApply()
     }
 
     // Aplica la plantilla localmente al estado del wizard (no muta matchManager hasta "Guardar").

@@ -211,8 +211,9 @@ struct ContentView: View {
     private var auditBgColor: Color {
         let played = HoleAudit.playedHoles(manager: matchManager)
         if played.first(where: { !$0.missingScores.isEmpty }) != nil { return .cBrick }
-        if matchManager.puttsBetUnits > 0,
-           played.first(where: { !$0.missingPutts.isEmpty }) != nil { return .orange }
+        // missingPutts ya solo incluye a quien se le registran putts (el usuario siempre,
+        // los demás solo con apuesta de putts activa).
+        if played.first(where: { !$0.missingPutts.isEmpty }) != nil { return .orange }
         return .cFairway
     }
 
@@ -221,8 +222,7 @@ struct ContentView: View {
         if let gap = played.first(where: { !$0.missingScores.isEmpty }) {
             return "✕ \(gap.missingScores.first ?? "?")"
         }
-        if matchManager.puttsBetUnits > 0,
-           let gap = played.first(where: { !$0.missingPutts.isEmpty }) {
+        if let gap = played.first(where: { !$0.missingPutts.isEmpty }) {
             return "⚠ \(gap.missingPutts.first ?? "?")"
         }
         let lastOk = played.last(where: { $0.isComplete })
@@ -613,8 +613,8 @@ struct ContentView: View {
 
                 Spacer()
 
-                // Putts inline — solo si hay apuesta de putts y la fila está activa
-                if isActive && matchManager.puttsBetUnits > 0 {
+                // Putts inline — los del usuario siempre; los de los demás solo si hay apuesta de putts
+                if isActive && matchManager.tracksPutts(alias: player.alias) {
                     HStack(spacing: 3) {
                         Button {
                             applyEntry(putts: max(0, putts - 1), player: player)
@@ -762,7 +762,7 @@ struct ContentView: View {
                     .foregroundColor(.cDisabled)
                     .frame(width: 52, alignment: .center)
 
-                TextField("penalidad, 3 putt, chupes…", text: Binding(
+                TextField("penalidad o comentario…", text: Binding(
                     get: { noteByKey[nKey] ?? existingNote },
                     set: { noteByKey[nKey] = $0 }
                 ))
@@ -1180,16 +1180,26 @@ struct ContentView: View {
     }
 
     private func setupOnAppear() {
-        let metaPlayers = SiriMatchManager.shared.getPlayers()
-        if !metaPlayers.isEmpty {
-            matchManager.setPlayers(names: metaPlayers, preserveScores: true)
-        }
-        let metaStart = SiriMatchManager.shared.getStartingHole()
-        if metaStart > 0 { matchManager.startHole = metaStart }
-        // loadBetConfig() primero: restaura el roster (players) desde el snapshot persistido
-        // antes de que syncFromScoreManager() intente reaplicar scores por alias — si players
-        // sigue vacío en este punto, ese replay no encuentra a nadie y descarta todo en silencio.
+        // loadBetConfig() primero: restaura el roster (players), el campo y el hoyo de salida
+        // desde el snapshot persistido antes de que syncFromScoreManager() intente reaplicar
+        // scores por alias — si players sigue vacío en este punto, ese replay no encuentra a
+        // nadie y descarta todo en silencio.
+        // Bug reportado: antes match_meta.json (startingHole: 1 + roster fijo) se aplicaba SIEMPRE
+        // antes de esto, en cada relanzamiento y cada vez que ContentView reaparecía. Pisaba el
+        // hoyo de salida guardado desde el Setup, y como players ya no estaba vacío,
+        // loadBetConfig() tampoco restauraba el roster ni el hoyo guardados.
         matchManager.loadBetConfig()
+        // match_meta.json solo siembra un match NUEVO (nada restaurado). Segunda pasada de
+        // loadBetConfig() para aplicar por alias strokes/lanes de un snapshot sin roster.
+        if matchManager.players.isEmpty {
+            let metaPlayers = SiriMatchManager.shared.getPlayers()
+            if !metaPlayers.isEmpty {
+                matchManager.setPlayers(names: metaPlayers, preserveScores: true)
+                let metaStart = SiriMatchManager.shared.getStartingHole()
+                if metaStart > 0 { matchManager.startHole = metaStart }
+                matchManager.loadBetConfig()
+            }
+        }
         matchManager.syncFromScoreManager()
         #if DEBUG
         // Solo simulador/debug: carga una ronda de 18 hoyos con `defaults write <bundle> demo18 -bool YES`.
@@ -1492,7 +1502,7 @@ struct TarjetaSheetView: View {
     private func scoreCell(player: PlayerModel, hole: Int, par: Int, hc: Int) -> some View {
         let gross    = matchManager.getScore(hole: hole, player: player.alias)
         let putts    = matchManager.getPutts(hole: hole, player: player.alias)
-        let strokes  = strokesOnHole(si: hc, sVsBase: player.strokesVsBase)
+        let strokes  = Int(matchManager.distributedStrokes(total: player.strokesVsBase, hole: hole))
         let isOyes   = matchManager.hasIndividualUnitWin(hole: hole, alias: player.alias)
                     || matchManager.hasPairUnitWin(hole: hole, alias: player.alias)
         let hasScore = gross > 0
@@ -1644,12 +1654,6 @@ struct TarjetaSheetView: View {
             return matchManager.pairF9Vuelta(laneId: lane.id) * sign + accum
         }
         return accum
-    }
-
-    private func strokesOnHole(si: Int, sVsBase: Double) -> Int {
-        guard si > 0 else { return 0 }
-        let n = Int(sVsBase)
-        return n / 18 + (si <= n % 18 ? 1 : 0)
     }
 
     private func cellColor(_ diff: Int?) -> Color {

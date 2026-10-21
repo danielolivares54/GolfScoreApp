@@ -56,9 +56,13 @@ enum BetMode: String, CaseIterable, Codable {
     case manual
 }
 
+// Alcance de la apuesta de putts: qué hoyos cuentan. f9/b9 siguen el orden de juego (primer y
+// segundo nueve jugados, ver playOrder()), igual que el resto de las apuestas.
 enum PuttsBetMode: String, CaseIterable, Codable {
     case hole18 = "H18"
     case byRound = "Vuelta"
+    case f9 = "F9"
+    case b9 = "B9"
 }
 
 struct BetDefinition: Identifiable, Codable, Equatable {
@@ -72,6 +76,9 @@ struct BetDefinition: Identifiable, Codable, Equatable {
     // Único interruptor de activación — global, no por match ni por plantilla. Un tag
     // desactivado aquí no aparece como opción ni se registra en ningún match.
     var isEnabled: Bool = true
+    // Solo el tag PUTTS lo usa: alcance de la apuesta (F9 / B9 / 18). Optional con default nil —
+    // los catálogos guardados antes de este campo decodifican igual.
+    var puttsScope: PuttsBetMode? = nil
 }
 
 struct ActiveBet: Identifiable {
@@ -301,7 +308,8 @@ class MatchManager: ObservableObject {
     @Published var matchValue: Int = 1
     @Published var unitValue: Int = 1
     @Published var puttsBetMode: PuttsBetMode = .hole18
-    @Published var puttsBetUnits: Int = 2
+    // 0 = apuesta de putts cerrada; el valor real lo pone el tag PUTTS del catálogo.
+    @Published var puttsBetUnits: Int = 0
     @Published var activeTemplateId: String? = nil
     // Cada oponente individual puede tener su propia plantilla/valor de apuesta (distinto al de otros
     // rivales). Las parejas NO usan este diccionario — siguen compartiendo un solo valor global
@@ -463,6 +471,7 @@ class MatchManager: ObservableObject {
         // Ya no hay selección por match/plantilla — todo tag habilitado en el catálogo global
         // está activo en todos los matches. Ver BetDefinitionEditorView.
         activeBets = betCatalog.map { ActiveBet(definition: $0, tagOverride: nil) }
+        syncPuttsBetFromCatalog()
     }
 
     // Paso 1: SSOT inicial de apuestas por scope/moment/type.
@@ -620,9 +629,26 @@ class MatchManager: ObservableObject {
         saveBetConfig()
     }
 
+    // Los putts son una apuesta opcional: los del usuario (yoAlias) siempre se registran; los de
+    // los demás jugadores solo se piden y se auditan si la apuesta de putts está activa.
+    var puttsBetActive: Bool { puttsBetUnits > 0 }
+
+    func tracksPutts(alias: String) -> Bool {
+        alias == yoAlias || puttsBetActive
+    }
+
+    // La apuesta de putts se define en el tag PUTTS del catálogo (encendido, precio, alcance);
+    // aquí solo se copia al match. Se llama al armar el match y al cerrar el editor de catálogo.
+    func syncPuttsBetFromCatalog() {
+        guard let def = BetDefinitionStore.shared.entries.first(where: { $0.tag == BetDefinitionStore.puttsTag }) else { return }
+        puttsBetUnits = def.isEnabled ? def.units : 0
+        puttsBetMode = def.puttsScope ?? .hole18
+    }
+
     func setPuttsBet(mode: PuttsBetMode, units: Int) {
         puttsBetMode = mode
         puttsBetUnits = max(0, units)
+        BetDefinitionStore.shared.setPutts(scope: mode, units: puttsBetUnits)
         objectWillChange.send()
     }
 
@@ -632,8 +658,8 @@ class MatchManager: ObservableObject {
         presionValue = template.presionValue
         matchValue = template.matchValue
         unitValue = template.unitValue
-        puttsBetMode = template.puttsBetMode
-        puttsBetUnits = template.puttsEnabled ? template.puttsBetUnits : 0
+        // Los putts ya no vienen de la plantilla: los define el tag PUTTS del catálogo (ver
+        // syncPuttsBetFromCatalog). Si no, guardar el Setup pisaba el tag con lo de la plantilla.
         objectWillChange.send()
         saveBetConfig()
     }
@@ -1241,18 +1267,44 @@ class MatchManager: ObservableObject {
             // dejarlo "vivo" aplicaría el carry desde un hoyo que ya no es el inicio de B9, o lo
             // seguiría dando por elegible/inelegible según un F9 que ya no es el que se jugó. Se
             // limpia en vez de dejarlo stale; el usuario lo vuelve a activar si todavía aplica.
-            individualCarryRequesterByOpponent.removeAll()
-            individualCarryStartHoleByOpponent.removeAll()
-            individualDoublePressOpponents.removeAll()
-            individualAdjust50Opponents.removeAll()
-            pairCarryRequesterByLane.removeAll()
-            pairCarryStartHoleByLane.removeAll()
-            pairDoublePressLanes.removeAll()
-            pairAdjust50Lanes.removeAll()
-            pairAdjust50FlipReceiverByLane.removeAll()
-            saveBetConfig()
+            clearCarryDependentState()
         }
         objectWillChange.send()
+    }
+
+    // Carry / Ajuste 50 / Doble Press se deciden con el resultado del F9 y guardan hoyos
+    // absolutos; cualquier cambio de Setup que mueva ese F9 (hoyo de salida, strokes, parejas,
+    // quién carga el golpe) los deja calculados sobre datos viejos.
+    func clearCarryDependentState() {
+        individualCarryRequesterByOpponent.removeAll()
+        individualCarryStartHoleByOpponent.removeAll()
+        individualDoublePressOpponents.removeAll()
+        individualAdjust50Opponents.removeAll()
+        pairCarryRequesterByLane.removeAll()
+        pairCarryStartHoleByLane.removeAll()
+        pairDoublePressLanes.removeAll()
+        pairAdjust50Lanes.removeAll()
+        pairAdjust50FlipReceiverByLane.removeAll()
+        saveBetConfig()
+        objectWillChange.send()
+    }
+
+    // Cierre de GuidedSetupView.applySetup: un solo guardado con el Setup completo (setCourse no
+    // guarda por sí solo) y un refresh para que tarjeta, auditoría y dinero se recalculen.
+    func finishSetupApply() {
+        saveBetConfig()
+        objectWillChange.send()
+    }
+
+    // Todo lo que alimenta el reparto de golpes y el resultado del F9. GuidedSetupView.applySetup
+    // la toma antes y después de aplicar el Setup: si cambió, el estado derivado del F9 se invalida.
+    var strokeSetupSignature: String {
+        let playerPart = players.map { "\($0.alias):\($0.strokesVsBase)" }.joined(separator: ",")
+        let lanePart = lanes
+            .map { "\($0.base.sorted().joined(separator: "+"))>\($0.opp.sorted().joined(separator: "+")):\($0.strokes):\($0.strokeCarrier ?? "")" }
+            .sorted()
+            .joined(separator: ",")
+        return "\(courseId)|\(startHole)|\(playerPart)|\(baseTeamAliases.sorted().joined(separator: ","))|\(lanePart)"
     }
     
     func getHole(_ number: Int) -> HoleModel? {
@@ -1643,8 +1695,12 @@ class MatchManager: ObservableObject {
         var carryStartByKey: [String: Int] = [:]
         var adjust50Keys: Set<String> = []
         var doublePressKeys: Set<String> = []
+        // Los switches de apuesta por pareja también cuelgan del lane.id (UUID nuevo en cada
+        // rebuild) — sin esto, guardar el Setup los regresaba a sus valores por defecto.
+        var switchesByKey: [String: MatchBetSwitches] = [:]
         for lane in lanes {
             let key = lane.opp.sorted().joined(separator: "+")
+            if let sw = pairBetSwitchesByLane[lane.id] { switchesByKey[key] = sw }
             strokesByKey[key] = lane.strokes
             if let carrier = lane.strokeCarrier { carrierByKey[key] = carrier }
             if let req = pairCarryRequesterByLane[lane.id] { carryReqByKey[key] = req }
@@ -1674,6 +1730,7 @@ class MatchManager: ObservableObject {
             }
             if adjust50Keys.contains(key) { pairAdjust50Lanes.insert(lane.id) }
             if doublePressKeys.contains(key) { pairDoublePressLanes.insert(lane.id) }
+            if let sw = switchesByKey[key] { pairBetSwitchesByLane[lane.id] = sw }
             return lane
         }
 
@@ -1691,6 +1748,7 @@ class MatchManager: ObservableObject {
                 }
             }
             reconcileBetSwitches()
+            rebuildBetInstances()
             return
         }
         if base.count == 3 && opponents.count == 2 {
@@ -3256,15 +3314,38 @@ class MatchManager: ObservableObject {
     }
 
     func distributedStrokes(total: Double, hole: Int) -> Double {
-        guard total > 0, let si = getHole(hole)?.si else { return 0 }
+        Self.distributedStrokes(total: total, hole: hole, startHole: startHole, holes: holes)
+    }
+
+    // Reparto de golpes que sigue el ORDEN DE JUEGO, no solo el SI fijo de la cancha: los golpes
+    // se alternan entre el primer nueve jugado y el segundo (el 1.º, 3.º, 5.º… al primero; el 2.º,
+    // 4.º… al segundo), y dentro de cada nueve van al hoyo más difícil por SI relativo a ese nueve.
+    // Con salida en el hoyo 1 y un campo con SI impares en F9 / pares en B9 (CGM) da exactamente
+    // el mismo reparto que el SI puro; al mover el hoyo de salida, el primer nueve jugado cambia
+    // y el reparto se reasigna. Es estática para que RoundHistoryView (rondas cerradas, sin
+    // MatchManager vivo) use la misma regla con el startHole que guardó la ronda.
+    static func distributedStrokes(total: Double, hole: Int, startHole: Int, holes: [HoleModel]) -> Double {
+        guard total > 0, holes.count == 18,
+              let target = holes.first(where: { $0.number == hole }) else { return 0 }
+        let start = max(1, min(18, startHole))
+        let order = (0..<18).map { ((start - 1 + $0) % 18) + 1 }
+        guard let pos = order.firstIndex(of: hole) else { return 0 }
+        let segment = pos < 9 ? 0 : 1
+        let siByNumber = Dictionary(holes.map { ($0.number, $0.si) }, uniquingKeysWith: { a, _ in a })
+        let nine = order[(segment * 9)..<(segment * 9 + 9)]
+        let rank = nine.filter { (siByNumber[$0] ?? 99) < target.si }.count + 1
+        // Posición de este hoyo en la secuencia alternada de golpes (1 = el más difícil del
+        // primer nueve, 2 = el más difícil del segundo, 3 = el 2.º del primero…).
+        let sequence = 2 * rank - 1 + segment
+
         let fullRounds = Int(total / 18.0)
         let remainder = total - Double(fullRounds * 18)
         let whole = Int(floor(remainder))
         let fraction = remainder - Double(whole)
         var strokes = Double(fullRounds)
-        if si <= whole {
+        if sequence <= whole {
             strokes += 1
-        } else if fraction >= 0.5, si == whole + 1 {
+        } else if fraction >= 0.5, sequence == whole + 1 {
             strokes += 0.5
         }
         return strokes

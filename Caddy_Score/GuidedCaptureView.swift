@@ -202,7 +202,8 @@ struct GuidedCaptureView: View {
     @State private var pendingPutts:   [String: [Int: Int]] = [:]
     @State private var log: [(q: String, a: String)] = []
 
-    private var puttsBetActive: Bool { true }
+    // Putts: los del usuario siempre; los de los demás solo si la apuesta de putts está activa.
+    private func asksPutts(_ alias: String) -> Bool { matchManager.tracksPutts(alias: alias) }
     private var currentStep: GStep? { steps.indices.contains(stepIdx) ? steps[stepIdx] : nil }
 
     private var captureTitle: String {
@@ -675,10 +676,10 @@ struct GuidedCaptureView: View {
             let status = audited.first { $0.hole == target }
             let allAliases = matchManager.players.map { $0.alias }
             let missScores = status?.missingScores ?? allAliases
-            let missPutts  = puttsBetActive ? (status?.missingPutts ?? []) : []
+            let missPutts  = status?.missingPutts ?? []
             for alias in missScores {
                 q.append(.strokes(hole: target, alias: alias, name: displayName(alias)))
-                if puttsBetActive { q.append(.putts(hole: target, alias: alias, name: displayName(alias))) }
+                if asksPutts(alias) { q.append(.putts(hole: target, alias: alias, name: displayName(alias))) }
             }
             for alias in missPutts { q.append(.putts(hole: target, alias: alias, name: displayName(alias))) }
             if par == 3 && matchManager.oyesRanksByHole[target] == nil {
@@ -688,12 +689,10 @@ struct GuidedCaptureView: View {
             for status in audited {
                 for alias in status.missingScores {
                     q.append(.strokes(hole: status.hole, alias: alias, name: displayName(alias)))
-                    if puttsBetActive { q.append(.putts(hole: status.hole, alias: alias, name: displayName(alias))) }
+                    if asksPutts(alias) { q.append(.putts(hole: status.hole, alias: alias, name: displayName(alias))) }
                 }
-                if puttsBetActive {
-                    for alias in status.missingPutts {
-                        q.append(.putts(hole: status.hole, alias: alias, name: displayName(alias)))
-                    }
+                for alias in status.missingPutts {
+                    q.append(.putts(hole: status.hole, alias: alias, name: displayName(alias)))
                 }
                 if status.par == 3 && matchManager.oyesRanksByHole[status.hole] == nil {
                     q.append(.oyes(hole: status.hole, par: status.par))
@@ -704,7 +703,7 @@ struct GuidedCaptureView: View {
             for player in matchManager.players {
                 if matchManager.getScore(hole: nextHole, player: player.alias) == 0 {
                     q.append(.strokes(hole: nextHole, alias: player.alias, name: player.name))
-                    if puttsBetActive { q.append(.putts(hole: nextHole, alias: player.alias, name: player.name)) }
+                    if asksPutts(player.alias) { q.append(.putts(hole: nextHole, alias: player.alias, name: player.name)) }
                 }
             }
             if nextPar == 3 && matchManager.oyesRanksByHole[nextHole] == nil {
