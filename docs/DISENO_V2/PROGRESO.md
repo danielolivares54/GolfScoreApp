@@ -55,3 +55,8 @@
 ## Voz fuera de v2 (decisión de Daniel, 21-oct)
 - Reemplaza la decisión anterior de voz en v2: la voz se construirá como **v2t** compartido iPhone + Watch, no dentro de la Vista v2. PLAN_PASOS.md: Paso 3 retirado; HoleScreenV2 y TarjetaV2 dejan solo ganchos vacíos. v1 conserva su voz intacta.
 - Hoyo actual (Paso 1): se mantiene guardado y al abrir la app queda en el último hoyo visto.
+
+## Paso 2 — HoleScreenV2 (21-oct)
+- `V2/HoleScreenV2.swift`: barra superior (semáforo de auditoría, Setup, Historial, 🏁 con el mismo diálogo, Vista v1), tarjeta verde del hoyo con ‹ ›, tira de estado por rival/pareja, filas de jugador (−/score/+, putts según R8, strokes en palabras), Oyes en par 3, "Hoyo N listo →", `RoundBarV2` (Evento, Mic y Nota son ganchos vacíos hasta el Paso 4 y v2t).
+- Cambios en v1 (movimientos literales para compartir lógica): `cerrarRonda` y la carga inicial pasaron de `ContentView` a `MatchManager.closeRound()` y `MatchManager.loadInitialMatchState()` (la app puede abrir primero en v2). Mismo orden de llamadas.
+- Compila, 41 pruebas verdes, vista previa en `~/Desktop/CaddyScore_V2_Screens/P3_01_HoleScreen_demo.png`. Falta: prueba en simulador capturando la misma ronda en v1 y v2.

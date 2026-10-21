@@ -1199,48 +1199,17 @@ struct ContentView: View {
     }
 
     private func setupOnAppear() {
-        // La carga inicial corre UNA vez por match: al volver de la Vista v2 esta vista reaparece,
-        // pero el match compartido ya tiene todo en memoria (oyes, eventos, notas incluidos).
-        if !matchManager.didRunInitialSetup {
-            matchManager.didRunInitialSetup = true
-            loadInitialMatchState()
-            // El hoyo actual ya no se recalcula aquí: viene de "currentHoleIndex" (guardado), así v1 y v2
-            // abren en el mismo hoyo y al reiniciar la app se conserva. cerrarRonda y el cambio de
-            // hoyo de salida lo regresan a 0.
-        }
+        // La carga inicial corre UNA vez por match (la hace MatchManager, también cuando abre primero la
+        // Vista v2): al volver de la v2 esta vista reaparece, pero el match compartido ya tiene todo en memoria.
+        // El hoyo actual ya no se recalcula aquí: viene de "currentHoleIndex" (guardado), así v1 y v2
+        // abren en el mismo hoyo y al reiniciar la app se conserva. cerrarRonda y el cambio de
+        // hoyo de salida lo regresan a 0.
+        if !matchManager.didRunInitialSetup { matchManager.loadInitialMatchState() }
         editingPlayerIdx = 0
         if UserDefaults.standard.bool(forKey: "pendingOpenRecorder") {
             UserDefaults.standard.removeObject(forKey: "pendingOpenRecorder")
             showGuidedCapture = true
         }
-    }
-
-    private func loadInitialMatchState() {
-        // loadBetConfig() primero: restaura el roster (players), el campo y el hoyo de salida
-        // desde el snapshot persistido antes de que syncFromScoreManager() intente reaplicar
-        // scores por alias — si players sigue vacío en este punto, ese replay no encuentra a
-        // nadie y descarta todo en silencio.
-        // Bug reportado: antes match_meta.json (startingHole: 1 + roster fijo) se aplicaba SIEMPRE
-        // antes de esto, en cada relanzamiento y cada vez que ContentView reaparecía. Pisaba el
-        // hoyo de salida guardado desde el Setup, y como players ya no estaba vacío,
-        // loadBetConfig() tampoco restauraba el roster ni el hoyo guardados.
-        matchManager.loadBetConfig()
-        // match_meta.json solo siembra un match NUEVO (nada restaurado). Segunda pasada de
-        // loadBetConfig() para aplicar por alias strokes/lanes de un snapshot sin roster.
-        if matchManager.players.isEmpty {
-            let metaPlayers = SiriMatchManager.shared.getPlayers()
-            if !metaPlayers.isEmpty {
-                matchManager.setPlayers(names: metaPlayers, preserveScores: true)
-                let metaStart = SiriMatchManager.shared.getStartingHole()
-                if metaStart > 0 { matchManager.startHole = metaStart }
-                matchManager.loadBetConfig()
-            }
-        }
-        matchManager.syncFromScoreManager()
-        #if DEBUG
-        // Solo simulador/debug: carga una ronda de 18 hoyos con `defaults write <bundle> demo18 -bool YES`.
-        if UserDefaults.standard.bool(forKey: "demo18") { matchManager.loadDemo18() }
-        #endif
     }
 
     private func applySiriPendingRecord() {
@@ -1255,132 +1224,13 @@ struct ContentView: View {
 
     private func cerrarRonda() {
         closeAllSheets()
-        applyInterMatchStrokeCarry()
-        saveRoundResultToFile()
-        matchManager.resetScores()
-        ScoreManager.shared.clearAll()
-        matchManager.clearBetConfig()
-        AppDelegate.clearPendingRecord()
+        // La lógica de cierre vive en MatchManager.closeRound() (compartida con la Vista v2).
+        matchManager.closeRound()
         currentHoleIndex = 0
         editingPlayerIdx = 0
         noteByKey = [:]
     }
 
-    // Ajuste de stroke entre rondas (regla 2026-10-06, solo IND — TEAM queda fuera porque las
-    // parejas varían de ronda a ronda). Quien ganó el B9 de un duelo da un golpe más la próxima
-    // vez (el rival se vuelve más duro de vencer); quien lo perdió recibe un golpe más. Gatillado
-    // por plantilla vía BetTemplate.carryMatchEnabled. Empate en B9 (0) no mueve nada — no hay
-    // ganador al que asignarle la dirección del ajuste.
-    //
-    // Usa siempre el B9 plano (individualB9Vuelta), nunca el ajustado por Carry/Ajuste 50 — la
-    // apuesta de Vuelta normal tampoco usa el ajustado (confirmado corriendo walletSnapshot con
-    // datos reales el 2026-10-06), así que este ajuste se mantiene consistente con esa línea base.
-    //
-    // Excepción: si Ajuste 50 estuvo activo, NO se autoaplica ningún stroke — Ajuste 50 redefine
-    // el stroke efectivo con su propia fórmula (ganados/perdidos, no un ±1 plano), y replicar esa
-    // fórmula para el salto entre rondas es un caso raro que Daniel prefiere resolver a mano. Solo
-    // se deja una bandera en lastResult para que se revise el Setup del próximo match contra ese rival.
-    private func applyInterMatchStrokeCarry() {
-        let opponents = matchManager.players.map(\.alias).filter { $0 != matchManager.yoAlias }
-        guard !opponents.isEmpty else { return }
-        let snapshot = matchManager.walletSnapshot()
-        for opp in opponents {
-            guard let player = matchManager.players.first(where: { $0.alias == opp }) else { continue }
-            let templateId = matchManager.betValues(forOpponent: opp).templateId
-            let carryEnabled = BetTemplateStore.shared.entries.first(where: { $0.id == templateId })?.carryMatchEnabled ?? true
-            guard carryEnabled else { continue }
-
-            let f9 = matchManager.individualF9Vuelta(opponentAlias: opp)
-            let b9 = matchManager.individualB9Vuelta(opponentAlias: opp)
-            let line = snapshot.lines.first(where: { $0.opponentAlias == opp && $0.scope == .individual })
-            let matchLabel = line.map { $0.matchPoints >= 0 ? "+\($0.matchPoints)" : "\($0.matchPoints)" } ?? "—"
-            let base = "F9 \(f9 >= 0 ? "+" : "")\(f9) · B9 \(b9 >= 0 ? "+" : "")\(b9) · Match \(matchLabel)"
-                + " · $\(line?.totalMoney ?? 0) · \(matchManager.dateString)"
-
-            if matchManager.isIndividualAdjust50Active(opponentAlias: opp) {
-                // Con Ajuste 50 activo no se deja a mano: se aplica la misma fórmula de medio
-                // golpe por hoyo que usa individualAdjust50Profile dentro de la ronda (ganados
-                // se restan, perdidos se suman, 0.5 por hoyo), pero proyectada sobre el B9 recién
-                // jugado como si fuera el F9 de un ajuste nuevo de cara a la próxima ronda.
-                let (wins, losses) = matchManager.individualB9WinLossCount(opponentAlias: opp)
-                let delta = 0.5 * Double(wins - losses)
-                guard delta != 0 else { continue }
-                let summary = "⚖️ Ajuste 50 (B9 \(wins)-\(losses)) · " + base
-                PlayerDirectoryStore.shared.applyMatchStrokeShift(
-                    playerName: player.name, delta: delta, resultSummary: summary, roundId: matchManager.roundId
-                )
-                continue
-            }
-
-            // El match completo (F9+B9, 18 hoyos) define quién gana — no solo el B9. Si el rival
-            // dio strokes y ganó el match, da uno más la próxima vez; si recibía y perdió, se le
-            // deduce uno. matchTotal > 0 = yo gané el match -> el rival perdió -> recibe un golpe
-            // más (+1). matchTotal < 0 = yo perdí -> el rival ganó -> da un golpe más (-1).
-            let matchTotal = f9 + b9
-            guard matchTotal != 0 else { continue }
-            let delta: Double = matchTotal > 0 ? 1 : -1
-            PlayerDirectoryStore.shared.applyMatchStrokeShift(
-                playerName: player.name, delta: delta, resultSummary: base, roundId: matchManager.roundId
-            )
-        }
-    }
-
-    // Guarda el resultado final (scores + wallet) a disco antes de borrar.
-    private func saveRoundResultToFile() {
-        let snapshot = matchManager.walletSnapshot()
-        let lines = snapshot.lines.map { line -> RoundResultLine in
-            // F9/B9 por rival solo aplica a IND (igual que applyInterMatchStrokeCarry) — las
-            // parejas varían de ronda a ronda, no hay "próximo match" fijo contra el que comparar.
-            let isIndividual = line.scope.rawValue == "individual"
-            let f9 = isIndividual ? line.opponentAlias.map { matchManager.individualF9Vuelta(opponentAlias: $0) } : nil
-            let b9 = isIndividual ? line.opponentAlias.map { matchManager.individualB9Vuelta(opponentAlias: $0) } : nil
-            return RoundResultLine(
-                label: line.label, scope: line.scope.rawValue, opponentAlias: line.opponentAlias,
-                vueltaPoints: line.vueltaPoints, presionPoints: line.presionPoints,
-                carryPoints: line.carryPoints, carryActive: line.carryActive,
-                matchPoints: line.matchPoints, unitsPoints: line.unitsPoints,
-                vueltaMoney: line.vueltaMoney, presionMoney: line.presionMoney,
-                carryMoney: line.carryMoney, matchMoney: line.matchMoney,
-                unitsMoney: line.unitsMoney, totalMoney: line.totalMoney,
-                f9Points: f9, b9Points: b9
-            )
-        }
-        let players = matchManager.players.map { p -> RoundResultPlayer in
-            var scores: [String: Int] = [:]
-            var putts: [String: Int] = [:]
-            for (hole, entry) in p.scores {
-                scores["\(hole)"] = entry.gross
-                if let pu = entry.putts { putts["\(hole)"] = pu }
-            }
-            return RoundResultPlayer(alias: p.alias, name: p.name, strokesVsBase: p.strokesVsBase, scores: scores, putts: putts)
-        }
-        var oyesWins: [String: Int] = [:]
-        for (_, ranks) in matchManager.oyesRanksByHole {
-            for (alias, rank) in ranks where rank == 1 {
-                oyesWins[alias, default: 0] += 1
-            }
-        }
-        let file = RoundResultFile(
-            roundId: matchManager.roundId, date: matchManager.dateString,
-            courseId: matchManager.courseId, courseName: matchManager.courseName,
-            startHole: matchManager.startHole, players: players, lines: lines,
-            totalMoney: snapshot.totalMoney, closedAt: Date(),
-            oyesWinsByAlias: oyesWins
-        )
-        guard let roundsDir = RoundResultFile.closedRoundsDirectory() else { return }
-        try? FileManager.default.createDirectory(at: roundsDir, withIntermediateDirectories: true)
-        let fileURL = roundsDir.appendingPathComponent("\(file.roundId).json")
-        do {
-            let encoder = JSONEncoder()
-            encoder.outputFormatting = .prettyPrinted
-            encoder.dateEncodingStrategy = .iso8601
-            let data = try encoder.encode(file)
-            try data.write(to: fileURL)
-            print("✅ Ronda cerrada, resultado guardado en: \(fileURL)")
-        } catch {
-            print("❌ Error guardando resultado de ronda: \(error)")
-        }
-    }
 
 }
 

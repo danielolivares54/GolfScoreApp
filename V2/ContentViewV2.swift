@@ -1,94 +1,22 @@
 //
 //  ContentViewV2.swift
-//  Caddie Score — Vista v2 (fase P0: solo el marco)
+//  Caddie Score — Vista v2: raíz
 //
-//  Por ahora es un marcador: demuestra que la Vista v2 usa EL MISMO MatchManager que la v1
-//  (los números de abajo salen del match compartido) y permite volver a la v1. Las pantallas
-//  reales (Resultado, Tarjeta, Historial, Hoyo, Setup) se construyen en las fases siguientes.
-//  Solo lectura: no modifica el match.
+//  Usa EL MISMO MatchManager que la v1. La pantalla de inicio es HoleScreenV2 (captura a mano);
+//  Tarjeta y Resultado se abren desde su barra inferior.
 //
 
 import SwiftUI
 
 struct ContentViewV2: View {
     @ObservedObject var matchManager: MatchManager
-    @AppStorage("uiVersion") private var uiVersion = "v1"
-    // P1: la pantalla Resultado v2 se abre desde aquí hasta que exista la barra inferior (RoundBarV2).
-    @State private var showResultado = false
-    @State private var showTarjeta = false
-    /// Hoyo actual COMPARTIDO con la v1 (misma clave que ContentView): posición dentro del orden de juego.
-    @AppStorage("currentHoleIndex") private var currentHoleIndex = 0
-
-    private var playOrder: [Int] { matchManager.playOrder() }
-    private var currentHole: Int {
-        playOrder.indices.contains(currentHoleIndex) ? playOrder[currentHoleIndex] : 1
-    }
-
-    private var scoresEntered: Int { matchManager.players.first?.scores.count ?? 0 }
-    private var oyesHoles: Int { matchManager.oyesRanksByHole.count }
-    private var eventCount: Int { matchManager.unitEventsByHole.values.reduce(0) { $0 + $1.count } }
 
     var body: some View {
-        ZStack {
-            CSV2.background.ignoresSafeArea()
-            VStack(alignment: .leading, spacing: CSV2.s2) {
-                HStack {
-                    Text("\(matchManager.courseName) · Sale H\(matchManager.startHole)")
-                        .font(.v2Name).foregroundStyle(CSV2.ink)
-                    Spacer()
-                    PrimaryButtonV2(title: "Vista v1") { uiVersion = "v1" }
-                }
-
-                // Provisional (Paso 1): navegar el hoyo compartido hasta que exista HoleScreenV2.
-                HStack(spacing: CSV2.s1) {
-                    PrimaryButtonV2(title: "‹") { if currentHoleIndex > 0 { currentHoleIndex -= 1 } }
-                    Text("Hoyo \(currentHole)").font(.v2Name).foregroundStyle(CSV2.ink)
-                        .frame(maxWidth: .infinity)
-                    PrimaryButtonV2(title: "›") { if currentHoleIndex < playOrder.count - 1 { currentHoleIndex += 1 } }
-                }
-
-                CardV2 {
-                    VStack(alignment: .leading, spacing: CSV2.s1) {
-                        Text("Vista v2 — en construcción")
-                            .font(.v2Name).foregroundStyle(CSV2.ink)
-                        Text("Mismo match que la v1. Estos números salen del match compartido:")
-                            .font(.v2Label).foregroundStyle(CSV2.secondary)
-                        row("Jugadores", "\(matchManager.players.count)")
-                        row("Hoyos con score", "\(scoresEntered) de 18")
-                        row("Hoyos con oyes", "\(oyesHoles)")
-                        row("Eventos de unidad", "\(eventCount)")
-                        HStack {
-                            Text("Total en curso").font(.v2Body).foregroundStyle(CSV2.secondary)
-                            Spacer()
-                            MoneyTextV2(amount: matchManager.walletSnapshot().totalMoney, size: 20, weight: .bold)
-                        }
-                    }
-                    .padding(CSV2.s2)
-                }
-
-                HStack(spacing: CSV2.s1) {
-                    PrimaryButtonV2(title: "Tarjeta") { showTarjeta = true }
-                    PrimaryButtonV2(title: "Resultado") { showResultado = true }
-                }
-
-                Spacer()
+        HoleScreenV2(matchManager: matchManager)
+            .onAppear {
+                // Si la app abre directo en la v2, la v1 nunca corrió la carga inicial del match.
+                if !matchManager.didRunInitialSetup { matchManager.loadInitialMatchState() }
             }
-            .padding(CSV2.s2)
-        }
-        .sheet(isPresented: $showResultado) {
-            ResultadoV2(matchManager: matchManager)
-        }
-        .sheet(isPresented: $showTarjeta) {
-            TarjetaV2(matchManager: matchManager)
-        }
-    }
-
-    private func row(_ title: String, _ value: String) -> some View {
-        HStack {
-            Text(title).font(.v2Body).foregroundStyle(CSV2.secondary)
-            Spacer()
-            Text(value).font(.v2Body).foregroundStyle(CSV2.ink)
-        }
     }
 }
 
