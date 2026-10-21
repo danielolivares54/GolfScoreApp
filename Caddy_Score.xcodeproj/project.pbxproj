@@ -11,6 +11,10 @@
 		F808CADC30895E9F00CAB58C /* CaddieStyleV2.swift in Sources */ = {isa = PBXBuildFile; fileRef = F808CAD830895E9F00CAB58C /* CaddieStyleV2.swift */; };
 		F808CADD30895E9F00CAB58C /* ContentViewV2.swift in Sources */ = {isa = PBXBuildFile; fileRef = F808CAD930895E9F00CAB58C /* ContentViewV2.swift */; };
 		F808CADE30895E9F00CAB58C /* CaddieStyleV2.swift in Sources */ = {isa = PBXBuildFile; fileRef = F808CAD830895E9F00CAB58C /* CaddieStyleV2.swift */; };
+		F808CAE33089647F00CAB58C /* MatchManager+V2.swift in Sources */ = {isa = PBXBuildFile; fileRef = F808CAE23089647F00CAB58C /* MatchManager+V2.swift */; };
+		F808CAE43089647F00CAB58C /* MatchManager+V2.swift in Sources */ = {isa = PBXBuildFile; fileRef = F808CAE23089647F00CAB58C /* MatchManager+V2.swift */; };
+		F808CAE63089649000CAB58C /* ResultadoV2.swift in Sources */ = {isa = PBXBuildFile; fileRef = F808CAE53089649000CAB58C /* ResultadoV2.swift */; };
+		F808CAE73089649000CAB58C /* ResultadoV2.swift in Sources */ = {isa = PBXBuildFile; fileRef = F808CAE53089649000CAB58C /* ResultadoV2.swift */; };
 		F82AA8AF304F4871004066B3 /* ScoreManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = F82AA8AE304F4871004066B3 /* ScoreManager.swift */; };
 		F82AA8E0304F5E7B004066B3 /* SiriMatchManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = F82AA8DF304F5E7B004066B3 /* SiriMatchManager.swift */; };
 		F82AA8E2304F6029004066B3 /* GolfScoreRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = F82AA8E1304F6029004066B3 /* GolfScoreRecord.swift */; };
@@ -44,6 +48,8 @@
 		F808CACA308953AD00CAB58C /* Caddy_ScoreTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = Caddy_ScoreTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		F808CAD830895E9F00CAB58C /* CaddieStyleV2.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaddieStyleV2.swift; sourceTree = "<group>"; };
 		F808CAD930895E9F00CAB58C /* ContentViewV2.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentViewV2.swift; sourceTree = "<group>"; };
+		F808CAE23089647F00CAB58C /* MatchManager+V2.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "MatchManager+V2.swift"; sourceTree = "<group>"; };
+		F808CAE53089649000CAB58C /* ResultadoV2.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResultadoV2.swift; sourceTree = "<group>"; };
 		F82AA8AE304F4871004066B3 /* ScoreManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScoreManager.swift; sourceTree = "<group>"; };
 		F82AA8DF304F5E7B004066B3 /* SiriMatchManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SiriMatchManager.swift; sourceTree = "<group>"; };
 		F82AA8E1304F6029004066B3 /* GolfScoreRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GolfScoreRecord.swift; sourceTree = "<group>"; };
@@ -132,6 +138,8 @@
 			children = (
 				F808CAD830895E9F00CAB58C /* CaddieStyleV2.swift */,
 				F808CAD930895E9F00CAB58C /* ContentViewV2.swift */,
+				F808CAE23089647F00CAB58C /* MatchManager+V2.swift */,
+				F808CAE53089649000CAB58C /* ResultadoV2.swift */,
 			);
 			path = V2;
 			sourceTree = "<group>";
@@ -290,7 +298,9 @@
 			buildActionMask = 2147483647;
 			files = (
 				F808CADB30895E9F00CAB58C /* ContentViewV2.swift in Sources */,
+				F808CAE63089649000CAB58C /* ResultadoV2.swift in Sources */,
 				F808CADC30895E9F00CAB58C /* CaddieStyleV2.swift in Sources */,
+				F808CAE43089647F00CAB58C /* MatchManager+V2.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -306,8 +316,10 @@
 				F82AA8E0304F5E7B004066B3 /* SiriMatchManager.swift in Sources */,
 				F8A1001D2F43000100A1B2C3 /* Caddy_Score/OpenAIService.swift in Sources */,
 				F8A1001E2F43000100A1B2C3 /* Caddy_Score/VoiceRecorder.swift in Sources */,
+				F808CAE33089647F00CAB58C /* MatchManager+V2.swift in Sources */,
 				F808CADD30895E9F00CAB58C /* ContentViewV2.swift in Sources */,
 				F808CADE30895E9F00CAB58C /* CaddieStyleV2.swift in Sources */,
+				F808CAE73089649000CAB58C /* ResultadoV2.swift in Sources */,
 				F8A100202F43000100A1B2C3 /* Caddy_Score/Persistence.swift in Sources */,
 				F82AA8AF304F4871004066B3 /* ScoreManager.swift in Sources */,
 				F8A100342F43000100A1B2C3 /* Caddy_Score/Interpreter.swift in Sources */,

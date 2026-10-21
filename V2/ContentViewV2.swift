@@ -13,6 +13,8 @@ import SwiftUI
 struct ContentViewV2: View {
     @ObservedObject var matchManager: MatchManager
     @AppStorage("uiVersion") private var uiVersion = "v1"
+    // P1: la pantalla Resultado v2 se abre desde aquí hasta que exista la barra inferior (RoundBarV2).
+    @State private var showResultado = false
 
     private var scoresEntered: Int { matchManager.players.first?.scores.count ?? 0 }
     private var oyesHoles: Int { matchManager.oyesRanksByHole.count }
@@ -48,9 +50,14 @@ struct ContentViewV2: View {
                     .padding(CSV2.s2)
                 }
 
+                PrimaryButtonV2(title: "Resultado") { showResultado = true }
+
                 Spacer()
             }
             .padding(CSV2.s2)
+        }
+        .sheet(isPresented: $showResultado) {
+            ResultadoV2(matchManager: matchManager)
         }
     }
 

@@ -155,20 +155,7 @@ struct CaseStudyDemo18Tests {
     // de lo que haya guardado en el dispositivo. (En el simulador la app daba $1325 porque traía
     // valores por rival guardados de corridas anteriores: +$100 extra en el match de cada rival.)
 
-    private func defaultCatalog() -> [BetDefinition] {
-        [
-            BetDefinition(tag: "BIRD", name: "Birdie", type: .individual, mode: .calculado, units: 1, description: ""),
-            BetDefinition(tag: "EAG", name: "Águila", type: .individual, mode: .calculado, units: 1, description: ""),
-            BetDefinition(tag: "ALB", name: "Albatros", type: .individual, mode: .calculado, units: 1, description: ""),
-            BetDefinition(tag: "HIO", name: "Hole in One", type: .individual, mode: .calculado, units: 1, description: ""),
-            BetDefinition(tag: "B18", name: "Birdie en 18", type: .individual, mode: .calculado, units: 1, description: ""),
-            BetDefinition(tag: "3P", name: "3 Putt", type: .individual, mode: .manual, units: 1, description: ""),
-            BetDefinition(tag: "HO", name: "Hole Out", type: .individual, mode: .manual, units: 1, description: ""),
-            BetDefinition(tag: "OYES", name: "Oyes Rank", type: .individual, mode: .manual, units: 1, description: ""),
-            BetDefinition(tag: "PAIR", name: "Match Parejas", type: .parejas, mode: .manual, units: 1, description: ""),
-            BetDefinition(tag: "OYESP", name: "Oyes Rank Parejas", type: .parejas, mode: .manual, units: 1, description: ""),
-        ]
-    }
+    private func defaultCatalog() -> [BetDefinition] { DemoFixture.defaultCatalog() }
 
     private func money(_ m: MatchManager) -> [String: Int] {
         Dictionary(uniqueKeysWithValues: m.walletSnapshot().lines.map { ($0.label, $0.totalMoney) })
