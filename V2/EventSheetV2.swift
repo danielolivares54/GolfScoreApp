@@ -1,6 +1,6 @@
 //
 //  EventSheetV2.swift
-//  Caddie Score — Vista v2, Paso 4: eventos de unidad del hoyo
+//  Caddie Score — Vista v2, Paso 4: unidades del hoyo (grupos Putts y Eventos)
 //
 //  Mismas llamadas que la v1 (ContentView.unitToggleBtn): upsertUnitEvent / removeUnitEvent sobre
 //  unitEventsByHole, con el catálogo manual individual (sin Oyes, que tiene su propia tarjeta).
@@ -29,7 +29,7 @@ struct EventSheetV2: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: CSV2.s2) {
                     HStack {
-                        Text("Evento · hoyo \(hole)").font(.v2Name).foregroundStyle(CSV2.ink)
+                        Text("Unidades · hoyo \(hole)").font(.v2Name).foregroundStyle(CSV2.ink)
                         Spacer()
                         PrimaryButtonV2(title: "Listo") { dismiss() }
                     }
@@ -64,14 +64,27 @@ struct EventSheetV2: View {
         }
     }
 
+    /// 3 Putt, 4 Putt y Hole Out son unidades de putts; el resto del catálogo manual (Sandy par, Chip…) son eventos.
+    private static let puttTags: Set<String> = ["3P", "4P", "HO"]
+
     private var unitsGrid: some View {
         let active = Set((matchManager.unitEventsByHole[hole] ?? [])
             .filter { $0.alias == alias }.map { $0.code.uppercased() })
         let bets = matchManager.manualUnitBetsV2
-        return VStack(alignment: .leading, spacing: 6) {
-            Text("Unidad").font(.v2Caps).textCase(.uppercase).foregroundStyle(CSV2.secondary)
+        let putts = bets.filter { Self.puttTags.contains($0.tag.uppercased()) }
+        let events = bets.filter { !Self.puttTags.contains($0.tag.uppercased()) }
+        return VStack(alignment: .leading, spacing: CSV2.s2) {
+            group("Putts", bets: putts, active: active, emptyText: "No hay unidades de putts en el catálogo.")
+            group("Eventos", bets: events, active: active,
+                  emptyText: "No hay eventos manuales (Sandy par, Chip…). Agrégalos en el catálogo de apuestas.")
+        }
+    }
+
+    private func group(_ title: String, bets: [BetDefinition], active: Set<String>, emptyText: String) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title).font(.v2Caps).textCase(.uppercase).foregroundStyle(CSV2.secondary)
             if bets.isEmpty {
-                Text("No hay unidades manuales en el catálogo.").font(.v2Label).foregroundStyle(CSV2.secondary)
+                Text(emptyText).font(.v2Label).foregroundStyle(CSV2.secondary)
             }
             LazyVGrid(columns: [GridItem(.flexible(), spacing: 8), GridItem(.flexible(), spacing: 8)], spacing: 8) {
                 ForEach(bets, id: \.id) { bet in

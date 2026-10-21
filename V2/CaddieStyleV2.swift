@@ -277,7 +277,7 @@ struct RoundBarV2: View {
     var body: some View {
         HStack(spacing: 0) {
             tab("Tarjeta", "square.grid.2x2", on: active == .tarjeta, action: onTarjeta)
-            tab("Evento", "plus.circle", tint: CSV2.unitFg, action: onEvento)
+            tab("Unidades", "plus.circle", tint: CSV2.unitFg, action: onEvento)
             Button(action: onMic) {
                 ZStack {
                     Circle().fill(CSV2.green).frame(width: 62, height: 62)

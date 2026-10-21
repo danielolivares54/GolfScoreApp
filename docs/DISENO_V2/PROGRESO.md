@@ -65,3 +65,4 @@
 - Pedido de Daniel: el Oyes debe aparecer en el hoyo como en la v1 (distintivo "Oyes"), y poder agregar eventos y notas.
 - `HoleScreenV2`: tarjeta "Eventos y notas del hoyo" (arriba de los jugadores) con "DAN Oyes 1º", los eventos de unidad (manuales y calculados, sin BIRD) y las notas. `Evento` y `Nota` de la barra abren `EventSheetV2` (fichas del catálogo manual, agregar/quitar con upsert/removeUnitEvent) y `NoteSheetV2` (upsert "NOTA" / borra si queda vacía). Mismas llamadas que la v1.
 - Compila, 41 pruebas verdes; vistas previas P3_02 a P3_04. Falta revisión en simulador (agregar/quitar en v2 y verlo en v1).
+- Decisión de Daniel (21-oct): "Evento" pasa a llamarse **Unidades**; la hoja agrupa Putts (3 Putt, 4 Putt, Hole Out) y Eventos (Sandy par y el resto del catálogo manual). En el hoyo solo sale la píldora del evento ya agregado.
