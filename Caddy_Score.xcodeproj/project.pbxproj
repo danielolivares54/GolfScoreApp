@@ -11,7 +11,6 @@
 		F82AA8E0304F5E7B004066B3 /* SiriMatchManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = F82AA8DF304F5E7B004066B3 /* SiriMatchManager.swift */; };
 		F82AA8E2304F6029004066B3 /* GolfScoreRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = F82AA8E1304F6029004066B3 /* GolfScoreRecord.swift */; };
 		F87EB6933085278E004EBE88 /* Resumen_CaddyScore_y_Correccion.txt in Resources */ = {isa = PBXBuildFile; fileRef = F87EB6923085278E004EBE88 /* Resumen_CaddyScore_y_Correccion.txt */; };
-		F87EB69530852801004EBE88 /* CaddyScore_Resumen_Cambios.docx in Resources */ = {isa = PBXBuildFile; fileRef = F87EB69430852801004EBE88 /* CaddyScore_Resumen_Cambios.docx */; };
 		F88434FE3082E0F80079F3EB /* Algorithms in Frameworks */ = {isa = PBXBuildFile; productRef = F88434FD3082E0F80079F3EB /* Algorithms */; };
 		F8A1001A2F43000100A1B2C3 /* Caddy_Score/Caddy_ScoreApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8A100102F43000100A1B2C3 /* Caddy_Score/Caddy_ScoreApp.swift */; };
 		F8A1001B2F43000100A1B2C3 /* Caddy_Score/ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8A100112F43000100A1B2C3 /* Caddy_Score/ContentView.swift */; };
@@ -43,7 +42,6 @@
 		F82AA8E1304F6029004066B3 /* GolfScoreRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GolfScoreRecord.swift; sourceTree = "<group>"; };
 		F8667F592F413A6400F2F850 /* Caddy_Score.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Caddy_Score.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		F87EB6923085278E004EBE88 /* Resumen_CaddyScore_y_Correccion.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = Resumen_CaddyScore_y_Correccion.txt; sourceTree = "<group>"; };
-		F87EB69430852801004EBE88 /* CaddyScore_Resumen_Cambios.docx */ = {isa = PBXFileReference; lastKnownFileType = text; path = CaddyScore_Resumen_Cambios.docx; sourceTree = "<group>"; };
 		F8A100102F43000100A1B2C3 /* Caddy_Score/Caddy_ScoreApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Caddy_Score/Caddy_ScoreApp.swift; sourceTree = "<group>"; };
 		F8A100112F43000100A1B2C3 /* Caddy_Score/ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Caddy_Score/ContentView.swift; sourceTree = "<group>"; };
 		F8A100122F43000100A1B2C3 /* Caddy_Score/MatchManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Caddy_Score/MatchManager.swift; sourceTree = "<group>"; };
@@ -91,6 +89,11 @@
 			path = Caddy_Score;
 			sourceTree = "<group>";
 		};
+		F87EB7273086B047004EBE88 /* como */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = como;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -115,7 +118,7 @@
 				F82AA8DF304F5E7B004066B3 /* SiriMatchManager.swift */,
 				F82AA8E1304F6029004066B3 /* GolfScoreRecord.swift */,
 				F87EB6923085278E004EBE88 /* Resumen_CaddyScore_y_Correccion.txt */,
-				F87EB69430852801004EBE88 /* CaddyScore_Resumen_Cambios.docx */,
+				F87EB7273086B047004EBE88 /* como */,
 			);
 			sourceTree = "<group>";
 		};
@@ -157,6 +160,9 @@
 				F846F7DF302161FC0037E6A1 /* PBXBuildRule */,
 			);
 			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				F87EB7273086B047004EBE88 /* como */,
 			);
 			name = Caddy_Score;
 			packageProductDependencies = (
@@ -209,7 +215,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				F87EB6933085278E004EBE88 /* Resumen_CaddyScore_y_Correccion.txt in Resources */,
-				F87EB69530852801004EBE88 /* CaddyScore_Resumen_Cambios.docx in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
