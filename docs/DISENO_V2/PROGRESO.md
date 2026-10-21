@@ -19,3 +19,9 @@
 - Nombres de pareja: sin "+" — se unen con guion ("ROB – RIC", "con X – Y"); en pantalla v2 nunca se usa "+" para unir nombres.
 - Oyes: se quedan dentro de Unid (son unidades; se capturan en las pantallas de entrada), sin columna aparte.
 - Marcas de golpes (círculos/puntos): se conservan como están; de la v2 solo se toma el tamaño definido (se aplica en P2, TarjetaV2).
+
+## P2 — TarjetaV2 (hecho)
+- `V2/MatchManager+V2.swift` (`tarjetaNinesV2()`, solo lectura) y `V2/TarjetaV2.swift`: tabla por nueve JUGADO (con salida en 10: `F9 · 10–18` / `B9 · 1–9`), marcas golf estándar con los tamaños de la v2 (marca 32 pt, filas 52 pt), HCP con contorno, cuadro dorado para evento/oye, fila de cierre oscura con par y golpes por nueve y fila "Total 18". Se abre con el botón "Tarjeta" del marcador `ContentViewV2`.
+- Decisiones de Daniel: opción B (marcas del diseño) también para oyes y birdie; la columna de yo se queda como la v1 — los puntos de golpe solo salen en rivales que reciben de yo (regla v1: `distributedStrokes(total: strokesVsBase)`), nunca en la columna de yo.
+- Pruebas: `TarjetaV2DataTests` (9); 31 verdes. Vista previa renderizada (salida 1 y salida 10 con FER recibiendo 3½).
+- Pendiente: fila del hoyo actual en verde y "‹ Hoyo N" (necesitan el hoyo actual compartido, P4); el Golpes de v1 muestra el mismo número de columnas pero sin marcas golf; no se probó con Dynamic Type grande ni modo oscuro.

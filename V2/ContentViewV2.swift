@@ -15,6 +15,7 @@ struct ContentViewV2: View {
     @AppStorage("uiVersion") private var uiVersion = "v1"
     // P1: la pantalla Resultado v2 se abre desde aquí hasta que exista la barra inferior (RoundBarV2).
     @State private var showResultado = false
+    @State private var showTarjeta = false
 
     private var scoresEntered: Int { matchManager.players.first?.scores.count ?? 0 }
     private var oyesHoles: Int { matchManager.oyesRanksByHole.count }
@@ -50,7 +51,10 @@ struct ContentViewV2: View {
                     .padding(CSV2.s2)
                 }
 
-                PrimaryButtonV2(title: "Resultado") { showResultado = true }
+                HStack(spacing: CSV2.s1) {
+                    PrimaryButtonV2(title: "Tarjeta") { showTarjeta = true }
+                    PrimaryButtonV2(title: "Resultado") { showResultado = true }
+                }
 
                 Spacer()
             }
@@ -58,6 +62,9 @@ struct ContentViewV2: View {
         }
         .sheet(isPresented: $showResultado) {
             ResultadoV2(matchManager: matchManager)
+        }
+        .sheet(isPresented: $showTarjeta) {
+            TarjetaV2(matchManager: matchManager)
         }
     }
 

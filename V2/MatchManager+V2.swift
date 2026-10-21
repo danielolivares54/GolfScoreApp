@@ -133,3 +133,90 @@ extension MatchManager {
         (1...18).filter { isHoleComplete($0) }.count
     }
 }
+
+// MARK: - Tarjeta v2 (P2): tabla de golpes por nueve, en orden de juego
+
+extension MatchManager {
+
+    /// Una celda de la tarjeta: lo que el jugador anotó en ese hoyo.
+    struct TarjetaCellV2 {
+        /// Golpes brutos (nil = sin anotar).
+        let gross: Int?
+        /// Golpes que ESE jugador recibe en el hoyo — misma regla que la v1: solo los rivales que
+        /// reciben de yo (strokesVsBase > 0). La columna de yo y los rivales que dan golpes no llevan punto.
+        let strokes: Double
+        /// Evento de unidad u oye ganado en ese hoyo (cuadro dorado).
+        let hasEvent: Bool
+    }
+
+    struct TarjetaHoleV2: Identifiable {
+        var id: Int { hole }
+        let hole: Int
+        let par: Int
+        let hcp: Int
+        /// Una celda por jugador, en el orden de `players`.
+        let cells: [TarjetaCellV2]
+    }
+
+    /// Un nueve JUGADO: F9 = primeros 9 en orden de juego, B9 = los siguientes 9.
+    struct TarjetaNineV2: Identifiable {
+        var id: String { name }
+        let name: String            // "F9" / "B9"
+        let rangeText: String       // "10–18" o "14–18, 1–4"
+        let holes: [TarjetaHoleV2]
+        let parTotal: Int
+        /// Suma de golpes por jugador (nil si no hay ningún score en ese nueve).
+        let grossTotals: [Int?]
+        var title: String { "\(name) · \(rangeText)" }
+    }
+
+    func tarjetaNinesV2() -> [TarjetaNineV2] {
+        let order = playOrder()
+        let manual = unitEventsByHole
+        let calculatedAndManual = unitEventsForZoom(segmentOverride: "F9") + unitEventsForZoom(segmentOverride: "B9")
+
+        func hasEvent(alias: String, hole: Int) -> Bool {
+            // Mismo criterio que la tarjeta del hoyo en la v1: BIRD no cuenta (ya lo dice la marca del score)
+            // y las notas ("NOTA") no son eventos.
+            let counts: (UnitEvent) -> Bool = {
+                $0.hole == hole && $0.alias == alias
+                    && $0.code.uppercased() != "BIRD" && $0.code.uppercased() != "NOTA"
+            }
+            if (manual[hole] ?? []).contains(where: counts) { return true }
+            if calculatedAndManual.contains(where: counts) { return true }
+            if oyesRanksByHole[hole]?[alias] == 1 { return true }
+            return hasPairUnitWin(hole: hole, alias: alias)
+        }
+
+        let nines: [(String, [Int])] = [("F9", Array(order.prefix(9))), ("B9", Array(order.suffix(9)))]
+        return nines.map { name, holeNumbers in
+            let holes = holeNumbers.map { h -> TarjetaHoleV2 in
+                let data = getHole(h)
+                let cells = players.map { p -> TarjetaCellV2 in
+                    let score = getScore(hole: h, player: p.alias)
+                    return TarjetaCellV2(
+                        gross: score > 0 ? score : nil,
+                        strokes: distributedStrokes(total: p.strokesVsBase, hole: h),
+                        hasEvent: hasEvent(alias: p.alias, hole: h)
+                    )
+                }
+                return TarjetaHoleV2(hole: h, par: data?.par ?? 4, hcp: data?.si ?? 0, cells: cells)
+            }
+            let totals: [Int?] = players.indices.map { i in
+                let scores = holes.compactMap { $0.cells[i].gross }
+                return scores.isEmpty ? nil : scores.reduce(0, +)
+            }
+            return TarjetaNineV2(name: name, rangeText: Self.rangeTextV2(holeNumbers), holes: holes,
+                                 parTotal: holes.reduce(0) { $0 + $1.par }, grossTotals: totals)
+        }
+    }
+
+    /// [10,11,…,18] → "10–18"; [14,…,18,1,…,4] → "14–18, 1–4" (sin "+" para unir).
+    static func rangeTextV2(_ holes: [Int]) -> String {
+        var runs: [(Int, Int)] = []
+        for h in holes {
+            if let last = runs.last, h == last.1 + 1 { runs[runs.count - 1].1 = h } else { runs.append((h, h)) }
+        }
+        return runs.map { $0.0 == $0.1 ? "\($0.0)" : "\($0.0)–\($0.1)" }.joined(separator: ", ")
+    }
+}

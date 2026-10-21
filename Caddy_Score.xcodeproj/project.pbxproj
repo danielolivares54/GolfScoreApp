@@ -15,6 +15,8 @@
 		F808CAE43089647F00CAB58C /* MatchManager+V2.swift in Sources */ = {isa = PBXBuildFile; fileRef = F808CAE23089647F00CAB58C /* MatchManager+V2.swift */; };
 		F808CAE63089649000CAB58C /* ResultadoV2.swift in Sources */ = {isa = PBXBuildFile; fileRef = F808CAE53089649000CAB58C /* ResultadoV2.swift */; };
 		F808CAE73089649000CAB58C /* ResultadoV2.swift in Sources */ = {isa = PBXBuildFile; fileRef = F808CAE53089649000CAB58C /* ResultadoV2.swift */; };
+		F808CAED3089691C00CAB58C /* TarjetaV2.swift in Sources */ = {isa = PBXBuildFile; fileRef = F808CAEC3089691C00CAB58C /* TarjetaV2.swift */; };
+		F808CAEE3089691C00CAB58C /* TarjetaV2.swift in Sources */ = {isa = PBXBuildFile; fileRef = F808CAEC3089691C00CAB58C /* TarjetaV2.swift */; };
 		F82AA8AF304F4871004066B3 /* ScoreManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = F82AA8AE304F4871004066B3 /* ScoreManager.swift */; };
 		F82AA8E0304F5E7B004066B3 /* SiriMatchManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = F82AA8DF304F5E7B004066B3 /* SiriMatchManager.swift */; };
 		F82AA8E2304F6029004066B3 /* GolfScoreRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = F82AA8E1304F6029004066B3 /* GolfScoreRecord.swift */; };
@@ -50,6 +52,7 @@
 		F808CAD930895E9F00CAB58C /* ContentViewV2.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentViewV2.swift; sourceTree = "<group>"; };
 		F808CAE23089647F00CAB58C /* MatchManager+V2.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "MatchManager+V2.swift"; sourceTree = "<group>"; };
 		F808CAE53089649000CAB58C /* ResultadoV2.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResultadoV2.swift; sourceTree = "<group>"; };
+		F808CAEC3089691C00CAB58C /* TarjetaV2.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TarjetaV2.swift; sourceTree = "<group>"; };
 		F82AA8AE304F4871004066B3 /* ScoreManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScoreManager.swift; sourceTree = "<group>"; };
 		F82AA8DF304F5E7B004066B3 /* SiriMatchManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SiriMatchManager.swift; sourceTree = "<group>"; };
 		F82AA8E1304F6029004066B3 /* GolfScoreRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GolfScoreRecord.swift; sourceTree = "<group>"; };
@@ -140,6 +143,7 @@
 				F808CAD930895E9F00CAB58C /* ContentViewV2.swift */,
 				F808CAE23089647F00CAB58C /* MatchManager+V2.swift */,
 				F808CAE53089649000CAB58C /* ResultadoV2.swift */,
+				F808CAEC3089691C00CAB58C /* TarjetaV2.swift */,
 			);
 			path = V2;
 			sourceTree = "<group>";
@@ -300,6 +304,7 @@
 				F808CADB30895E9F00CAB58C /* ContentViewV2.swift in Sources */,
 				F808CAE63089649000CAB58C /* ResultadoV2.swift in Sources */,
 				F808CADC30895E9F00CAB58C /* CaddieStyleV2.swift in Sources */,
+				F808CAED3089691C00CAB58C /* TarjetaV2.swift in Sources */,
 				F808CAE43089647F00CAB58C /* MatchManager+V2.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -309,6 +314,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				F8A1001A2F43000100A1B2C3 /* Caddy_Score/Caddy_ScoreApp.swift in Sources */,
+				F808CAEE3089691C00CAB58C /* TarjetaV2.swift in Sources */,
 				F8A1001B2F43000100A1B2C3 /* Caddy_Score/ContentView.swift in Sources */,
 				F8A1001F2F43000100A1B2C3 /* Caddy_Score/EventModels.swift in Sources */,
 				F82AA8E2304F6029004066B3 /* GolfScoreRecord.swift in Sources */,
