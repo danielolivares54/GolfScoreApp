@@ -33,6 +33,7 @@ struct TarjetaV2: View {
                             ForEach(nines.indices, id: \.self) { Text(nines[$0].title).tag($0) }
                         }
                         .pickerStyle(.segmented)
+                        playersLine
                         legend
                     }
                 }
@@ -68,6 +69,22 @@ struct TarjetaV2: View {
             Spacer()
             Text("Tarjeta").font(.v2Name).foregroundStyle(CSV2.ink)
         }
+    }
+
+    /// Quién es cada columna, SIEMPRE visible (pedido de Daniel): código en negritas + nombre. Las columnas son
+    /// angostas (5 jugadores), así que los nombres van en esta línea fija y no dentro de la cabecera de la tabla.
+    private var playersLine: some View {
+        var text = Text("")
+        for (index, player) in players.enumerated() {
+            if index > 0 { text = text + Text("   ") }
+            text = text
+                + Text(player.alias).font(.v2Label).bold().foregroundStyle(CSV2.ink)
+                + Text(" \(player.name)").font(.v2Label).foregroundStyle(CSV2.secondary)
+        }
+        return text
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityLabel(players.map { "\($0.alias) es \($0.name)" }.joined(separator: ", "))
     }
 
     private var legend: some View {

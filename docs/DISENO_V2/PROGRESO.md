@@ -36,3 +36,7 @@
 - Verificado: 41 pruebas verdes (total de los 7 matches = su línea de la billetera; tabla de ROB y de la pareja; textos de estado; acciones). Simulador: Ajuste 50 sustituye a Carry, Carry lo restituye, Doble B9 apagado → "B9" y total −$100.
 - Diferencia con la v1: el selector de quién lleva el Carry se ve siempre que hay más de un candidato (la v1 solo lo mostraba con el Carry ya activo) y, si el Carry ya está activo, elegir otro compañero lo aplica al momento.
 - Pendiente: el lienzo (canvas) con las imágenes de referencia no está en el repo (`docs/DISENO_V2/screens/` no existe) — la v2 se construye desde el texto de DESIGN_SPEC.md y las decisiones de Daniel; probar en simulador el enlace "Ver F9 hoyo por hoyo" y el selector de pareja (cubiertos por pruebas y vista previa).
+
+## Tarjeta — nombres de jugadores (pedido de Daniel, 21-oct)
+- Línea fija bajo el selector de nueve: "DAN Daniel · FER Fernando · …" (código en negritas + nombre), siempre visible; las columnas siguen con el código porque con 5 jugadores no caben nombres a 13 pt.
+- GAP_ANALISIS.md: MatchDetailV2 marcado ✅ (pendiente de tu revisión); quedan abiertos Putts en Tarjeta, fila del hoyo actual y tocar una celda.
