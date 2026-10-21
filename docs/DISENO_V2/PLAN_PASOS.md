@@ -25,7 +25,7 @@ Documento único para el agente de Xcode. Un paso a la vez; al terminar cada pas
 | `REGLAS_SETUP_Y_GOLPES.md` | Reglas R1–R12 (orden de juego, strokes, ½, F9/B9) — no se cambian |
 | `MAPA_PANTALLAS_V4.md` | Mapa de pantallas v1 y su navegación |
 
-Estado al 21-oct: hechos P0 (switch v1/v2), ResultadoV2, MatchDetailV2, TarjetaV2 (sin putts). **Siguiente: Paso 1.**
+Estado al 21-oct: hechos P0 (switch v1/v2), ResultadoV2, MatchDetailV2, TarjetaV2 (sin putts), Paso 1 (hoyo compartido). Paso 3 (voz) retirado: irá como v2t iPhone + Watch. **Siguiente: Paso 2.**
 
 ---
 
@@ -41,16 +41,14 @@ Estado al 21-oct: hechos P0 (switch v1/v2), ResultadoV2, MatchDetailV2, TarjetaV
 - **Objetivo:** pantalla principal de v2 con todos los datos de captura de v1 (GAP §2.1).
 - **Leer:** `ContentView.swift` → `topBar`, `editablePlayerGrid`, `legend`, `bottomBar`, botón "Hoyo N listo →", oyes en par 3 (`setOyesRanks`), stepper de putts (regla R8 en `REGLAS_SETUP_Y_GOLPES.md`); `MatchManager.swift` → `players`, `holes`, `playOrder()`, `distributedStrokes`, `applyHoleEntry`, `setOyesRanks`; `V2/MatchManager+V2.swift` (`resultadoRowsV2()` para la tira de estado).
 - **Crear/Editar:** `V2/HoleScreenV2.swift` (nuevo), `V2/ContentViewV2.swift` (usar HoleScreenV2 como inicio), `V2/MatchManager+V2.swift` (solo lectura si falta algo).
-- **Incluye:** barra superior (semáforo de audit, historial, ⚙, 🏁 con el mismo diálogo de cierre, Vista v1), tarjeta verde del hoyo, tira de estado por rival y parejas, filas por jugador (−/score/+, putts según R8, línea de strokes en palabras), tarjeta de Oyes solo en par 3, `RoundBarV2`. Sin botón "demo".
+- **Incluye:** barra superior (semáforo de audit, historial, ⚙, 🏁 con el mismo diálogo de cierre, Vista v1), tarjeta verde del hoyo, tira de estado por rival y parejas, filas por jugador (−/score/+, putts según R8, línea de strokes en palabras), tarjeta de Oyes solo en par 3, `RoundBarV2`, y ganchos vacíos para voz (mic central y toque en nombre; se conectan con v2t). Sin botón "demo".
 - **Terminado cuando:** capturar a mano una ronda completa en v2 da exactamente los mismos scores, putts, oyes, resultados y dinero que en v1.
 
-## Paso 3 — Voz completa en v2 (núcleo de la app)
+## Paso 3 — RETIRADO de v2 (decisión de Daniel, 21-oct)
 
-- **Objetivo:** todo lo que v1 hace por voz, en v2, más banner y Deshacer (decisión de Daniel 21-oct).
-- **Leer:** `ContentView.swift` → `startInlineRecording`, `inlineMicBar`, `inlineVoice` (`VoiceGuide`), `correctionRequest`; `Caddy_Score/GuidedCaptureView.swift` (clase `VoiceGuide`); `VoiceRecorder.swift`; `Interpreter.swift`; `OpenAIService.swift`; `FuzzyReviewView.swift`; `SSOT_DIALOGO_V2T.md`; `docs/WATCH_VOZ_CONTRATO.md` (dictado de hoyo completo).
-- **Crear/Editar:** `V2/VoiceV2.swift` (nuevo: envuelve `VoiceGuide`/pipeline existente + foto del hoyo para Deshacer), `V2/HoleScreenV2.swift`.
-- **Incluye:** tocar nombre = dictar ese jugador (igual que v1); mic central = dictar el hoyo — si el teléfono hoy no soporta hoyo completo, el mic central corre la secuencia guiada jugador por jugador como `GuidedCaptureView` (**no escribir parser nuevo**; anotarlo en PROGRESO); banner "entendido / aplicado / falta X"; el mismo paso de revisión de v1 cuando hay duda; **Deshacer** = restaurar la foto del hoyo con los mismos setters de v1.
-- **Terminado cuando:** las mismas frases dictadas en v1 y v2 dejan los mismos valores; Deshacer regresa el hoyo exacto; ningún cambio en `MatchManager`, `Interpreter`, `VoiceRecorder`, `OpenAIService`.
+La voz NO se construye dentro de la Vista v2. Se hará después como **v2t**, un módulo compartido por iPhone y Apple Watch (contrato: `docs/WATCH_VOZ_CONTRATO.md`, `SSOT_DIALOGO_V2T.md`), para tener un solo pipeline de dictado, banner y Deshacer en ambos dispositivos. Mientras tanto la voz sigue funcionando en v1 sin cambios.
+- Consecuencia en v2: `HoleScreenV2` captura a mano; deja el espacio del mic central y el toque en el nombre del jugador como **ganchos vacíos** (sin lógica) para conectar v2t después.
+- Se conserva la numeración de los pasos para no romper referencias en otros documentos.
 
 ## Paso 4 — `EventSheetV2` y `NoteSheetV2`
 
@@ -62,8 +60,8 @@ Estado al 21-oct: hechos P0 (switch v1/v2), ResultadoV2, MatchDetailV2, TarjetaV
 
 - **Leer:** `ContentView.swift` → `TarjetaSheetView` (putts "(n)" y totales), `holeDetailCard` (tocar jugador → corrección por voz).
 - **Crear/Editar:** `V2/TarjetaV2.swift`, `V2/MatchManager+V2.swift`.
-- **Incluye:** toggle **"Putts"** (apagado = golpes; encendido = putts en las mismas celdas + total de putts por nueve); fila del hoyo actual en verde; tocar una celda → ir a ese hoyo en HoleScreenV2 y dictar a ese jugador.
-- **Terminado cuando:** putts y totales iguales a v1; el toque lleva al hoyo/jugador correcto.
+- **Incluye:** toggle **"Putts"** (apagado = golpes; encendido = putts en las mismas celdas + total de putts por nueve); fila del hoyo actual en verde; tocar una celda → ir a ese hoyo en HoleScreenV2 (el dictado a ese jugador se conectará con v2t).
+- **Terminado cuando:** putts y totales iguales a v1; el toque lleva al hoyo correcto.
 
 ## Paso 6 — `ResultadoV2`: pendientes
 
