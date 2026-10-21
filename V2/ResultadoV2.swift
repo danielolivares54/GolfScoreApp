@@ -12,8 +12,8 @@ import SwiftUI
 struct ResultadoV2: View {
     @ObservedObject var matchManager: MatchManager
     @Environment(\.dismiss) private var dismiss
-    /// Detalle de un match (la pantalla hoyo por hoyo de la v1).
-    @State private var zoomTarget: UnitLogTarget?
+    /// Match abierto a pantalla completa (MatchDetailV2: todo lo de la v1 + botones Carry/Ajuste 50/Doble B9).
+    @State private var detailRow: MatchManager.ResultadoRowV2?
 
     private var rows: [MatchManager.ResultadoRowV2] { matchManager.resultadoRowsV2() }
     private var individualRows: [MatchManager.ResultadoRowV2] { rows.filter { !$0.isPair } }
@@ -38,8 +38,8 @@ struct ResultadoV2: View {
                 .padding(CSV2.s2)
             }
         }
-        .sheet(item: $zoomTarget) { target in
-            MatchZoomView(matchManager: matchManager, target: target, initialSegment: "F9")
+        .fullScreenCover(item: $detailRow) { row in
+            MatchDetailV2(matchManager: matchManager, row: row)
         }
     }
 
@@ -108,7 +108,7 @@ struct ResultadoV2: View {
     }
 
     private func matchRow(_ row: MatchManager.ResultadoRowV2) -> some View {
-        Button { zoomTarget = row.target } label: {
+        Button { detailRow = row } label: {
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 0) {
                     VStack(alignment: .leading, spacing: 4) {
@@ -136,7 +136,7 @@ struct ResultadoV2: View {
         }
         .buttonStyle(.plain)
         .accessibilityElement(children: .combine)
-        .accessibilityHint("Abre el detalle hoyo por hoyo")
+        .accessibilityHint("Abre el detalle del match")
     }
 
     /// Lo que la v1 muestra bajo F9/B9, ahora con etiquetas y en una línea que se ajusta (no se corta):
