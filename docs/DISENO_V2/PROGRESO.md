@@ -40,3 +40,14 @@
 ## Tarjeta — nombres de jugadores (pedido de Daniel, 21-oct)
 - Línea fija bajo el selector de nueve: "DAN Daniel · FER Fernando · …" (código en negritas + nombre), siempre visible; las columnas siguen con el código porque con 5 jugadores no caben nombres a 13 pt.
 - GAP_ANALISIS.md: MatchDetailV2 marcado ✅ (pendiente de tu revisión); quedan abiertos Putts en Tarjeta, fila del hoyo actual y tocar una celda.
+
+## Decisiones de Daniel (21-oct, gap analysis)
+- Botón "demo": oculto en v2 (solo existe en v1).
+- Putts en TarjetaV2: con un toggle "Putts" (apagado = golpes; encendido = putts en las mismas celdas + total de putts por nueve).
+- Voz: es el núcleo de la app y debe estar completa en v2, reutilizando el v2t existente (mismo VoiceRecorder/Interpreter/validación/setters de v1). Incluye mic grande para todo el hoyo, dictado por jugador al tocar su nombre, banner de lo entendido/aplicado, el mismo paso de revisión de v1 y "Deshacer" del último dictado (foto del hoyo en la capa v2, restaurada con los mismos setters; sin tocar MatchManager).
+- Pendiente: insignia "VIGENTE" en Historial (mantener como texto o quitar).
+
+## Paso 1 — Hoyo actual compartido (21-oct)
+- v1: `currentHoleIndex` pasó de `@State` a `@AppStorage("currentHoleIndex")` (única excepción permitida) y `setupOnAppear` ya no lo recalcula al reaparecer; v2 lee la misma clave (`ContentViewV2`, con ‹ › provisionales).
+- Cambio de comportamiento en v1: al abrir la app queda en el último hoyo visto (antes saltaba al primer hoyo incompleto). `cerrarRonda` y el cambio de hoyo de salida lo regresan a 0.
+- 41 pruebas verdes; compila. Falta revisión de Daniel en el simulador (v1↔v2 en el hoyo 14).

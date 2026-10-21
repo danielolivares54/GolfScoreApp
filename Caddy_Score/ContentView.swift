@@ -120,7 +120,8 @@ struct ContentView: View {
     @StateObject private var inlineVoice = VoiceGuide()
     @State private var inlineRecordingIdx: Int? = nil
 
-    @State private var currentHoleIndex: Int = 0
+    // Compartido con la Vista v2 (misma clave en ContentViewV2) y conservado al reiniciar la app.
+    @AppStorage("currentHoleIndex") private var currentHoleIndex: Int = 0
     @State private var editingPlayerIdx: Int  = 0
     @State private var noteByKey: [String: String] = [:]
     private var playOrder: [Int] { matchManager.playOrder() }
@@ -1203,9 +1204,10 @@ struct ContentView: View {
         if !matchManager.didRunInitialSetup {
             matchManager.didRunInitialSetup = true
             loadInitialMatchState()
+            // El hoyo actual ya no se recalcula aquí: viene de "currentHoleIndex" (guardado), así v1 y v2
+            // abren en el mismo hoyo y al reiniciar la app se conserva. cerrarRonda y el cambio de
+            // hoyo de salida lo regresan a 0.
         }
-        if let next = matchManager.firstIncompleteHole(),
-           let idx  = playOrder.firstIndex(of: next) { currentHoleIndex = idx }
         editingPlayerIdx = 0
         if UserDefaults.standard.bool(forKey: "pendingOpenRecorder") {
             UserDefaults.standard.removeObject(forKey: "pendingOpenRecorder")

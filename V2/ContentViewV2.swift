@@ -16,6 +16,13 @@ struct ContentViewV2: View {
     // P1: la pantalla Resultado v2 se abre desde aquí hasta que exista la barra inferior (RoundBarV2).
     @State private var showResultado = false
     @State private var showTarjeta = false
+    /// Hoyo actual COMPARTIDO con la v1 (misma clave que ContentView): posición dentro del orden de juego.
+    @AppStorage("currentHoleIndex") private var currentHoleIndex = 0
+
+    private var playOrder: [Int] { matchManager.playOrder() }
+    private var currentHole: Int {
+        playOrder.indices.contains(currentHoleIndex) ? playOrder[currentHoleIndex] : 1
+    }
 
     private var scoresEntered: Int { matchManager.players.first?.scores.count ?? 0 }
     private var oyesHoles: Int { matchManager.oyesRanksByHole.count }
@@ -30,6 +37,14 @@ struct ContentViewV2: View {
                         .font(.v2Name).foregroundStyle(CSV2.ink)
                     Spacer()
                     PrimaryButtonV2(title: "Vista v1") { uiVersion = "v1" }
+                }
+
+                // Provisional (Paso 1): navegar el hoyo compartido hasta que exista HoleScreenV2.
+                HStack(spacing: CSV2.s1) {
+                    PrimaryButtonV2(title: "‹") { if currentHoleIndex > 0 { currentHoleIndex -= 1 } }
+                    Text("Hoyo \(currentHole)").font(.v2Name).foregroundStyle(CSV2.ink)
+                        .frame(maxWidth: .infinity)
+                    PrimaryButtonV2(title: "›") { if currentHoleIndex < playOrder.count - 1 { currentHoleIndex += 1 } }
                 }
 
                 CardV2 {
