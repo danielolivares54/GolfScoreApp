@@ -7,6 +7,10 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		F808CADB30895E9F00CAB58C /* ContentViewV2.swift in Sources */ = {isa = PBXBuildFile; fileRef = F808CAD930895E9F00CAB58C /* ContentViewV2.swift */; };
+		F808CADC30895E9F00CAB58C /* CaddieStyleV2.swift in Sources */ = {isa = PBXBuildFile; fileRef = F808CAD830895E9F00CAB58C /* CaddieStyleV2.swift */; };
+		F808CADD30895E9F00CAB58C /* ContentViewV2.swift in Sources */ = {isa = PBXBuildFile; fileRef = F808CAD930895E9F00CAB58C /* ContentViewV2.swift */; };
+		F808CADE30895E9F00CAB58C /* CaddieStyleV2.swift in Sources */ = {isa = PBXBuildFile; fileRef = F808CAD830895E9F00CAB58C /* CaddieStyleV2.swift */; };
 		F82AA8AF304F4871004066B3 /* ScoreManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = F82AA8AE304F4871004066B3 /* ScoreManager.swift */; };
 		F82AA8E0304F5E7B004066B3 /* SiriMatchManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = F82AA8DF304F5E7B004066B3 /* SiriMatchManager.swift */; };
 		F82AA8E2304F6029004066B3 /* GolfScoreRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = F82AA8E1304F6029004066B3 /* GolfScoreRecord.swift */; };
@@ -38,6 +42,8 @@
 
 /* Begin PBXFileReference section */
 		F808CACA308953AD00CAB58C /* Caddy_ScoreTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = Caddy_ScoreTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		F808CAD830895E9F00CAB58C /* CaddieStyleV2.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaddieStyleV2.swift; sourceTree = "<group>"; };
+		F808CAD930895E9F00CAB58C /* ContentViewV2.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentViewV2.swift; sourceTree = "<group>"; };
 		F82AA8AE304F4871004066B3 /* ScoreManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScoreManager.swift; sourceTree = "<group>"; };
 		F82AA8DF304F5E7B004066B3 /* SiriMatchManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SiriMatchManager.swift; sourceTree = "<group>"; };
 		F82AA8E1304F6029004066B3 /* GolfScoreRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GolfScoreRecord.swift; sourceTree = "<group>"; };
@@ -121,9 +127,19 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		F808CADA30895E9F00CAB58C /* V2 */ = {
+			isa = PBXGroup;
+			children = (
+				F808CAD830895E9F00CAB58C /* CaddieStyleV2.swift */,
+				F808CAD930895E9F00CAB58C /* ContentViewV2.swift */,
+			);
+			path = V2;
+			sourceTree = "<group>";
+		};
 		F8667F502F413A6400F2F850 = {
 			isa = PBXGroup;
 			children = (
+				F808CADA30895E9F00CAB58C /* V2 */,
 				F82AA8AE304F4871004066B3 /* ScoreManager.swift */,
 				F8667F5B2F413A6400F2F850 /* Caddy_Score */,
 				F808CACB308953AD00CAB58C /* Caddy_ScoreTests */,
@@ -273,6 +289,8 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				F808CADB30895E9F00CAB58C /* ContentViewV2.swift in Sources */,
+				F808CADC30895E9F00CAB58C /* CaddieStyleV2.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -288,6 +306,8 @@
 				F82AA8E0304F5E7B004066B3 /* SiriMatchManager.swift in Sources */,
 				F8A1001D2F43000100A1B2C3 /* Caddy_Score/OpenAIService.swift in Sources */,
 				F8A1001E2F43000100A1B2C3 /* Caddy_Score/VoiceRecorder.swift in Sources */,
+				F808CADD30895E9F00CAB58C /* ContentViewV2.swift in Sources */,
+				F808CADE30895E9F00CAB58C /* CaddieStyleV2.swift in Sources */,
 				F8A100202F43000100A1B2C3 /* Caddy_Score/Persistence.swift in Sources */,
 				F82AA8AF304F4871004066B3 /* ScoreManager.swift in Sources */,
 				F8A100342F43000100A1B2C3 /* Caddy_Score/Interpreter.swift in Sources */,
@@ -303,6 +323,10 @@
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				EXCLUDED_SOURCE_FILE_NAMES = (
+					"*/V2/*",
+					"V2/*",
+				);
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
 				MACOSX_DEPLOYMENT_TARGET = 26.6;
@@ -328,6 +352,10 @@
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				EXCLUDED_SOURCE_FILE_NAMES = (
+					"*/V2/*",
+					"V2/*",
+				);
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
 				MACOSX_DEPLOYMENT_TARGET = 26.6;

@@ -32,10 +32,19 @@ struct Caddy_ScoreApp: App {
 // mismo patrón: la carátula se dibuja con formas de SwiftUI, no con un PNG.
 private struct RootView: View {
     @State private var showSplash = true
+    // UN solo match para las dos vistas: RootView es su dueño (@StateObject) y lo pasa a la v1 y a la
+    // v2. Así cambiar de vista no pierde nada, tampoco lo que solo vive en memoria.
+    @StateObject private var matchManager = MatchManager()
+    // "v1" (default) = pantallas actuales · "v2" = Vista v2 (en construcción, ver docs/DISENO_V2).
+    @AppStorage("uiVersion") private var uiVersion = "v1"
 
     var body: some View {
         ZStack {
-            ContentView()
+            if uiVersion == "v2" {
+                ContentViewV2(matchManager: matchManager)
+            } else {
+                ContentView(matchManager: matchManager)
+            }
             if showSplash {
                 SplashView()
                     .transition(.opacity)

@@ -286,6 +286,10 @@ enum CourseCatalog {
 }
 
 class MatchManager: ObservableObject {
+    // Vista v1 y v2 comparten UN MatchManager (lo crea RootView). La carga inicial (config guardada,
+    // scores, demo) debe correr una sola vez por match, no cada vez que se cambia de vista.
+    var didRunInitialSetup = false
+
     @Published var roundId = ""
     @Published var dateString = ""
     @Published var gameStartTime: Date = Date()

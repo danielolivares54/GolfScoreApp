@@ -97,7 +97,14 @@ struct RoundResultFile: Codable {
 }
 
 struct ContentView: View {
-    @StateObject private var matchManager = MatchManager()
+    // El match ya no nace aquí: lo crea RootView y lo comparten la Vista v1 y la v2 (si cada vista
+    // creara el suyo, al cambiar de vista se perdería lo que solo vive en memoria: oyes, eventos, notas).
+    @ObservedObject private var matchManager: MatchManager
+    @AppStorage("uiVersion") private var uiVersion = "v1"
+
+    init(matchManager: MatchManager) {
+        self.matchManager = matchManager
+    }
 
     @State private var showGuidedCapture = false
     @State private var showGuidedSetup   = false
@@ -257,6 +264,17 @@ struct ContentView: View {
                 .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.cDisabled, lineWidth: 1))
 
             Spacer()
+
+            // Cambia a la Vista v2 (el mismo match, otra apariencia). En la v2 hay un botón para volver.
+            Button { uiVersion = "v2" } label: {
+                Text("v2")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundColor(.cInk)
+                    .padding(.horizontal, 10).padding(.vertical, 7)
+                    .background(Color.cSurface)
+                    .cornerRadius(8)
+                    .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.cDisabled, lineWidth: 1))
+            }
 
             Button { showAudit = true } label: {
                 VStack(spacing: 2) {
@@ -1180,6 +1198,22 @@ struct ContentView: View {
     }
 
     private func setupOnAppear() {
+        // La carga inicial corre UNA vez por match: al volver de la Vista v2 esta vista reaparece,
+        // pero el match compartido ya tiene todo en memoria (oyes, eventos, notas incluidos).
+        if !matchManager.didRunInitialSetup {
+            matchManager.didRunInitialSetup = true
+            loadInitialMatchState()
+        }
+        if let next = matchManager.firstIncompleteHole(),
+           let idx  = playOrder.firstIndex(of: next) { currentHoleIndex = idx }
+        editingPlayerIdx = 0
+        if UserDefaults.standard.bool(forKey: "pendingOpenRecorder") {
+            UserDefaults.standard.removeObject(forKey: "pendingOpenRecorder")
+            showGuidedCapture = true
+        }
+    }
+
+    private func loadInitialMatchState() {
         // loadBetConfig() primero: restaura el roster (players), el campo y el hoyo de salida
         // desde el snapshot persistido antes de que syncFromScoreManager() intente reaplicar
         // scores por alias — si players sigue vacío en este punto, ese replay no encuentra a
@@ -1205,13 +1239,6 @@ struct ContentView: View {
         // Solo simulador/debug: carga una ronda de 18 hoyos con `defaults write <bundle> demo18 -bool YES`.
         if UserDefaults.standard.bool(forKey: "demo18") { matchManager.loadDemo18() }
         #endif
-        if let next = matchManager.firstIncompleteHole(),
-           let idx  = playOrder.firstIndex(of: next) { currentHoleIndex = idx }
-        editingPlayerIdx = 0
-        if UserDefaults.standard.bool(forKey: "pendingOpenRecorder") {
-            UserDefaults.standard.removeObject(forKey: "pendingOpenRecorder")
-            showGuidedCapture = true
-        }
     }
 
     private func applySiriPendingRecord() {
@@ -1696,7 +1723,7 @@ extension View {
 }
 
 struct ContentView_Previews: PreviewProvider {
-    static var previews: some View { ContentView() }
+    static var previews: some View { ContentView(matchManager: MatchManager()) }
 }
 
 private func caddyMoneyColor(_ v: Int) -> Color { v > 0 ? .cFairwayL : v < 0 ? .cBrick : .cMuted }
