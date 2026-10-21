@@ -30,6 +30,16 @@
       shouldUseLaunchSchemeArgsEnv = "YES"
       shouldAutocreateTestPlan = "YES">
       <Testables>
+         <TestableReference
+            skipped = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "F808CAC9308953AD00CAB58C"
+               BuildableName = "Caddy_ScoreTests.xctest"
+               BlueprintName = "Caddy_ScoreTests"
+               ReferencedContainer = "container:Caddy_Score.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
       </Testables>
    </TestAction>
    <LaunchAction
