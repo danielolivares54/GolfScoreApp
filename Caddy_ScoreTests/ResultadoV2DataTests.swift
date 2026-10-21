@@ -54,6 +54,33 @@ struct ResultadoV2DataTests {
         #expect(ricAns.money == 200)
     }
 
+    // Presiones y Carry: los valores que la tabla de Resultado de la v1 muestra bajo F9/B9 en el
+    // caso de estudio (leídos del simulador).
+    @Test func individualPressuresAndCarryMatchV1() throws {
+        let rows = DemoFixture.make().resultadoRowsV2()
+        let fer = try #require(row(rows, title: "FER"))
+        let rob = try #require(row(rows, title: "ROB"))
+        let ric = try #require(row(rows, title: "RIC"))
+        let ans = try #require(row(rows, title: "ANS"))
+        #expect(fer.f9Presiones == [] && fer.b9Presiones == [-3, -1] && fer.carryActive == false)
+        #expect(rob.f9Presiones == [] && rob.b9Presiones == [2])
+        #expect(rob.carryActive && rob.carryMoney == 100)
+        #expect(ric.f9Presiones == [1, -1] && ric.b9Presiones == [])
+        #expect(ans.f9Presiones == [] && ans.b9Presiones == [-2])
+    }
+
+    @Test func pairPressuresAndCarryMatchV1() throws {
+        let pairs = DemoFixture.make().resultadoRowsV2().filter { $0.isPair }
+        let robRic = try #require(pairs.first { $0.rivalsText == "ROB · RIC" })
+        let robAns = try #require(pairs.first { $0.rivalsText == "ROB · ANS" })
+        let ricAns = try #require(pairs.first { $0.rivalsText == "RIC · ANS" })
+        #expect(robRic.f9Presiones == [3] && robRic.b9Presiones == [2])
+        #expect(robAns.f9Presiones == [2, -2] && robAns.b9Presiones == [4, 1])
+        // Carry de pareja activo pero en $0 (la v1 lo muestra como "Carry $0").
+        #expect(ricAns.f9Presiones == [] && ricAns.b9Presiones == [-2])
+        #expect(ricAns.carryActive && ricAns.carryMoney == 0)
+    }
+
     @Test func totalIsTheSumOfEveryMatch() {
         let m = DemoFixture.make()
         let rows = m.resultadoRowsV2()

@@ -31,6 +31,12 @@ extension MatchManager {
         let f9Played: Int
         let b9Net: Int
         let b9Played: Int
+        /// Valor de cada presión abierta en cada nueve (lado de yo), igual que el sub-renglón de F9/B9 en la v1.
+        let f9Presiones: [Int]
+        let b9Presiones: [Int]
+        /// Carry de B9 (solo B9): si está activo y cuánto dinero lleva ahora (puede ser $0).
+        let carryActive: Bool
+        let carryMoney: Int
         /// Unidades netas (eventos + oyes), igual que la columna UNID de la v1.
         let unitsNet: Int
         let money: Int
@@ -78,6 +84,10 @@ extension MatchManager {
                 f9Played: f9Rows.count,
                 b9Net: b9Rows.last?.vueltaAccum ?? 0,
                 b9Played: b9Rows.count,
+                f9Presiones: individualF9Presion(opponentAlias: opp.alias),
+                b9Presiones: individualB9Presion(opponentAlias: opp.alias),
+                carryActive: line?.carryActive ?? false,
+                carryMoney: line?.carryMoney ?? 0,
                 unitsNet: line?.unitsPoints ?? 0,
                 money: line?.totalMoney ?? 0
             ))
@@ -102,6 +112,10 @@ extension MatchManager {
                 f9Played: f9Rows.count,
                 b9Net: (b9Rows.last?.vueltaAccum ?? 0) * sign,
                 b9Played: b9Rows.count,
+                f9Presiones: pairF9Presion(laneId: lane.id).map { $0 * sign },
+                b9Presiones: pairB9Presion(laneId: lane.id).map { $0 * sign },
+                carryActive: line?.carryActive ?? false,
+                carryMoney: line?.carryMoney ?? 0,
                 unitsNet: line?.unitsPoints ?? 0,
                 money: line?.totalMoney ?? 0
             ))

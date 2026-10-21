@@ -109,23 +109,26 @@ struct ResultadoV2: View {
 
     private func matchRow(_ row: MatchManager.ResultadoRowV2) -> some View {
         Button { zoomTarget = row.target } label: {
-            HStack(spacing: 0) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(row.title).font(.v2Name).foregroundStyle(CSV2.ink)
-                    if let rivals = row.rivalsText {
-                        Text(rivals).font(.v2Label).foregroundStyle(CSV2.secondary)
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 0) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(row.title).font(.v2Name).foregroundStyle(CSV2.ink)
+                        if let rivals = row.rivalsText {
+                            Text(rivals).font(.v2Label).foregroundStyle(CSV2.secondary)
+                        }
+                        strokesLine(row)
                     }
-                    strokesLine(row)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    MatchStatusV2(net: row.f9Net, played: row.f9Played)
+                        .frame(width: ColumnV2.status, alignment: .trailing)
+                    MatchStatusV2(net: row.b9Net, played: row.b9Played)
+                        .frame(width: ColumnV2.status, alignment: .trailing)
+                    UnitsNetV2(net: row.unitsNet)
+                        .frame(width: ColumnV2.units, alignment: .trailing)
+                    MoneyTextV2(amount: row.money, size: 16, weight: .semibold)
+                        .frame(width: ColumnV2.money, alignment: .trailing)
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                MatchStatusV2(net: row.f9Net, played: row.f9Played)
-                    .frame(width: ColumnV2.status, alignment: .trailing)
-                MatchStatusV2(net: row.b9Net, played: row.b9Played)
-                    .frame(width: ColumnV2.status, alignment: .trailing)
-                UnitsNetV2(net: row.unitsNet)
-                    .frame(width: ColumnV2.units, alignment: .trailing)
-                MoneyTextV2(amount: row.money, size: 16, weight: .semibold)
-                    .frame(width: ColumnV2.money, alignment: .trailing)
+                detailLine(row)
             }
             .padding(.horizontal, CSV2.s2).padding(.vertical, 12)
             .frame(minHeight: 64)
@@ -134,6 +137,46 @@ struct ResultadoV2: View {
         .buttonStyle(.plain)
         .accessibilityElement(children: .combine)
         .accessibilityHint("Abre el detalle hoyo por hoyo")
+    }
+
+    /// Lo que la v1 muestra bajo F9/B9, ahora con etiquetas y en una línea que se ajusta (no se corta):
+    /// presiones de cada nueve y dinero del Carry (B9). Solo aparece si hay algo que mostrar.
+    @ViewBuilder private func detailLine(_ row: MatchManager.ResultadoRowV2) -> some View {
+        if !row.f9Presiones.isEmpty || !row.b9Presiones.isEmpty || row.carryActive {
+            detailText(row)
+                .font(.v2Label)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private func detailText(_ row: MatchManager.ResultadoRowV2) -> Text {
+        var parts: [Text] = []
+        if !row.f9Presiones.isEmpty {
+            parts.append(Text("F9 presiones ").foregroundStyle(CSV2.secondary)
+                         + Text(signedList(row.f9Presiones)).foregroundStyle(CSV2.ink))
+        }
+        if !row.b9Presiones.isEmpty {
+            parts.append(Text("B9 presiones ").foregroundStyle(CSV2.secondary)
+                         + Text(signedList(row.b9Presiones)).foregroundStyle(CSV2.ink))
+        }
+        if row.carryActive {
+            let color = row.carryMoney > 0 ? CSV2.green : row.carryMoney < 0 ? CSV2.red : CSV2.secondary
+            parts.append(Text("Carry ").foregroundStyle(CSV2.secondary)
+                         + Text(moneyText(row.carryMoney)).foregroundStyle(color))
+        }
+        guard var text = parts.first else { return Text("") }
+        for part in parts.dropFirst() { text = text + Text("  ·  ").foregroundStyle(CSV2.secondary) + part }
+        return text
+    }
+
+    /// "+3 −1" — mismo formato que el sub-renglón de la v1 (con el signo "−" de la v2).
+    private func signedList(_ values: [Int]) -> String {
+        values.map { $0 > 0 ? "+\($0)" : $0 < 0 ? "−\(-$0)" : "0" }.joined(separator: " ")
+    }
+
+    private func moneyText(_ amount: Int) -> String {
+        amount > 0 ? "+$\(amount)" : amount < 0 ? "−$\(-amount)" : "$0"
     }
 
     @ViewBuilder private func strokesLine(_ row: MatchManager.ResultadoRowV2) -> some View {
