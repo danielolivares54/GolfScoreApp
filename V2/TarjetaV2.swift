@@ -23,24 +23,31 @@ struct TarjetaV2: View {
         let safeIndex = min(nineIndex, max(nines.count - 1, 0))
         ZStack {
             CSV2.background.ignoresSafeArea()
-            ScrollView {
-                VStack(spacing: CSV2.s2) {
+            VStack(spacing: 0) {
+                // Cabecera, selector de nueve y leyenda quedan FIJOS: solo la tabla se desplaza, así
+                // "Volver" siempre se puede tocar aunque el sheet sea más bajo que la tabla.
+                VStack(spacing: 10) {
                     header
-                    if nines.isEmpty || players.isEmpty {
-                        Text("Configura jugadores en Setup para ver la tarjeta.")
-                            .font(.v2Body).foregroundStyle(CSV2.secondary)
-                            .multilineTextAlignment(.center).padding(CSV2.s3)
-                    } else {
+                    if !(nines.isEmpty || players.isEmpty) {
                         Picker("Nueve", selection: $nineIndex) {
                             ForEach(nines.indices, id: \.self) { Text(nines[$0].title).tag($0) }
                         }
                         .pickerStyle(.segmented)
                         legend
-                        table(nines[safeIndex])
-                        total18(nines)
                     }
                 }
-                .padding(CSV2.s2)
+                .padding(.horizontal, CSV2.s2).padding(.bottom, CSV2.s1)
+
+                ScrollView {
+                    if nines.isEmpty || players.isEmpty {
+                        Text("Configura jugadores en Setup para ver la tarjeta.")
+                            .font(.v2Body).foregroundStyle(CSV2.secondary)
+                            .multilineTextAlignment(.center).padding(CSV2.s3)
+                    } else {
+                        table(nines[safeIndex], allNines: nines)
+                            .padding(.horizontal, CSV2.s2).padding(.bottom, CSV2.s3)
+                    }
+                }
             }
         }
     }
@@ -84,7 +91,7 @@ struct TarjetaV2: View {
 
     // MARK: Tabla
 
-    private func table(_ nine: MatchManager.TarjetaNineV2) -> some View {
+    private func table(_ nine: MatchManager.TarjetaNineV2, allNines: [MatchManager.TarjetaNineV2]) -> some View {
         CardV2 {
             VStack(spacing: 0) {
                 columnHeader
@@ -93,6 +100,7 @@ struct TarjetaV2: View {
                     holeRow(hole)
                 }
                 footer(nine)
+                total18(allNines)
             }
             .clipShape(RoundedRectangle(cornerRadius: CSV2.rCard))
         }
@@ -154,19 +162,21 @@ struct TarjetaV2: View {
             let parts = nines.compactMap { $0.grossTotals[i] }
             return parts.isEmpty ? nil : parts.reduce(0, +)
         }
-        return CardV2 {
-            HStack(spacing: 0) {
-                // Mismos anchos que la tabla: etiqueta sobre Hoyo+P, par en la columna HCP, golpes bajo cada jugador.
-                Text("Total 18").font(.v2Label).foregroundStyle(CSV2.secondary)
-                    .frame(width: ColumnT.hole + ColumnT.par, alignment: .leading)
-                Text("\(par)").font(.v2Body).foregroundStyle(CSV2.ink).frame(width: ColumnT.hcp)
-                ForEach(Array(totals.enumerated()), id: \.offset) { _, total in
-                    Text(total.map(String.init) ?? "—").font(.v2Body).foregroundStyle(CSV2.ink)
-                        .frame(maxWidth: .infinity)
-                }
+        // Segunda línea de la fila de cierre (mismo fondo oscuro): así la tabla y sus totales caben juntos.
+        return HStack(spacing: 0) {
+            // Mismos anchos que la tabla: etiqueta sobre Hoyo+P, par en la columna HCP, golpes bajo cada jugador.
+            Text("Total 18").frame(width: ColumnT.hole + ColumnT.par, alignment: .leading)
+            Text("\(par)").frame(width: ColumnT.hcp)
+            ForEach(Array(totals.enumerated()), id: \.offset) { _, total in
+                Text(total.map(String.init) ?? "—").frame(maxWidth: .infinity)
             }
-            .padding(.horizontal, CSV2.s1 + 4).padding(.vertical, 14)
         }
+        .font(.system(size: 14, weight: .semibold).monospacedDigit())
+        .foregroundStyle(.white.opacity(0.85))
+        .padding(.horizontal, CSV2.s1 + 4)
+        .frame(height: 40)
+        .background(CSV2.ink)
+        .overlay(alignment: .top) { Rectangle().fill(.white.opacity(0.18)).frame(height: 1) }
     }
 
     private func cellLabel(player: String, hole: MatchManager.TarjetaHoleV2, cell: MatchManager.TarjetaCellV2) -> String {
