@@ -805,16 +805,8 @@ struct GuidedSetupView: View {
     }
 
     private func buildLocalLanes() -> [LocalLane] {
-        let base = [base1, base2].filter { !$0.isEmpty }
-        if base.count < 2 { return [] }
-        let all = playerAliases.map { $0.alias }
-        let opp = all.filter { !base.contains($0) }
-        if opp.count == 2 { return [LocalLane(base: base, opp: opp)] }
-        if opp.count == 3 {
-            return [[opp[0], opp[1]], [opp[0], opp[2]], [opp[1], opp[2]]].map { LocalLane(base: base, opp: $0) }
-        }
-        if base.count == 3 && opp.count == 2 { return [LocalLane(base: base, opp: opp)] }
-        return []
+        MatchManager.setupLanes(base: [base1, base2].filter { !$0.isEmpty }, allAliases: playerAliases.map { $0.alias })
+            .map { LocalLane(base: $0.base, opp: $0.opp) }
     }
 
     private func unitValueFromText() -> Int {
@@ -836,65 +828,17 @@ struct GuidedSetupView: View {
     // Paso Campo: aplica campo y hoyo de salida al avanzar. Si mueven el F9 (campo u hoyo de
     // salida distintos), Carry/Ajuste 50/Doble Press se invalidan igual que en applySetup.
     private func applyCampo() {
-        let signatureBefore = matchManager.strokeSetupSignature
-        if let course = CourseCatalog.all.first(where: { $0.id == selectedCourseId }) {
-            matchManager.setCourse(course, resetScores: false)
-        }
-        matchManager.updateStartHole(startHole, resetScores: false)
-        if matchManager.strokeSetupSignature != signatureBefore {
-            matchManager.clearCarryDependentState()
-        }
-        matchManager.finishSetupApply()
+        matchManager.applyCourseAndStartHole(courseId: selectedCourseId, startHole: startHole)
     }
 
     private func applySetup() {
-        // Si algo que alimenta el reparto de golpes cambia (hoyo de salida, strokes, parejas,
-        // quién carga), el F9 y todo lo que se decidió con él (Carry, Ajuste 50, Doble Press)
-        // queda calculado sobre datos viejos — se compara antes/después para invalidarlo.
-        let signatureBefore = matchManager.strokeSetupSignature
-        if let course = CourseCatalog.all.first(where: { $0.id == selectedCourseId }) {
-            matchManager.setCourse(course, resetScores: false)
-        }
-        matchManager.updateStartHole(startHole, resetScores: false)
-        matchManager.setPlayers(names: playerNames, preserveScores: true)
-        for p in matchManager.players {
-            if p.alias == matchManager.yoAlias { continue }
-            let strokes = strokesByAlias[p.alias] ?? 0
-            matchManager.setStrokesVsBase(alias: p.alias, value: strokes)
-            let tplId = templateIdByOpponent[p.alias]
-            if let tplId, let tpl = templateStore.entries.first(where: { $0.id == tplId }) {
-                matchManager.setBetTemplateForOpponent(p.alias, template: tpl)
-            }
-            // Aprende/actualiza el directorio con lo que realmente quedó configurado para este
-            // jugador — la próxima vez que se escriba su nombre, el mini-search ya sugiere estos
-            // mismos strokes y plantilla.
-            PlayerDirectoryStore.shared.upsert(name: p.name, alias: p.alias, strokesVsBase: strokes, preferredTagId: tplId)
-        }
-        let base = [base1, base2].filter { !$0.isEmpty }
-        if base.count >= 2 {
-            let opp = matchManager.players.map { $0.alias }.filter { !base.contains($0) }
-            _ = matchManager.setBaseTeam(base, opponentsOverride: opp)
-            for lane in buildLocalLanes() {
-                let key = lane.id
-                matchManager.setLaneStrokesForMatch(base: lane.base, opp: lane.opp, value: laneStrokes[key] ?? 0)
-                if let carrier = laneCarrierByKey[key], !carrier.isEmpty {
-                    matchManager.setLaneCarrierForMatch(base: lane.base, opp: lane.opp, carrier: carrier)
-                }
-            }
-        }
-        if let tpl = templateStore.entries.first(where: { $0.id == selectedTemplateId }) {
-            matchManager.applyBetTemplate(tpl)
-            // Si el usuario ajustó el monto de vuelta a mano después de elegir la plantilla, respeta ese override.
-            if let v = Int(vueltaValueText), v != tpl.vueltaValue { matchManager.setVueltaValue(v) }
-        } else if let v = Int(vueltaValueText) {
-            matchManager.setVueltaValue(v)
-        }
-        if matchManager.strokeSetupSignature != signatureBefore {
-            matchManager.clearCarryDependentState()
-        }
-        // Un solo guardado al final con el Setup completo (setCourse no guarda por sí solo) y un
-        // refresh explícito para que tarjeta, auditoría y dinero se recalculen con lo nuevo.
-        matchManager.finishSetupApply()
+        // La lógica de guardado vive en MatchManager.applySetupDraft (compartida con la Vista v2).
+        matchManager.applySetupDraft(MatchManager.SetupDraft(
+            courseId: selectedCourseId, startHole: startHole, playerNames: playerNames,
+            aliases: playerAliases.map { $0.alias },
+            strokesByAlias: strokesByAlias, templateIdByOpponent: templateIdByOpponent,
+            base1: base1, base2: base2, laneStrokes: laneStrokes, laneCarrierByKey: laneCarrierByKey,
+            selectedTemplateId: selectedTemplateId, vueltaValueText: vueltaValueText))
     }
 
     // Aplica la plantilla localmente al estado del wizard (no muta matchManager hasta "Guardar").

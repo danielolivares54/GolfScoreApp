@@ -25,6 +25,7 @@ Status: ✅ done · 🟡 partial · ⬜ not started · ➖ out of v2 scope (stay
 | 11 | `CarryB9CardView` | v1 view shown from v2 (restyle later) | 🟡 opened from MatchDetailV2 | P-D |
 | 12 | `BetSetupSheet`, `BetsHubView`, bet/template editors | v1 views shown from v2 | ⬜ | P-E |
 | 13 | `PlayerDirectoryView` (+ edit) | v1 view shown from SetupV2 | ⬜ | P-E |
+| 15 | Catalog editor ("tag" de apuestas: activar/desactivar unidades, valores, nuevas) | `CatalogoV2` (Paso 11) | ⬜ | **needed to finish the screens** |
 | 14 | Close round (`confirmationDialog`) | same dialog from v2 top bar | ⬜ | P-A |
 | — | `GuidedCaptureView` (Siri only), `RescueCaptureView`/`FuzzyReviewView`, `SplashView` | — | ➖ keep v1 | — |
 | — | Dead code: `ScorecardView`, `CardView`, `MoneyTrackerView` (body), `SetupWizardView`, `MatchSummaryView`, `CoursePickerView`, `StartHolePickerView`, `IntentTestView` | — | ➖ not ported | — |

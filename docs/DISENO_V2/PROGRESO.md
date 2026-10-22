@@ -81,3 +81,8 @@
 - `V2/AuditV2.swift`: lista F9/B9 por hoyo con las celdas de cada jugador (score con marca, neto "→", putts, advertencias naranja/rojo), capítulo "Oyes y unidades" y hoja de corrección (Score, Putts, puesto de Oye en par 3, unidades activas). Guardado idéntico al de la v1: `applyHoleEntry`, restaurar 3P/4P y espejo a `ScoreManager`. El semáforo de `HoleScreenV2` abre `AuditV2`.
 - Igual que en la v1, el ícono ✓ del hoyo aparece aunque falten putts (el borde naranja y "—p" avisan).
 - Compila, vista previa P3_07. Falta revisión en simulador (corregir un hoyo en v2 y verlo en v1).
+
+## Preparación del Paso 8 (21-oct)
+- Decisión de Daniel: mover el guardado del Setup a `MatchManager` para que la activación por voz del Setup (fase con el Watch / v2t) use la misma lógica.
+- `MatchManager.applySetupDraft`, `applyCourseAndStartHole` y `setupLanes` (movidos tal cual desde `GuidedSetupView`; la v1 ahora los llama). 4 pruebas nuevas en `SetupDraftTests` (guardar el mismo borrador no cambia nada, cambiar salida resetea Carry, cambiar strokes, carriles). 49 pruebas verdes.
+- Decisión de Daniel: **editar el catálogo ("tag") queda como tarea pendiente para terminar las pantallas** → Paso 11 en PLAN_PASOS.md.

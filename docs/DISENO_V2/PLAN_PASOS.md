@@ -78,6 +78,7 @@ La voz NO se construye dentro de la Vista v2. Se hará después como **v2t**, un
 ## Paso 8 — `SetupV2`
 
 - **Leer:** `GuidedSetupView.swift` (`applyCampo`, `applySetup`, `syncStrokes`, pasos 1–4), `PlayerDirectoryView.swift`, `BetCatalog.swift` (plantillas), `REGLAS_SETUP_Y_GOLPES.md` R1, R3, R5, R11, R12.
+- **Hecho (21-oct):** el guardado del Setup ya vive en `MatchManager.applySetupDraft` / `applyCourseAndStartHole` / `setupLanes` (v1 y v2 lo comparten; pruebas en `SetupDraftTests`). Eso deja lista la activación del Setup por voz para una fase posterior (v2t iPhone + Watch).
 - **Crear/Editar:** `V2/SetupV2.swift`.
 - **Incluye:** pasos 1–3 con el estilo v2 (strokes con ½ y en palabras "ALC recibe 3½ · hoyos 17, 4, 11 y ½ en 2"; pareja base y parejas según el modelo `LaneModel`; quién lleva); paso 4 Apuestas = contenido de v1 embebido; Directorio abre la vista v1.
 - **Terminado cuando:** guardar el mismo setup en v1 y v2 produce los mismos strokes, parejas, apuestas y reseteos (R5).
@@ -93,6 +94,13 @@ La voz NO se construye dentro de la Vista v2. Se hará después como **v2t**, un
 - `UnitLogDetailView`, `CarryB9CardView`, `BetSetupSheet`/`BetsHubView`/editores, `PlayerDirectoryView`: abrir las vistas v1 desde v2 (ya garantiza paridad). Rediseñarlas solo si Daniel lo pide.
 
 ---
+
+## Paso 11 — Editar el catálogo de apuestas ("tag") — FALTA para terminar las pantallas (decisión de Daniel, 21-oct)
+
+- **Objetivo:** que el catálogo se pueda editar de verdad desde la v2 (hoy solo existe `BetDefinitionEditorView` en la v1, por ⚙ → Apuestas → Catálogo). Hallazgos en `CLEANING.md` §B.
+- **Leer:** `BetCatalog.swift` (`BetDefinitionEditorView`, `BetDefinitionNewView`, `BetDefinitionStore`), `CLEANING.md` §B, `MatchManager.swift` (`setupDefaultBets`, `oyesUnitForHole`, `enabledCalculatedTags`).
+- **Crear/Editar:** `V2/CatalogoV2.swift` (nuevo) y acceso desde la hoja Unidades y desde `SetupV2`. Requiere decidir con Daniel qué cambia en la lógica (esto SÍ toca reglas, así que va aparte del diseño): que apagar Oyes / Oyes Parejas / Match Parejas los apague de verdad, que el valor "Vale" de Oyes se use, borrar y renombrar unidades, capturar unidades de parejas, y qué hacer con los eventos ya anotados de una unidad desactivada.
+- **Terminado cuando:** activar/desactivar y cambiar el valor de cualquier unidad desde v2 cambia lo mismo que en v1 y se refleja en hoyo, Tarjeta y Resultado.
 
 ## Fuera de alcance
 

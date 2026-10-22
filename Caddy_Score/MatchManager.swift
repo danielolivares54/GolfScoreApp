@@ -3973,3 +3973,98 @@ extension MatchManager {
         #endif
     }
 }
+
+
+// MARK: - Guardado del Setup (movido tal cual desde GuidedSetupView para compartirlo con la Vista v2)
+
+extension MatchManager {
+    /// Todo lo que el Setup (4 pasos) deja escrito antes de guardar.
+    struct SetupDraft {
+        var courseId: String
+        var startHole: Int
+        var playerNames: [String]
+        /// Alias que el Setup calculó para esos nombres (mismo orden).
+        var aliases: [String]
+        var strokesByAlias: [String: Double]
+        var templateIdByOpponent: [String: String]
+        var base1: String
+        var base2: String
+        var laneStrokes: [String: Double]
+        var laneCarrierByKey: [String: String]
+        var selectedTemplateId: String
+        var vueltaValueText: String
+    }
+
+    /// Los carriles (parejas contra parejas) que salen de la pareja base: misma regla que el Setup de la v1.
+    static func setupLanes(base: [String], allAliases: [String]) -> [(id: String, base: [String], opp: [String])] {
+        guard base.count >= 2 else { return [] }
+        let opp = allAliases.filter { !base.contains($0) }
+        func make(_ pair: [String]) -> (id: String, base: [String], opp: [String]) {
+            (id: (base.sorted() + ["vs"] + pair.sorted()).joined(separator: "-"), base: base, opp: pair)
+        }
+        if opp.count == 2 { return [make(opp)] }
+        if opp.count == 3 { return [[opp[0], opp[1]], [opp[0], opp[2]], [opp[1], opp[2]]].map(make) }
+        if base.count == 3 && opp.count == 2 { return [make(opp)] }
+        return []
+    }
+
+    /// Paso Campo: aplica campo y hoyo de salida. Si mueven el F9 (campo u hoyo de salida distintos),
+    /// Carry/Ajuste 50/Doble Press se invalidan igual que en applySetupDraft.
+    func applyCourseAndStartHole(courseId: String, startHole: Int) {
+        let signatureBefore = strokeSetupSignature
+        if let course = CourseCatalog.all.first(where: { $0.id == courseId }) {
+            setCourse(course, resetScores: false)
+        }
+        updateStartHole(startHole, resetScores: false)
+        if strokeSetupSignature != signatureBefore { clearCarryDependentState() }
+        finishSetupApply()
+    }
+
+    func applySetupDraft(_ draft: SetupDraft) {
+        let templates = BetTemplateStore.shared.entries
+        // Si algo que alimenta el reparto de golpes cambia (hoyo de salida, strokes, parejas,
+        // quién carga), el F9 y todo lo que se decidió con él (Carry, Ajuste 50, Doble Press)
+        // queda calculado sobre datos viejos — se compara antes/después para invalidarlo.
+        let signatureBefore = strokeSetupSignature
+        if let course = CourseCatalog.all.first(where: { $0.id == draft.courseId }) {
+            setCourse(course, resetScores: false)
+        }
+        updateStartHole(draft.startHole, resetScores: false)
+        setPlayers(names: draft.playerNames, preserveScores: true)
+        for p in players {
+            if p.alias == yoAlias { continue }
+            let strokes = draft.strokesByAlias[p.alias] ?? 0
+            setStrokesVsBase(alias: p.alias, value: strokes)
+            let tplId = draft.templateIdByOpponent[p.alias]
+            if let tplId, let tpl = templates.first(where: { $0.id == tplId }) {
+                setBetTemplateForOpponent(p.alias, template: tpl)
+            }
+            // Aprende/actualiza el directorio con lo que realmente quedó configurado para este
+            // jugador — la próxima vez que se escriba su nombre, el mini-search ya sugiere estos
+            // mismos strokes y plantilla.
+            PlayerDirectoryStore.shared.upsert(name: p.name, alias: p.alias, strokesVsBase: strokes, preferredTagId: tplId)
+        }
+        let base = [draft.base1, draft.base2].filter { !$0.isEmpty }
+        if base.count >= 2 {
+            let opp = players.map { $0.alias }.filter { !base.contains($0) }
+            _ = setBaseTeam(base, opponentsOverride: opp)
+            for lane in Self.setupLanes(base: base, allAliases: draft.aliases) {
+                setLaneStrokesForMatch(base: lane.base, opp: lane.opp, value: draft.laneStrokes[lane.id] ?? 0)
+                if let carrier = draft.laneCarrierByKey[lane.id], !carrier.isEmpty {
+                    setLaneCarrierForMatch(base: lane.base, opp: lane.opp, carrier: carrier)
+                }
+            }
+        }
+        if let tpl = templates.first(where: { $0.id == draft.selectedTemplateId }) {
+            applyBetTemplate(tpl)
+            // Si el usuario ajustó el monto de vuelta a mano después de elegir la plantilla, respeta ese override.
+            if let v = Int(draft.vueltaValueText), v != tpl.vueltaValue { setVueltaValue(v) }
+        } else if let v = Int(draft.vueltaValueText) {
+            setVueltaValue(v)
+        }
+        if strokeSetupSignature != signatureBefore { clearCarryDependentState() }
+        // Un solo guardado al final con el Setup completo (setCourse no guarda por sí solo) y un
+        // refresh explícito para que tarjeta, auditoría y dinero se recalculen con lo nuevo.
+        finishSetupApply()
+    }
+}
