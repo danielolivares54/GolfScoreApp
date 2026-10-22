@@ -9,9 +9,16 @@
 import SwiftUI
 
 extension MatchManager {
-    /// Apuestas manuales individuales del catálogo, sin Oyes (igual que ContentView.manualUnitBets).
+    /// 3 Putt y Hole Out no llevan botón en la hoja Unidades (decisión de Daniel, 21-oct): el 3 Putt se marca solo
+    /// al anotar los putts y siguen existiendo en el catálogo.
+    static let unitsWithoutButtonV2: Set<String> = ["3P", "4P", "HO"]
+
+    /// Unidades manuales individuales activas del catálogo que llevan botón: sin Oyes (tiene su tarjeta) ni 3 Putt / Hole Out.
     var manualUnitBetsV2: [BetDefinition] {
-        betCatalog.filter { $0.type == .individual && $0.mode == .manual && $0.tag.uppercased() != "OYES" }
+        betCatalog.filter {
+            $0.type == .individual && $0.mode == .manual && $0.tag.uppercased() != "OYES"
+                && !Self.unitsWithoutButtonV2.contains($0.tag.uppercased())
+        }
     }
 }
 

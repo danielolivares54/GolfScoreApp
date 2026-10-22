@@ -106,3 +106,7 @@
 - **Lógica (esto sí cambia reglas, a pedido de Daniel):** `MatchManager` ahora respeta el catálogo: Oyes / Oyes Parejas / Match Parejas apagados no cuentan (`isOyesEnabled`, `isOyesPairEnabled`, `isPairMatchEnabled`, `activeLanes`); el "Vale" de Oyes se usa; una unidad manual apagada no cuenta y conserva sus eventos (`isUnitCodeActive`). Por defecto todo está activo, así que sin tocar el catálogo nada cambia. `BetDefinitionStore`: `isBuiltIn`, `rename`, `removeCustom`.
 - 68 pruebas verdes (+7 en `CatalogGatingTests`). Falta revisión en simulador.
 - Decisión de Daniel (21-oct): las unidades de parejas capturables se ELIMINAN del pendiente (el tag se define solo). Siguen pendientes de decidir (CLEANING.md): Carry duplicado en Resultado y modo de captura "por input".
+
+## Splash nuevo y Unidades sin 3 Putt / Hole Out (21-oct)
+- La carátula usa el logo nuevo (`CaddieSplashMarkV2`, `V2/SplashMarkV2.swift`, dibujado con SwiftUI Canvas): pelota con hoyuelos y "CGM", hoyo y bandera. Se quitaron las formas del logo anterior de `Caddy_ScoreApp.swift`.
+- La hoja Unidades de la v2 ya no muestra botones de 3 Putt, 4 Putt ni Hole Out (decisión de Daniel); siguen en el catálogo y el 3 Putt se marca solo al anotar putts.

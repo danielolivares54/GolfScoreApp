@@ -69,85 +69,11 @@ struct SplashView: View {
         ZStack {
             Self.bgColor.ignoresSafeArea()
             VStack(spacing: 22) {
-                CaddieBallFlagMark()
+                CaddieSplashMarkV2()
                 HStack(spacing: 6) {
                     Text("Caddie").font(.system(size: 34, weight: .heavy)).foregroundColor(Self.inkColor)
                     Text("Score").font(.system(size: 34, weight: .heavy)).foregroundColor(Self.brandGreen)
                 }
-            }
-        }
-    }
-}
-
-// Pelota de golf (círculo blanco con sombra) + banderín verde con "CGM" — misma composición
-// del logo de marca, dibujada a mano para no depender de Assets.xcassets.
-private struct CaddieBallFlagMark: View {
-    private let ballSize: CGFloat = 150
-
-    var body: some View {
-        ZStack {
-            Ellipse()
-                .fill(SplashView.inkColor.opacity(0.12))
-                .frame(width: ballSize * 0.72, height: ballSize * 0.12)
-                .offset(y: ballSize * 0.56)
-
-            Circle()
-                .fill(Color.white)
-                .frame(width: ballSize, height: ballSize)
-                .overlay(Circle().strokeBorder(SplashView.ballBorder, lineWidth: 2))
-                .overlay(DimplePattern().opacity(0.5))
-                .clipShape(Circle())
-
-            FlagShape()
-                .frame(width: ballSize * 0.62, height: ballSize * 0.78)
-                .offset(x: ballSize * 0.08, y: -ballSize * 0.56)
-        }
-    }
-}
-
-// Patrón de hoyuelos simplificado — una rejilla de puntos grises, suficiente para leerse
-// como "pelota de golf" sin replicar el SVG original punto por punto.
-private struct DimplePattern: View {
-    var body: some View {
-        GeometryReader { geo in
-            let cols = 6
-            let rows = 6
-            let spacing = geo.size.width / CGFloat(cols)
-            ForEach(0..<rows, id: \.self) { r in
-                ForEach(0..<cols, id: \.self) { c in
-                    Circle()
-                        .fill(SplashView.inkColor.opacity(0.10))
-                        .frame(width: 5, height: 5)
-                        .position(x: spacing * (CGFloat(c) + 0.5), y: spacing * (CGFloat(r) + 0.5))
-                }
-            }
-        }
-    }
-}
-
-// Asta + banderín triangular con "CGM", mismo trazo que el logo original.
-private struct FlagShape: View {
-    var body: some View {
-        GeometryReader { geo in
-            let w = geo.size.width
-            let h = geo.size.height
-            ZStack(alignment: .top) {
-                Capsule()
-                    .fill(SplashView.brandGreen)
-                    .frame(width: w * 0.1, height: h)
-
-                Path { p in
-                    p.move(to: CGPoint(x: w * 0.08, y: h * 0.06))
-                    p.addLine(to: CGPoint(x: w, y: h * 0.28))
-                    p.addLine(to: CGPoint(x: w * 0.08, y: h * 0.5))
-                    p.closeSubpath()
-                }
-                .fill(SplashView.brandGreen)
-
-                Text("CGM")
-                    .font(.system(size: h * 0.16, weight: .heavy))
-                    .foregroundColor(.white)
-                    .position(x: w * 0.46, y: h * 0.27)
             }
         }
     }
