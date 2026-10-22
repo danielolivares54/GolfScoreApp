@@ -15,6 +15,8 @@ Reference mockups: the "Sistema v2" page of the design canvas (Daniel can export
 6. **Events and notes from the bottom bar**, never as fixed buttons inside each player row.
 7. **Up to 3 pairs** (lanes) everywhere results are shown.
 8. **One button style.** Steppers 48×48 pt, one green primary button per screen, text buttons without underline, no double rings.
+9. **Data parity.** Every datum and action of the v1 screen is visible in v2 or one tap away. The per-screen checklist is in `GAP_ANALISIS.md`. Daniel's decisions in `PROGRESO.md` override this spec (e.g. no outlines on score marks, pair names joined with "–", oyes counted inside Unid).
+10. **Follow the real model.** Pairs = base pair + lanes (`LaneModel`: base, opp, strokes, strokeCarrier). Don't add controls the model doesn't have (e.g. a per-pair on/off switch shown in the mockup).
 
 ## 2. Tokens (already in `CaddieStyleV2.swift`)
 

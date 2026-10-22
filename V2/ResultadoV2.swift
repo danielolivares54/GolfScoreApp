@@ -14,6 +14,15 @@ struct ResultadoV2: View {
     @Environment(\.dismiss) private var dismiss
     /// Match abierto a pantalla completa (MatchDetailV2: todo lo de la v1 + botones Carry/Ajuste 50/Doble B9).
     @State private var detailRow: MatchManager.ResultadoRowV2?
+    /// Log de unidades del match tocado en la columna Unid (misma vista que la v1: UnitLogDetailView).
+    @State private var unitLogRow: MatchManager.ResultadoRowV2?
+    /// Hoyo actual COMPARTIDO con la v1 y HoleScreenV2 (para la etiqueta "‹ Hoyo N").
+    @AppStorage("currentHoleIndex") private var currentHoleIndex = 0
+
+    private var currentHole: Int {
+        let order = matchManager.playOrder()
+        return order.indices.contains(currentHoleIndex) ? order[currentHoleIndex] : 1
+    }
 
     private var rows: [MatchManager.ResultadoRowV2] { matchManager.resultadoRowsV2() }
     private var individualRows: [MatchManager.ResultadoRowV2] { rows.filter { !$0.isPair } }
@@ -41,6 +50,12 @@ struct ResultadoV2: View {
         .fullScreenCover(item: $detailRow) { row in
             MatchDetailV2(matchManager: matchManager, row: row)
         }
+        .sheet(item: $unitLogRow) { row in
+            NavigationStack {
+                UnitLogDetailView(title: matchManager.unitLogTitleV2(row.target),
+                                  entries: matchManager.unitLogEntriesV2(row.target, segment: "ALL"))
+            }
+        }
     }
 
     // MARK: Cabecera
@@ -50,7 +65,7 @@ struct ResultadoV2: View {
             Button { dismiss() } label: {
                 HStack(spacing: 4) {
                     Image(systemName: "chevron.left").font(.system(size: 16, weight: .semibold))
-                    Text("Volver").font(.v2Body)
+                    Text("Hoyo \(currentHole)").font(.v2Body)
                 }
                 .foregroundStyle(CSV2.ink)
                 .frame(minHeight: CSV2.minTap)
@@ -108,35 +123,58 @@ struct ResultadoV2: View {
     }
 
     private func matchRow(_ row: MatchManager.ResultadoRowV2) -> some View {
-        Button { detailRow = row } label: {
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(spacing: 0) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(row.title).font(.v2Name).foregroundStyle(CSV2.ink)
-                        if let rivals = row.rivalsText {
-                            Text(rivals).font(.v2Label).foregroundStyle(CSV2.secondary)
+        // Tres zonas táctiles (sin botones anidados): nombre + F9 + B9 y $ abren el detalle del match;
+        // la columna Unid abre el log de unidades (como la v1).
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 0) {
+                Button { detailRow = row } label: {
+                    HStack(spacing: 0) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(row.title).font(.v2Name).foregroundStyle(CSV2.ink)
+                            if let rivals = row.rivalsText {
+                                Text(rivals).font(.v2Label).foregroundStyle(CSV2.secondary)
+                            }
+                            strokesLine(row)
                         }
-                        strokesLine(row)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        MatchStatusV2(net: row.f9Net, played: row.f9Played)
+                            .frame(width: ColumnV2.status, alignment: .trailing)
+                        MatchStatusV2(net: row.b9Net, played: row.b9Played)
+                            .frame(width: ColumnV2.status, alignment: .trailing)
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    MatchStatusV2(net: row.f9Net, played: row.f9Played)
-                        .frame(width: ColumnV2.status, alignment: .trailing)
-                    MatchStatusV2(net: row.b9Net, played: row.b9Played)
-                        .frame(width: ColumnV2.status, alignment: .trailing)
+                    .frame(minHeight: 48)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityElement(children: .combine)
+                .accessibilityHint("Abre el detalle del match")
+
+                Button { unitLogRow = row } label: {
                     UnitsNetV2(net: row.unitsNet)
                         .frame(width: ColumnV2.units, alignment: .trailing)
+                        .frame(minHeight: 48)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Unidades \(row.unitsNet)")
+                .accessibilityHint("Abre el log de unidades")
+
+                Button { detailRow = row } label: {
                     MoneyTextV2(amount: row.money, size: 16, weight: .semibold)
                         .frame(width: ColumnV2.money, alignment: .trailing)
+                        .frame(minHeight: 48)
+                        .contentShape(Rectangle())
                 }
-                detailLine(row)
+                .buttonStyle(.plain)
+                .accessibilityHint("Abre el detalle del match")
             }
-            .padding(.horizontal, CSV2.s2).padding(.vertical, 12)
-            .frame(minHeight: 64)
-            .contentShape(Rectangle())
+            Button { detailRow = row } label: {
+                detailLine(row).contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
         }
-        .buttonStyle(.plain)
-        .accessibilityElement(children: .combine)
-        .accessibilityHint("Abre el detalle del match")
+        .padding(.horizontal, CSV2.s2).padding(.vertical, 12)
+        .frame(minHeight: 64)
     }
 
     /// Lo que la v1 muestra bajo F9/B9, ahora con etiquetas y en una línea que se ajusta (no se corta):

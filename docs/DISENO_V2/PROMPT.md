@@ -22,15 +22,26 @@ This is a visual change only: same data, same actions, same results, same money.
      `@AppStorage("uiVersion") var uiVersion = "v1"`.
    - `ContentView.swift` → `topBar`: add **one** small button labelled `v2` that sets `uiVersion = "v2"`.
      Nothing else in that file.
-4. **All new code in `Caddy_Score/V2/`.** Every new type name ends in `V2` (e.g. `HoleScreenV2`).
-   Use the shared components in `CaddieStyleV2.swift` (copy it into `Caddy_Score/V2/`). Add new files to the app target.
+4. **All new code in `V2/`** (the folder already created at the repo root). Every new type name ends in `V2` (e.g. `HoleScreenV2`).
+   Use the shared components in `V2/CaddieStyleV2.swift`. Add new files to the app target.
 5. **Same actions as v1.** Every v2 button calls the same action/sheet as its v1 equivalent
    (mapping in `DESIGN_SPEC.md` §3). Where v1 has no equivalent (e.g. voice "Deshacer"), do **not** invent logic — leave it out.
 6. **No asset-catalog images** (the target has no Copy Bundle Resources phase). Icons = SF Symbols, drawings = SwiftUI shapes.
 7. **Build after every phase.** Fix all errors. Run in the simulator with the same match in v1 and v2:
    scores, stroke dots, results and money must be identical.
+8. **Data parity (all data per screen is viewed).** Every datum and every action a v1 screen shows must be
+   visible on the matching v2 screen, or one tap away from it. Use the checklist of that screen in
+   `GAP_ANALISIS.md` before closing a phase, tick it, and list anything left out. Nothing is dropped
+   without Daniel's written OK (recorded in `PROGRESO.md`).
+9. **Precedence.** Daniel's decisions in `PROGRESO.md` > `GAP_ANALISIS.md` > `DESIGN_SPEC.md` > the mockups.
 
-## Phases
+## Current status and what's next
+
+Done so far is in `PROGRESO.md` (P0 switch, Resultado, Tarjeta, Match detail in progress).
+**From now on, work in the priority order of `GAP_ANALISIS.md` §1** (next: `HoleScreenV2` + Event/Note sheets + shared current hole).
+The original phase table below is kept for reference.
+
+## Phases (original plan)
 
 | Phase | What | Done when |
 |---|---|---|

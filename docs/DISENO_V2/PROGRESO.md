@@ -71,3 +71,8 @@
 - Interruptor "Putts" (apagado = golpes con sus marcas; encendido = putts en las mismas celdas, total de putts por nueve y "Putts 18"). Datos: `TarjetaCellV2.putts` y `TarjetaNineV2.puttsTotals` (solo putts que ya registra el match, regla R8).
 - Fila del hoyo actual en verde claro (misma clave `currentHoleIndex` que v1 y la pantalla de captura). Tocar una celda lleva a ese hoyo en `HoleScreenV2` y cierra la Tarjeta; el dictado a ese jugador queda para v2t.
 - 45 pruebas verdes (+4 de putts); vista previa P3_05. Falta revisión en simulador.
+
+## Paso 6 — ResultadoV2: pendientes (21-oct)
+- Tocar la columna Unid abre el log de unidades de ese match (`UnitLogDetailView` de v1, los 18 hoyos). La fila ya no es un solo botón: nombre + F9/B9 y $ abren el detalle del match, Unid abre el log (sin botones anidados).
+- "‹ Volver" ahora dice "‹ Hoyo N" (hoyo actual compartido) y regresa a la pantalla de captura.
+- Compila; pruebas verdes. Falta revisión en simulador.

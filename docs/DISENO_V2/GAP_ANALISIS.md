@@ -54,8 +54,8 @@ v1 shows / does — all must exist in v2:
 
 ### 2. `ResultsSheetView` → `ResultadoV2` 🟡
 - [x] Total general; one row per individual match and per lane; F9/B9 status; Unid (oyes inside); $; presiones; Carry
-- [ ] Tap Unid → `UnitLogDetailView` (pending in PROGRESO)
-- [ ] "‹ Hoyo N" back (needs shared current hole)
+- [x] Tap Unid → `UnitLogDetailView`
+- [x] "‹ Hoyo N" back
 - [ ] Money breakdown per match (V vuelta / P presión / C carry / M match / U unidad) — v1 match card shows it; confirm it is in `MatchDetailV2` (one tap away)
 - [ ] v1 `scorecardStrip` + `holeDetailCard` (hole detail, tap player = correct by voice): removed from Resultado by Daniel's decision → must be reachable in `MatchDetailV2` (hole by hole) and `TarjetaV2` (tap cell)
 
