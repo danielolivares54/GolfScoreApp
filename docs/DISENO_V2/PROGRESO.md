@@ -76,3 +76,8 @@
 - Tocar la columna Unid abre el log de unidades de ese match (`UnitLogDetailView` de v1, los 18 hoyos). La fila ya no es un solo botón: nombre + F9/B9 y $ abren el detalle del match, Unid abre el log (sin botones anidados).
 - "‹ Volver" ahora dice "‹ Hoyo N" (hoyo actual compartido) y regresa a la pantalla de captura.
 - Compila; pruebas verdes. Falta revisión en simulador.
+
+## Paso 7 — AuditV2 (21-oct)
+- `V2/AuditV2.swift`: lista F9/B9 por hoyo con las celdas de cada jugador (score con marca, neto "→", putts, advertencias naranja/rojo), capítulo "Oyes y unidades" y hoja de corrección (Score, Putts, puesto de Oye en par 3, unidades activas). Guardado idéntico al de la v1: `applyHoleEntry`, restaurar 3P/4P y espejo a `ScoreManager`. El semáforo de `HoleScreenV2` abre `AuditV2`.
+- Igual que en la v1, el ícono ✓ del hoyo aparece aunque falten putts (el borde naranja y "—p" avisan).
+- Compila, vista previa P3_07. Falta revisión en simulador (corregir un hoyo en v2 y verlo en v1).

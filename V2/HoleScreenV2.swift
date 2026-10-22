@@ -58,7 +58,7 @@ struct HoleScreenV2: View {
         .onChange(of: matchManager.startHole) { _, _ in currentHoleIndex = 0 }
         .sheet(isPresented: $showTarjeta) { TarjetaV2(matchManager: matchManager) }
         .sheet(isPresented: $showResultado) { ResultadoV2(matchManager: matchManager) }
-        .sheet(isPresented: $showAudit) { HoleAuditView(matchManager: matchManager) }
+        .sheet(isPresented: $showAudit) { AuditV2(matchManager: matchManager) }
         .sheet(isPresented: $showSetup) { GuidedSetupView(matchManager: matchManager).caddySheetDetents() }
         .sheet(isPresented: $showHistory) { RoundHistoryView() }
         .sheet(isPresented: $showEvento) { EventSheetV2(matchManager: matchManager, hole: currentHole).presentationDetents([.medium, .large]) }

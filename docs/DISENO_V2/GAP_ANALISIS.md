@@ -78,8 +78,8 @@ v1 shows / does — all must exist in v2:
 - [ ] Voice entry for an event (optional — only if v1 interpreter already supports it)
 
 ### 6. `HoleAuditView` → `AuditV2` ⬜
-- [ ] List of holes with data, incomplete count, per-hole status, oye rank, units, net "→"
-- [ ] Tap → correction sheet (score, putts, oye) → "Guardar corrección" (same save)
+- [x] List of holes with data, incomplete count, per-hole status, oye rank, units, net "→"
+- [x] Tap → correction sheet (score, putts, oye) → "Guardar corrección" (same save)
 
 ### 7. `GuidedSetupView` → `SetupV2` ⬜
 - [ ] Step 1: course, start hole (and the R1 warning text)
