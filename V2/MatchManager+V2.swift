@@ -93,7 +93,7 @@ extension MatchManager {
             ))
         }
 
-        for lane in lanes {
+        for lane in activeLanes {
             let line = wallet.lines.first { $0.laneId == lane.id }
             let mine = lane.base.contains(yoAlias)
             let sign = mine ? 1 : -1
@@ -186,9 +186,9 @@ extension MatchManager {
                 $0.hole == hole && $0.alias == alias
                     && $0.code.uppercased() != "BIRD" && $0.code.uppercased() != "NOTA"
             }
-            if (manual[hole] ?? []).contains(where: counts) { return true }
+            if (manual[hole] ?? []).contains(where: { counts($0) && isUnitCodeActive($0.code) }) { return true }
             if calculatedAndManual.contains(where: counts) { return true }
-            if oyesRanksByHole[hole]?[alias] == 1 { return true }
+            if isOyesEnabled, oyesRanksByHole[hole]?[alias] == 1 { return true }
             return hasPairUnitWin(hole: hole, alias: alias)
         }
 

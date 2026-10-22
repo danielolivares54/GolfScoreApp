@@ -216,6 +216,25 @@ final class BetDefinitionStore: ObservableObject {
         save()
     }
 
+    /// Tags que trae la app: se pueden apagar y cambiar de valor, pero no se borran ni se renombran
+    /// (las reglas de cálculo dependen de ellos). Las unidades que crea el usuario sí.
+    static let builtInTags: Set<String> = ["BIRD", "EAG", "ALB", "HIO", "B18", "3P", "HO", "OYES", "PAIR", "OYESP", puttsTag]
+
+    func isBuiltIn(_ def: BetDefinition) -> Bool { Self.builtInTags.contains(def.tag.uppercased()) }
+
+    func rename(_ def: BetDefinition, name: String) {
+        let clean = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !clean.isEmpty, !isBuiltIn(def), let idx = entries.firstIndex(where: { $0.id == def.id }) else { return }
+        entries[idx].name = clean
+        save()
+    }
+
+    /// Borra una unidad creada por el usuario (las incluidas con la app no se borran).
+    func removeCustom(_ def: BetDefinition) {
+        guard !isBuiltIn(def) else { return }
+        remove(def)
+    }
+
     // Mismo patrón que PlayerDirectoryStore/BetTemplateStore: 3 letras del nombre + contador si colisiona.
     func suggestTag(forName name: String) -> String {
         let letters = name.uppercased().filter { $0.isLetter }

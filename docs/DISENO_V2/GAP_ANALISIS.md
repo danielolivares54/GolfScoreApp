@@ -21,11 +21,11 @@ Status: ✅ done · 🟡 partial · ⬜ not started · ➖ out of v2 scope (stay
 | 7 | `GuidedSetupView` (4 steps) | `SetupV2` | 🟡 steps 1–3 done; Apuestas/Directorio/Log open the v1 views | P-C |
 | 8 | `RoundHistoryView` | `HistorialV2` | ⬜ | P-D |
 | 9 | `MyHistoryView` (stats) | `MyHistoryV2` | ⬜ | P-D |
-| 10 | `UnitLogDetailView` | v1 view shown from v2 (restyle later) | 🟡 opened from MatchDetailV2 | P-D |
-| 11 | `CarryB9CardView` | v1 view shown from v2 (restyle later) | 🟡 opened from MatchDetailV2 | P-D |
-| 12 | `BetSetupSheet`, `BetsHubView`, bet/template editors | v1 views shown from v2 | ⬜ | P-E |
-| 13 | `PlayerDirectoryView` (+ edit) | v1 view shown from SetupV2 | ⬜ | P-E |
-| 15 | Catalog editor ("tag" de apuestas: activar/desactivar unidades, valores, nuevas) | `CatalogoV2` (Paso 11) | ⬜ | **needed to finish the screens** |
+| 10 | `UnitLogDetailView` | v1 view shown from v2 (restyle later) | ✅ opened from ResultadoV2 (Unid) and MatchDetailV2 | P-D |
+| 11 | `CarryB9CardView` | v1 view shown from v2 (restyle later) | ✅ opened from MatchDetailV2 | P-D |
+| 12 | `BetSetupSheet`, `BetsHubView`, bet/template editors | v1 views shown from v2 (SetupV2 → Apuestas) | ✅ | P-E |
+| 13 | `PlayerDirectoryView` (+ edit) | v1 view shown from SetupV2 | ✅ | P-E |
+| 15 | Catalog editor ("tag" de apuestas: activar/desactivar unidades, valores, nuevas) | `CatalogoV2` (Paso 11) | ✅ | done |
 | 14 | Close round (`confirmationDialog`) | same dialog from v2 top bar | ⬜ | P-A |
 | — | `GuidedCaptureView` (Siri only), `RescueCaptureView`/`FuzzyReviewView`, `SplashView` | — | ➖ keep v1 | — |
 | — | Dead code: `ScorecardView`, `CardView`, `MoneyTrackerView` (body), `SetupWizardView`, `MatchSummaryView`, `CoursePickerView`, `StartHolePickerView`, `IntentTestView` | — | ➖ not ported | — |

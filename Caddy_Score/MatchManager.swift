@@ -1013,6 +1013,7 @@ class MatchManager: ObservableObject {
         let manual = unitEventsByHole
             .filter { holes.contains($0.key) }
             .flatMap { $0.value }
+            .filter { isUnitCodeActive($0.code) }   // una unidad desactivada en el catálogo deja de contar (sus eventos se conservan)
         let calculated = holes.flatMap { calculatedUnitEventsForHole($0) }
         return (manual + calculated)
             .sorted { a, b in
@@ -1040,7 +1041,8 @@ class MatchManager: ObservableObject {
         if includeIndividual {
             // Captura explícita del orden OYES en pares 3 para auditoría.
             for hole in holes {
-                guard getHole(hole)?.par == 3,
+                guard isOyesEnabled,
+                      getHole(hole)?.par == 3,
                       let ranks = oyesRanksByHole[hole],
                       !ranks.isEmpty else { continue }
                 let order = ranks
@@ -1125,7 +1127,7 @@ class MatchManager: ObservableObject {
         if includePair {
             // Unidades de campo/calculadas aplicadas por cada lane (base vs opp).
             for e in directEvents where e.units != 0 {
-                for lane in lanes.prefix(3) {
+                for lane in activeLanes.prefix(3) {
                     let inBase = lane.base.contains(e.alias)
                     let inOpp = lane.opp.contains(e.alias)
                     if !inBase && !inOpp { continue }
@@ -1146,7 +1148,7 @@ class MatchManager: ObservableObject {
 
             for hole in holes {
                 guard let ranks = oyesRanksByHole[hole] else { continue }
-                for lane in lanes.prefix(3) {
+                for lane in activeLanes.prefix(3) {
                     guard let r = oyesPairResult(hole: hole, lane: lane), r != 0 else { continue }
                     let yoInBase = lane.base.contains(yoAlias)
                     let yoInOpp = lane.opp.contains(yoAlias)
@@ -1230,13 +1232,13 @@ class MatchManager: ObservableObject {
     }
 
     func hasIndividualUnitWin(hole: Int, alias: String) -> Bool {
-        let manual = (unitEventsByHole[hole] ?? []).filter { $0.alias == alias }.reduce(0) { $0 + $1.units }
+        let manual = (unitEventsByHole[hole] ?? []).filter { $0.alias == alias && isUnitCodeActive($0.code) }.reduce(0) { $0 + $1.units }
         let calc = calculatedUnitEventsForHole(hole).filter { $0.alias == alias }.reduce(0) { $0 + $1.units }
         return (manual + calc) > 0
     }
 
     func hasPairUnitWin(hole: Int, alias: String) -> Bool {
-        for lane in lanes {
+        for lane in activeLanes {
             let inBase = lane.base.contains(alias)
             let inOpp = lane.opp.contains(alias)
             if !inBase && !inOpp { continue }
@@ -1539,8 +1541,8 @@ class MatchManager: ObservableObject {
     }
 
     func oyesPairSummaryLines() -> [String] {
-        if lanes.isEmpty { return [] }
-        return lanes.prefix(3).compactMap { lane in
+        if activeLanes.isEmpty { return [] }
+        return activeLanes.prefix(3).compactMap { lane in
             let values = playOrder().map { oyesPairResult(hole: $0, lane: lane) }
             let hasAny = values.contains { $0 != nil }
             if !hasAny { return nil }
@@ -2669,7 +2671,7 @@ class MatchManager: ObservableObject {
             )
         }
 
-        for lane in lanes.prefix(3) {
+        for lane in activeLanes.prefix(3) {
             let switches = betSwitchesForPair(laneId: lane.id)
             let f9Values = f9Holes.map { pairResult(hole: $0, lane: lane) }
             let b9Values = b9Holes.map { pairResult(hole: $0, lane: lane) }
@@ -2885,7 +2887,8 @@ class MatchManager: ObservableObject {
         } else {
             if let u = oyesIndividualUnitByHole[hole], u > 0 { return u }
         }
-        return 1
+        // Sin valor puesto para ese hoyo, vale lo que diga el catálogo ("Vale" de Oyes / Oyes Parejas).
+        return catalogUnits(forTag: pair ? "OYESP" : "OYES") ?? 1
     }
 
     private func enabledCalculatedTags() -> Set<String> {
@@ -2924,6 +2927,7 @@ class MatchManager: ObservableObject {
     }
 
     private func oyesIndividualResult(hole: Int, opponentAlias: String) -> Int? {
+        guard isOyesEnabled else { return nil }
         guard getHole(hole)?.par == 3 else { return nil }
         guard let ranks = oyesRanksByHole[hole],
               let yoRank = ranks[yoAlias],
@@ -2947,6 +2951,7 @@ class MatchManager: ObservableObject {
     }
 
     private func oyesPairResult(hole: Int, lane: LaneModel) -> Int? {
+        guard isOyesPairEnabled, isPairMatchEnabled else { return nil }
         guard getHole(hole)?.par == 3 else { return nil }
         guard let ranks = oyesRanksByHole[hole] else { return nil }
         let baseRanks = lane.base.compactMap { ranks[$0] }
@@ -2964,8 +2969,8 @@ class MatchManager: ObservableObject {
     }
 
     func pairBetSummaryLines() -> [String] {
-        if lanes.isEmpty { return [] }
-        return lanes.prefix(3).map { lane in
+        if activeLanes.isEmpty { return [] }
+        return activeLanes.prefix(3).map { lane in
             let values = playOrder().map { pairResult(hole: $0, lane: lane) }
             let f9Values = Array(values.prefix(9))
             let b9Values = Array(values.suffix(9))
@@ -4255,4 +4260,38 @@ final class SetupDraftModel: ObservableObject {
     }
 
     func save() { manager.applySetupDraft(draft) }
+}
+
+
+// MARK: - El catálogo de apuestas gobierna qué cuenta (Oyes, Oyes Parejas, Match Parejas, unidades manuales)
+//
+// betCatalog = las definiciones ACTIVAS del catálogo (ver setupDefaultBets). Una lista vacía (aún sin cargar) cuenta
+// como "todo activo" para no apagar nada por accidente.
+
+extension MatchManager {
+    func isCatalogTagEnabled(_ tag: String) -> Bool {
+        if betCatalog.isEmpty { return true }
+        return betCatalog.contains { $0.tag.uppercased() == tag.uppercased() }
+    }
+
+    /// Valor ("Vale") de una unidad del catálogo activo, nil si no está.
+    func catalogUnits(forTag tag: String) -> Int? {
+        betCatalog.first { $0.tag.uppercased() == tag.uppercased() }?.units
+    }
+
+    var isOyesEnabled: Bool { isCatalogTagEnabled("OYES") }
+    var isOyesPairEnabled: Bool { isCatalogTagEnabled("OYESP") }
+    var isPairMatchEnabled: Bool { isCatalogTagEnabled("PAIR") }
+
+    /// Las parejas que participan: ninguna si "Match Parejas" está apagado en el catálogo.
+    var activeLanes: [LaneModel] { isPairMatchEnabled ? lanes : [] }
+
+    /// ¿Cuenta un evento manual con este código? Una unidad conocida del catálogo que está apagada no cuenta
+    /// (sus eventos ya anotados se conservan y vuelven a contar si se reactiva). Notas y códigos desconocidos cuentan.
+    func isUnitCodeActive(_ code: String) -> Bool {
+        let c = code.uppercased()
+        if c == "NOTA" { return true }
+        guard BetDefinitionStore.shared.entries.contains(where: { $0.tag.uppercased() == c }) else { return true }
+        return isCatalogTagEnabled(c)
+    }
 }

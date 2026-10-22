@@ -98,3 +98,11 @@
 - `V2/HistorialV2.swift`: tarjeta por ronda (fecha · campo, hoyo de salida, total) y por rival: dinero, F9/B9 con flechas, resultado del match en palabras y strokes de esa ronda; filtro por rival; acceso a estadísticas. `V2/MyHistoryV2.swift`: histograma, golpes y putts (Prom. / Este match), promedio vs par por tipo de hoyo, impacto del stroke, oyes y dinero.
 - Las fórmulas de estadísticas se movieron tal cual de `MyHistoryView` a `MyHistoryData` (v1 y v2 las comparten); 6 pruebas nuevas con una ronda cerrada sintética (`MyHistoryDataTests`). 61 pruebas verdes. El Historial de `HoleScreenV2` y el Log del `SetupV2` ya abren `HistorialV2`.
 - No incluido: la etiqueta "En curso" de la spec (el historial solo lee rondas cerradas).
+
+## Pasos 10 y 11 + Historial separado (21-oct)
+- **Historial:** individuales y parejas separados en cada ronda (subtotal de cada grupo; el total de la ronda es la suma; con un rival filtrado solo cuentan sus líneas). Las parejas muestran "con FER / RIC – ANS", resultado del match y dinero (F9/B9 solo existen para individuales).
+- **Paso 10:** las pantallas secundarias ya se abren desde la v2: log de unidades (Resultado y detalle del match), tarjeta Carry (detalle), Apuestas y Directorio (Setup). Se rediseñan solo si Daniel lo pide.
+- **Paso 11 — `V2/CatalogoV2.swift`:** editor del catálogo (interruptor por unidad, "Vale" con − y +, alcance de la apuesta de putts, "Nueva" unidad manual individual, renombrar y borrar las creadas). Se abre desde la hoja Unidades y desde el Setup (botón Catálogo). Cada cambio se aplica al match en curso al instante.
+- **Lógica (esto sí cambia reglas, a pedido de Daniel):** `MatchManager` ahora respeta el catálogo: Oyes / Oyes Parejas / Match Parejas apagados no cuentan (`isOyesEnabled`, `isOyesPairEnabled`, `isPairMatchEnabled`, `activeLanes`); el "Vale" de Oyes se usa; una unidad manual apagada no cuenta y conserva sus eventos (`isUnitCodeActive`). Por defecto todo está activo, así que sin tocar el catálogo nada cambia. `BetDefinitionStore`: `isBuiltIn`, `rename`, `removeCustom`.
+- 68 pruebas verdes (+7 en `CatalogGatingTests`). Falta revisión en simulador.
+- Pendiente de decidir (CLEANING.md): Carry duplicado en Resultado; unidades de parejas capturables; modo de captura "por input".

@@ -20,6 +20,7 @@ struct EventSheetV2: View {
     let hole: Int
     @Environment(\.dismiss) private var dismiss
     @State private var selectedAlias: String?
+    @State private var showCatalog = false
 
     private var alias: String? { selectedAlias ?? matchManager.players.first?.alias }
 
@@ -39,10 +40,16 @@ struct EventSheetV2: View {
                         playerPicker
                         unitsGrid
                     }
+                    Button { showCatalog = true } label: {
+                        Label("Editar el catálogo de unidades", systemImage: "slider.horizontal.3")
+                            .font(.v2Body).foregroundStyle(CSV2.green).frame(maxWidth: .infinity, minHeight: CSV2.minTap)
+                    }
+                    .buttonStyle(.plain)
                 }
                 .padding(CSV2.s2)
             }
         }
+        .sheet(isPresented: $showCatalog) { CatalogoV2(matchManager: matchManager) }
     }
 
     private var playerPicker: some View {

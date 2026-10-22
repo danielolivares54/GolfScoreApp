@@ -158,10 +158,15 @@ struct HistorialV2: View {
     // MARK: Tarjeta de ronda
 
     private func roundCard(_ round: RoundResultFile) -> some View {
-        let shown = round.lines.filter { line in
+        let filtered = selectedPlayerName != "Todos"
+        let individual = round.lines.filter { line in
             guard line.scope == "individual" else { return false }
-            return selectedPlayerName == "Todos" || name(for: round, alias: line.opponentAlias) == selectedPlayerName
+            return !filtered || name(for: round, alias: line.opponentAlias) == selectedPlayerName
         }
+        // Con un rival filtrado solo cuentan sus líneas; sin filtro, individuales y parejas van separados.
+        let pairs = filtered ? [] : round.lines.filter { $0.scope == "parejas" }
+        let individualTotal = individual.reduce(0) { $0 + $1.totalMoney }
+        let pairsTotal = pairs.reduce(0) { $0 + $1.totalMoney }
         return CardV2 {
             VStack(spacing: 0) {
                 HStack(alignment: .firstTextBaseline) {
@@ -170,15 +175,61 @@ struct HistorialV2: View {
                         Text("Sale H\(round.startHole)").font(.v2Label).foregroundStyle(CSV2.secondary)
                     }
                     Spacer()
-                    MoneyTextV2(amount: round.totalMoney, size: 22, weight: .semibold)
+                    MoneyTextV2(amount: individualTotal + pairsTotal, size: 22, weight: .semibold)
                 }
                 .padding(.horizontal, CSV2.s2).padding(.vertical, 12)
-                ForEach(Array(shown.enumerated()), id: \.offset) { _, line in
-                    Rectangle().fill(CSV2.rowLine).frame(height: 1)
-                    rivalRow(round: round, line: line)
+                if !individual.isEmpty {
+                    sectionHeader("Individual", total: individualTotal)
+                    ForEach(Array(individual.enumerated()), id: \.offset) { _, line in
+                        Rectangle().fill(CSV2.rowLine).frame(height: 1)
+                        rivalRow(round: round, line: line)
+                    }
+                }
+                if !pairs.isEmpty {
+                    sectionHeader("Parejas", total: pairsTotal)
+                    ForEach(Array(pairs.enumerated()), id: \.offset) { _, line in
+                        Rectangle().fill(CSV2.rowLine).frame(height: 1)
+                        pairRow(round: round, line: line)
+                    }
                 }
             }
+            .clipShape(RoundedRectangle(cornerRadius: CSV2.rCard))
         }
+    }
+
+    private func sectionHeader(_ title: String, total: Int) -> some View {
+        HStack {
+            Text(title).font(.v2Caps).textCase(.uppercase).foregroundStyle(CSV2.secondary)
+            Spacer()
+            MoneyTextV2(amount: total, size: 14, weight: .semibold)
+        }
+        .padding(.horizontal, CSV2.s2).padding(.vertical, 8)
+        .background(CSV2.background.opacity(0.6))
+        .overlay(alignment: .top) { Rectangle().fill(CSV2.rowLine).frame(height: 1) }
+    }
+
+    /// Una pareja: "con FER" / "RIC – ANS", resultado del match en palabras y dinero (sin F9/B9: no se archivan para parejas).
+    private func pairRow(round: RoundResultFile, line: RoundResultLine) -> some View {
+        let yo = round.players.first?.alias ?? "DAN"
+        let sides = line.label.split(separator: "/").map { $0.split(separator: "+").map(String.init) }
+        let base = sides.first ?? [], opp = sides.count > 1 ? sides[1] : []
+        let mine = base.contains(yo) ? base : opp
+        let rivals = base.contains(yo) ? opp : base
+        let partners = mine.filter { $0 != yo }
+        let match = line.matchPoints > 0 ? "match ganado" : line.matchPoints < 0 ? "match perdido" : "match empatado"
+        let color = line.matchPoints > 0 ? CSV2.green : line.matchPoints < 0 ? CSV2.red : CSV2.secondary
+        return VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(partners.isEmpty ? "Pareja" : "con " + partners.joined(separator: " – ")).font(.v2Body).foregroundStyle(CSV2.ink)
+                    if !rivals.isEmpty { Text(rivals.joined(separator: " – ")).font(.v2Label).foregroundStyle(CSV2.secondary) }
+                }
+                Spacer()
+                MoneyTextV2(amount: line.totalMoney, size: 17, weight: .semibold)
+            }
+            Text(match).font(.v2Label).foregroundStyle(color)
+        }
+        .padding(.horizontal, CSV2.s2).padding(.vertical, 12)
     }
 
     private func rivalRow(round: RoundResultFile, line: RoundResultLine) -> some View {
@@ -256,6 +307,11 @@ enum HistorySamplesV2 {
                             presionMoney: 0, carryMoney: 0, matchMoney: 0, unitsMoney: 0, totalMoney: money,
                             f9Points: f9, b9Points: b9)
         }
+        func pairLine(_ match: Int, _ money: Int) -> RoundResultLine {
+            RoundResultLine(label: "DAN+FER/RIC+ANS", scope: "parejas", opponentAlias: nil, vueltaPoints: 0, presionPoints: 0,
+                            carryPoints: 0, carryActive: false, matchPoints: match, unitsPoints: 0, vueltaMoney: 0,
+                            presionMoney: 0, carryMoney: 0, matchMoney: 0, unitsMoney: 0, totalMoney: money)
+        }
         func round(_ id: String, _ date: String, start: Int, rob: Double, fer: Double, closed: TimeInterval) -> RoundResultFile {
             RoundResultFile(
                 roundId: id, date: date, courseId: course.id, courseName: course.name, startHole: start,
@@ -264,8 +320,8 @@ enum HistorySamplesV2 {
                     RoundResultPlayer(alias: "ROB", name: "Roberto", strokesVsBase: rob, scores: scores(extra: 0), putts: [:]),
                     RoundResultPlayer(alias: "FER", name: "Fernando", strokesVsBase: fer, scores: scores(extra: 1), putts: [:]),
                 ],
-                lines: [line("ROB", 2, -1, 1, 425), line("FER", -1, -2, -1, -300)],
-                totalMoney: 125, closedAt: Date(timeIntervalSinceNow: closed), oyesWinsByAlias: ["DAN": 2])
+                lines: [line("ROB", 2, -1, 1, 425), line("FER", -1, -2, -1, -300), pairLine(1, 350)],
+                totalMoney: 475, closedAt: Date(timeIntervalSinceNow: closed), oyesWinsByAlias: ["DAN": 2])
         }
         return [round("a", "20 oct", start: 10, rob: -8, fer: 3, closed: -86_400),
                 round("b", "13 oct", start: 1, rob: -9, fer: 0, closed: -7 * 86_400)]

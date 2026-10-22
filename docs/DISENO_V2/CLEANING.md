@@ -11,7 +11,9 @@ Anotado el 21-oct a pedido de Daniel. Nada de esto se toca hasta que él lo deci
 
 **Qué sí permite el editor:** activar/desactivar cada tag (interruptor), cambiar cuántas unidades vale (stepper) y agregar una unidad nueva manual (nombre, tipo Individual/Parejas, valor). El alcance de la apuesta de putts (F9/B9/18/Vuelta) también se edita ahí.
 
-**Lo que NO está resuelto:**
+**RESUELTO el 21-oct en el Paso 11** (ver PROGRESO.md). Estado de cada punto, abajo. Lo que sigue sin resolver está marcado.
+
+**Hallazgos originales:**
 1. **Los interruptores de Oyes, Oyes Parejas y Match Parejas no hacen nada.** Ninguna regla de `MatchManager` consulta si esos tags están activos: Oyes y parejas se calculan siempre. Daniel dice que Oyes Parejas y Match Parejas no son indispensables → deben poder apagarse de verdad (decisión pendiente: ocultar la sección/la tarjeta de Oyes de parejas y el match de parejas cuando estén apagados).
 2. **El valor "Vale" de Oyes se ignora.** El Oyes vale siempre 1 unidad (`oyesUnitForHole` solo usa un valor por hoyo que pone la voz; el catálogo no se lee).
 3. **No se puede borrar ni renombrar una unidad creada.** `BetDefinitionStore.remove` existe pero el editor no lo expone; tampoco hay edición de nombre.
@@ -21,3 +23,13 @@ Anotado el 21-oct a pedido de Daniel. Nada de esto se toca hasta que él lo deci
 7. Cambiar el catálogo no recalcula el match en curso hasta volver a Setup (`setupDefaultBets()` al cerrar el Setup).
 
 **Propuesta para cuando se haga la edición** (a decidir con Daniel): un acceso "Catálogo" propio en la v2 (desde la hoja Unidades y desde el Setup), con interruptores que sí apliquen a Oyes/Parejas, borrar/renombrar unidades, y capturar unidades de parejas.
+
+### Estado tras el Paso 11 (21-oct)
+1. ✅ Oyes, Oyes Parejas y Match Parejas ahora se apagan de verdad (dejan de contar; sin Oyes no sale la tarjeta de Oyes en el hoyo).
+2. ✅ El "Vale" de Oyes / Oyes Parejas se usa (si el hoyo no trae un valor propio puesto por la voz).
+3. ✅ Se pueden renombrar y borrar las unidades creadas por el usuario (las que trae la app solo se apagan o cambian de valor).
+4. ➖ Unidades manuales de parejas: no se pueden crear desde la v2 (no hay dónde capturarlas). Las que ya existan siguen en el catálogo de la v1. Pendiente de diseñar si hacen falta.
+5. ➖ Un tercer modo de captura "por input" (contador/paso) no existe; Sandy par y Green en regulación entran como manuales. Pendiente de definir con Daniel si hace falta.
+6. ✅ Una unidad apagada deja de contar y sus eventos se conservan; al reactivarla vuelven a contar.
+7. ✅ El catálogo se aplica al match en curso al instante (`setupDefaultBets()` en cada cambio).
+8. ⬜ Carry duplicado en Resultado (§A): sigue pendiente de decidir cuál conserva Daniel.

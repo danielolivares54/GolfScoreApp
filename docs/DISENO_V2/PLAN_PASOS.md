@@ -89,13 +89,13 @@ La voz NO se construye dentro de la Vista v2. Se hará después como **v2t**, un
 - **Crear/Editar:** `V2/HistorialV2.swift`, `V2/MyHistoryV2.swift`.
 - **Incluye:** todos los datos de GAP §2.8 y §2.9; "VIGENTE" según decisión de Daniel (pendiente — preguntar antes).
 
-## Paso 10 — Pantallas secundarias
+## Paso 10 — Pantallas secundarias — HECHO (21-oct: todas se abren desde la v2; ver GAP filas 10–13)
 
 - `UnitLogDetailView`, `CarryB9CardView`, `BetSetupSheet`/`BetsHubView`/editores, `PlayerDirectoryView`: abrir las vistas v1 desde v2 (ya garantiza paridad). Rediseñarlas solo si Daniel lo pide.
 
 ---
 
-## Paso 11 — Editar el catálogo de apuestas ("tag") — FALTA para terminar las pantallas (decisión de Daniel, 21-oct)
+## Paso 11 — Editar el catálogo de apuestas ("tag") — HECHO (21-oct, `V2/CatalogoV2.swift`)
 
 - **Objetivo:** que el catálogo se pueda editar de verdad desde la v2 (hoy solo existe `BetDefinitionEditorView` en la v1, por ⚙ → Apuestas → Catálogo). Hallazgos en `CLEANING.md` §B.
 - **Leer:** `BetCatalog.swift` (`BetDefinitionEditorView`, `BetDefinitionNewView`, `BetDefinitionStore`), `CLEANING.md` §B, `MatchManager.swift` (`setupDefaultBets`, `oyesUnitForHole`, `enabledCalculatedTags`).

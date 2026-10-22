@@ -41,7 +41,7 @@ struct HoleScreenV2: View {
                     statusStrip
                     holeEventsCard
                     playersCard
-                    if par == 3 && !matchManager.players.isEmpty { oyesCard }
+                    if par == 3 && matchManager.isOyesEnabled && !matchManager.players.isEmpty { oyesCard }
                     nextHoleButton
                 }
                 .padding(CSV2.s2)
@@ -239,7 +239,7 @@ struct HoleScreenV2: View {
                 .accessibilityLabel("Un golpe menos para \(player.name)")
                 ScoreMarkV2(gross: score > 0 ? score : nil, par: par, size: 44,
                             strokeDots: receivesFromMe ? strokes : 0,
-                            hasEvent: matchManager.oyesRanksByHole[currentHole]?[player.alias] == 1)
+                            hasEvent: matchManager.isOyesEnabled && matchManager.oyesRanksByHole[currentHole]?[player.alias] == 1)
                     .frame(width: 56)
                 StepButtonV2(symbol: "plus") {
                     let base = score > 0 ? score : par
@@ -332,7 +332,7 @@ struct HoleScreenV2: View {
 
     /// Quien ganó el Oyes (puesto 1), igual que el distintivo "Oyes" de la v1.
     private var oyesWinners: [String] {
-        guard par == 3 else { return [] }
+        guard par == 3, matchManager.isOyesEnabled else { return [] }
         return matchManager.players.map(\.alias).filter { matchManager.oyesRanksByHole[currentHole]?[$0] == 1 }
     }
 

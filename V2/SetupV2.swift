@@ -22,6 +22,7 @@ struct SetupV2: View {
     @State private var showDirectory = false
     @State private var showHistory = false
     @State private var showBets = false
+    @State private var showCatalog = false
 
     private let stepTitles = ["Campo", "Oponentes", "Parejas"]
 
@@ -47,6 +48,7 @@ struct SetupV2: View {
         .onChange(of: model.base2) { _, _ in model.syncLanes() }
         .sheet(isPresented: $showDirectory) { PlayerDirectoryView() }
         .sheet(isPresented: $showHistory) { HistorialV2() }
+        .sheet(isPresented: $showCatalog) { CatalogoV2(matchManager: matchManager) }
         .sheet(isPresented: $showBets, onDismiss: {
             // Recoge altas/bajas/cambios de valor hechos en el catálogo para que ya aparezcan en este Setup.
             matchManager.setupDefaultBets()
@@ -189,6 +191,7 @@ struct SetupV2: View {
             toolButton("Log", "clock.arrow.circlepath") { showHistory = true }
             toolButton("Directorio", "person.text.rectangle") { showDirectory = true }
             toolButton("Apuestas", "dollarsign.circle") { showBets = true }
+            toolButton("Catálogo", "slider.horizontal.3") { showCatalog = true }
         }
     }
 
