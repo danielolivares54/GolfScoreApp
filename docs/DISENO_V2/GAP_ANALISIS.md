@@ -18,7 +18,7 @@ Status: ✅ done · 🟡 partial · ⬜ not started · ➖ out of v2 scope (stay
 | 4 | `TarjetaSheetView` (golpes) | `TarjetaV2` | 🟡 | P-B |
 | 5 | (new presentation) units / notes | `EventSheetV2`, `NoteSheetV2` | ⬜ | P-A (with #1) |
 | 6 | `HoleAuditView` + `HoleCorrectionSheet` | `AuditV2` | ⬜ | P-C |
-| 7 | `GuidedSetupView` (4 steps) | `SetupV2` | ⬜ | P-C |
+| 7 | `GuidedSetupView` (4 steps) | `SetupV2` | 🟡 steps 1–3 done; Apuestas/Directorio/Log open the v1 views | P-C |
 | 8 | `RoundHistoryView` | `HistorialV2` | ⬜ | P-D |
 | 9 | `MyHistoryView` (stats) | `MyHistoryV2` | ⬜ | P-D |
 | 10 | `UnitLogDetailView` | v1 view shown from v2 (restyle later) | 🟡 opened from MatchDetailV2 | P-D |
@@ -82,11 +82,11 @@ v1 shows / does — all must exist in v2:
 - [x] List of holes with data, incomplete count, per-hole status, oye rank, units, net "→"
 - [x] Tap → correction sheet (score, putts, oye) → "Guardar corrección" (same save)
 
-### 7. `GuidedSetupView` → `SetupV2` ⬜
-- [ ] Step 1: course, start hole (and the R1 warning text)
-- [ ] Step 2: players (directory link, add/remove, "4 de 5"), strokes per rival with ½, **sign hint in words** (v1: "Positivo = le das strokes · negativo = te da strokes" → v2: "ALC recibe 3½"), bet template per rival
-- [ ] Step 3: **base pair** (`PAREJA BASE`), lanes vs each opponent pair (rotating), strokes per lane with ½, carrier ("Da strokes"/lleva), bet template, amount, unit value, log
-- [ ] Step 4: Apuestas (catalog) — embed v1 content
+### 7. `GuidedSetupView` → `SetupV2` 🟡
+- [x] Step 1: course, start hole (and the R1 warning text)
+- [x] Step 2: players (directory link, add/remove, "4 de 5"), strokes per rival with ½, **sign hint in words** (v1: "Positivo = le das strokes · negativo = te da strokes" → v2: "ALC recibe 3½"), bet template per rival
+- [x] Step 3: **base pair** (`PAREJA BASE`), lanes vs each opponent pair (rotating), strokes per lane with ½, carrier ("Da strokes"/lleva), bet template, amount, unit value, log
+- [x] Step 4: Apuestas (catalog) — embed v1 content
 - Note: v1 has no pair on/off switch and builds lanes from the base pair. The v2 mockup's "3 independent pairs with a switch" must follow the real model (base pair + lanes); don't add a switch.
 
 ### 8. `RoundHistoryView` → `HistorialV2` ⬜

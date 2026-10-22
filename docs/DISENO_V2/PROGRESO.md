@@ -86,3 +86,9 @@
 - Decisión de Daniel: mover el guardado del Setup a `MatchManager` para que la activación por voz del Setup (fase con el Watch / v2t) use la misma lógica.
 - `MatchManager.applySetupDraft`, `applyCourseAndStartHole` y `setupLanes` (movidos tal cual desde `GuidedSetupView`; la v1 ahora los llama). 4 pruebas nuevas en `SetupDraftTests` (guardar el mismo borrador no cambia nada, cambiar salida resetea Carry, cambiar strokes, carriles). 49 pruebas verdes.
 - Decisión de Daniel: **editar el catálogo ("tag") queda como tarea pendiente para terminar las pantallas** → Paso 11 en PLAN_PASOS.md.
+
+## Paso 8 — SetupV2 (21-oct)
+- `V2/SetupV2.swift`: 3 pasos (Campo y hoyo de salida · Oponentes con strokes y apuesta por rival · Parejas con pareja base, carriles y apuesta de parejas). Strokes en palabras con los hoyos donde caen ("DAN recibe 8 · hoyos …"), controles grandes, ½. Log, Directorio y Apuestas abren las vistas de la v1. El engranaje de `HoleScreenV2` abre `SetupV2`.
+- Lógica compartida (no duplicada en la vista): `SetupDraftModel` (estado y reglas del Setup), `MatchManager.applySetupDraft` / `applyCourseAndStartHole` / `setupLanes` / `setupAliases` / `strokeHolesText`. 55 pruebas verdes (+6 del modelo).
+- Observación: en los carriles de pareja, quien "lleva" (strokeCarrier) es quien recibe los strokes (los puntos van en su columna); la v1 lo rotula "Da strokes". La v2 dice "Quién lleva los strokes". Pendiente confirmar con Daniel.
+- Falta revisión en simulador: cambiar hoyo de salida / strokes en v2 y ver el efecto en v1.

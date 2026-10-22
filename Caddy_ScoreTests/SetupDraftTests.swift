@@ -80,4 +80,70 @@ struct SetupDraftTests {
         #expect(four[0].id == "DAN-FER-vs-RIC-ROB")
         #expect(MatchManager.setupLanes(base: ["DAN"], allAliases: ["DAN", "FER"]).isEmpty)
     }
+
+    // MARK: Modelo del borrador (SetupDraftModel, usado por SetupV2)
+
+    @Test func aliasesUseTheFirstThreeLettersAndNumberDuplicates() {
+        let list = MatchManager.setupAliases(from: ["Daniel", "Fernando", "Roberto", "Robin", " ", "123"])
+        #expect(list.map(\.alias) == ["DAN", "FER", "ROB", "ROB1"])
+    }
+
+    @Test func loadedModelSavesWithoutChangingTheMatch() {
+        let m = DemoFixture.make()
+        let before = m.resultadoRowsV2().map { "\($0.title)|\($0.f9Net)|\($0.b9Net)|\($0.money)" }
+        let model = SetupDraftModel(manager: m)
+        model.load()
+        #expect(model.aliases == ["DAN", "FER", "ROB", "RIC", "ANS"])
+        #expect(model.baseAliases == ["DAN", "FER"])
+        #expect(model.lanes.count == 3)
+        model.save()
+        let after = m.resultadoRowsV2().map { "\($0.title)|\($0.f9Net)|\($0.b9Net)|\($0.money)" }
+        #expect(after == before)
+    }
+
+    @Test func modelLimitsPlayersToFiveAndCleansRemovedOnes() {
+        let m = DemoFixture.make()
+        let model = SetupDraftModel(manager: m)
+        model.load()
+        model.addPlayer("Sexto", directoryMatch: nil)
+        #expect(model.playerNames.count == 5)           // ya eran 5
+        model.removePlayer(at: 4)                       // quita a ANS
+        #expect(model.strokesByAlias["ANS"] == nil)
+        #expect(model.templateIdByOpponent["ANS"] == nil)
+        #expect(model.lanes.count == 1)                 // con 4 jugadores queda un carril
+        #expect(model.canAdvance(step: 1))
+    }
+
+    @Test func strokeStepsAdjustByWholeAndHalf() {
+        let m = DemoFixture.make()
+        let model = SetupDraftModel(manager: m)
+        model.load()
+        model.adjustStroke(alias: "FER", delta: 1)
+        model.adjustStroke(alias: "FER", delta: 0.5)
+        #expect(model.strokesByAlias["FER"] == 1.5)
+        let key = model.lanes[0].id
+        model.adjustLaneStroke(key: key, delta: -50)
+        #expect(model.laneStrokes[key] == 0)            // las parejas no bajan de 0
+    }
+
+    @Test func canAdvanceFollowsTheV1Conditions() {
+        let m = DemoFixture.make()
+        let model = SetupDraftModel(manager: m)
+        model.load()
+        #expect(model.canAdvance(step: 0) && model.canAdvance(step: 2))
+        model.base2 = model.base1
+        #expect(!model.canAdvance(step: 2))
+        model.startHole = 19
+        #expect(!model.canAdvance(step: 0))
+    }
+
+    @Test func strokeHolesTextListsWholeAndHalfHoles() {
+        let m = DemoFixture.make()
+        let eight = m.strokeHolesText(total: -8, startHole: 1)
+        #expect(eight?.hasPrefix("hoyos ") == true)
+        #expect(eight?.contains("½") == false)
+        let split = m.strokeHolesText(total: 3.5, startHole: 1)
+        #expect(split?.contains(" y ½ en ") == true)
+        #expect(m.strokeHolesText(total: 0, startHole: 1) == nil)
+    }
 }

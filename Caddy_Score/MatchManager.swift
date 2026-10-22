@@ -4068,3 +4068,191 @@ extension MatchManager {
         finishSetupApply()
     }
 }
+
+// MARK: - Borrador del Setup (estado y reglas del Setup guiado, para la Vista v2)
+//
+// Misma lógica que GuidedSetupView (loadDefaults, addPlayerName, syncStrokes, syncLaneSetupState, ajustes de
+// strokes): vive aquí, fuera de la vista, para poder probarla. La v1 conserva su copia en @State.
+
+extension MatchManager {
+    /// Alias de cada nombre: 3 primeras letras en mayúsculas, con contador si se repiten (igual que el Setup de la v1).
+    static func setupAliases(from names: [String]) -> [(alias: String, name: String)] {
+        var out: [(alias: String, name: String)] = []
+        for name in names {
+            let clean = name.trimmingCharacters(in: .whitespacesAndNewlines)
+            if clean.isEmpty { continue }
+            let letters = clean.uppercased().filter { $0.isLetter }
+            if letters.isEmpty { continue }
+            let existing = out.map { $0.alias }
+            var alias = String(letters.prefix(3))
+            var counter = 1
+            while existing.contains(alias) { alias = String(letters.prefix(3)) + String(counter); counter += 1 }
+            out.append((alias: alias, name: clean))
+        }
+        return out
+    }
+
+    /// Hoyos donde cae cada golpe, en orden de juego: "hoyos 17, 4, 11 y ½ en 2" (nil si no hay golpes).
+    func strokeHolesText(total: Double, startHole: Int) -> String? {
+        let amount = abs(total)
+        guard amount > 0, holes.count == 18 else { return nil }
+        let start = max(1, min(18, startHole))
+        let order = (0..<18).map { ((start - 1 + $0) % 18) + 1 }
+        var whole: [Int] = []
+        var halves: [Int] = []
+        for hole in order {
+            let v = Self.distributedStrokes(total: amount, hole: hole, startHole: start, holes: holes)
+            if v >= 1 { whole.append(hole) } else if v > 0 { halves.append(hole) }
+        }
+        var parts: [String] = []
+        if !whole.isEmpty { parts.append("hoyos " + whole.map(String.init).joined(separator: ", ")) }
+        if !halves.isEmpty { parts.append("½ en " + halves.map(String.init).joined(separator: ", ")) }
+        guard !parts.isEmpty else { return nil }
+        return parts.joined(separator: " y ")
+    }
+}
+
+final class SetupDraftModel: ObservableObject {
+    let manager: MatchManager
+    @Published var courseId = ""
+    @Published var startHole = 1
+    @Published var playerNames: [String] = []
+    @Published var strokesByAlias: [String: Double] = [:]
+    @Published var templateIdByOpponent: [String: String] = [:]
+    @Published var base1 = ""
+    @Published var base2 = ""
+    @Published var laneStrokes: [String: Double] = [:]
+    @Published var laneCarrierByKey: [String: String] = [:]
+    @Published var selectedTemplateId = ""
+    @Published var vueltaValueText = ""
+
+    init(manager: MatchManager) { self.manager = manager }
+
+    var aliasList: [(alias: String, name: String)] { MatchManager.setupAliases(from: playerNames) }
+    var aliases: [String] { aliasList.map { $0.alias } }
+    var rivals: [(alias: String, name: String)] { aliasList.filter { $0.alias != manager.yoAlias } }
+    var baseAliases: [String] { [base1, base2].filter { !$0.isEmpty } }
+    var opponentsForBase: [String] { aliases.filter { !baseAliases.contains($0) } }
+    var lanes: [(id: String, base: [String], opp: [String])] {
+        MatchManager.setupLanes(base: baseAliases, allAliases: aliases)
+    }
+
+    var draft: MatchManager.SetupDraft {
+        MatchManager.SetupDraft(
+            courseId: courseId, startHole: startHole, playerNames: playerNames, aliases: aliases,
+            strokesByAlias: strokesByAlias, templateIdByOpponent: templateIdByOpponent,
+            base1: base1, base2: base2, laneStrokes: laneStrokes, laneCarrierByKey: laneCarrierByKey,
+            selectedTemplateId: selectedTemplateId, vueltaValueText: vueltaValueText)
+    }
+
+    /// Carga lo que tiene el match en curso (solo la primera vez).
+    func load() {
+        if !courseId.isEmpty { return }
+        courseId = manager.courseId.isEmpty ? CourseCatalog.default.id : manager.courseId
+        startHole = manager.startHole
+        playerNames = manager.players.map { $0.name }
+        syncStrokes()
+        // Restaura la pareja base real del match; si no hay (match nuevo), caen los dos primeros.
+        let live = Set(manager.players.map { $0.alias })
+        let existing = manager.baseTeamAliases.filter { live.contains($0) }
+        if existing.count >= 2 {
+            base1 = existing[0]; base2 = existing[1]
+        } else {
+            if let first = aliasList.first?.alias { base1 = first }
+            if aliasList.count > 1 { base2 = aliasList[1].alias }
+        }
+        syncLanes()
+        vueltaValueText = manager.vueltaValue > 0 ? "\(manager.vueltaValue)" : ""
+        selectedTemplateId = manager.activeTemplateId ?? ""
+    }
+
+    func syncStrokes() {
+        let current = aliases.filter { $0 != manager.yoAlias }
+        for a in current where strokesByAlias[a] == nil {
+            // Un jugador que YA está en el match conserva exactamente sus strokes (también 0); uno nuevo arranca en 0.
+            strokesByAlias[a] = manager.players.first(where: { $0.alias == a })?.strokesVsBase ?? 0
+        }
+        for key in strokesByAlias.keys where !current.contains(key) { strokesByAlias.removeValue(forKey: key) }
+        for a in current where templateIdByOpponent[a] == nil {
+            templateIdByOpponent[a] = manager.betValuesByOpponent[a]?.templateId
+                ?? BetTemplateStore.shared.entries.first?.id ?? ""
+        }
+        for key in templateIdByOpponent.keys where !current.contains(key) { templateIdByOpponent.removeValue(forKey: key) }
+    }
+
+    func syncBaseDefaults() {
+        if base1.isEmpty, let first = aliasList.first?.alias { base1 = first }
+        if base2.isEmpty, aliasList.count > 1 { base2 = aliasList[1].alias }
+    }
+
+    func syncLanes() {
+        let current = lanes
+        let keys = Set(current.map { $0.id })
+        for lane in current {
+            if laneStrokes[lane.id] == nil {
+                if let existing = manager.lanes.first(where: { Set($0.base) == Set(lane.base) && Set($0.opp) == Set(lane.opp) }) {
+                    laneStrokes[lane.id] = existing.strokes
+                    laneCarrierByKey[lane.id] = existing.strokeCarrier ?? ""
+                } else {
+                    laneStrokes[lane.id] = 0; laneCarrierByKey[lane.id] = ""
+                }
+            } else if laneCarrierByKey[lane.id] == nil {
+                laneCarrierByKey[lane.id] = ""
+            }
+        }
+        for key in laneStrokes.keys where !keys.contains(key) { laneStrokes.removeValue(forKey: key) }
+        for key in laneCarrierByKey.keys where !keys.contains(key) { laneCarrierByKey.removeValue(forKey: key) }
+    }
+
+    /// Agrega un jugador (máximo 5). Si viene del directorio, toma sus strokes y plantilla.
+    func addPlayer(_ rawName: String, directoryMatch: PlayerDirectoryEntry?) {
+        let clean = rawName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !clean.isEmpty, playerNames.count < 5 else { return }
+        let match = directoryMatch ?? PlayerDirectoryStore.shared.entries.first(where: {
+            $0.name.caseInsensitiveCompare(clean) == .orderedSame
+        })
+        playerNames.append(clean)
+        syncStrokes(); syncBaseDefaults(); syncLanes()
+        if let match, match.name.caseInsensitiveCompare(clean) == .orderedSame,
+           let alias = aliasList.first(where: { $0.name == clean })?.alias {
+            strokesByAlias[alias] = match.strokesVsBase
+            if let tag = match.preferredTagId { templateIdByOpponent[alias] = tag }
+        }
+    }
+
+    func removePlayer(at index: Int) {
+        guard playerNames.indices.contains(index) else { return }
+        playerNames.remove(at: index)
+        syncStrokes(); syncBaseDefaults(); syncLanes()
+    }
+
+    func adjustStroke(alias: String, delta: Double) {
+        let next = max(-20, min(20, (strokesByAlias[alias] ?? 0) + delta))
+        strokesByAlias[alias] = (next * 2).rounded() / 2
+    }
+
+    func adjustLaneStroke(key: String, delta: Double) {
+        let next = max(0, min(20, (laneStrokes[key] ?? 0) + delta))
+        laneStrokes[key] = (next * 2).rounded() / 2
+    }
+
+    func applyTemplate(_ template: BetTemplate) {
+        selectedTemplateId = template.id
+        vueltaValueText = "\(template.vueltaValue)"
+    }
+
+    /// Mismas condiciones que `canAdvance()` de la v1. step: 0 = Campo, 1 = Oponentes, 2 = Parejas.
+    func canAdvance(step: Int) -> Bool {
+        switch step {
+        case 0: return !courseId.isEmpty && startHole >= 1 && startHole <= 18
+        case 1: return playerNames.count >= 2 && playerNames.count <= 5 && !aliasList.isEmpty
+        default: return aliasList.count < 4 || (base1 != base2 && !base1.isEmpty && !base2.isEmpty)
+        }
+    }
+
+    func applyCourseAndStartHole() {
+        manager.applyCourseAndStartHole(courseId: courseId, startHole: startHole)
+    }
+
+    func save() { manager.applySetupDraft(draft) }
+}

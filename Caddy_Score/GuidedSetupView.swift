@@ -854,24 +854,7 @@ struct GuidedSetupView: View {
     }
 
     private func buildAliases(from names: [String]) -> [(alias: String, name: String)] {
-        var out: [(alias: String, name: String)] = []
-        for name in names {
-            let clean = name.trimmingCharacters(in: .whitespacesAndNewlines)
-            if clean.isEmpty { continue }
-            let alias = suggestAliasLocal(name: clean, existing: out.map { $0.alias })
-            if alias.isEmpty { continue }
-            out.append((alias: alias, name: clean))
-        }
-        return out
-    }
-
-    private func suggestAliasLocal(name: String, existing: [String]) -> String {
-        let letters = name.uppercased().filter { $0.isLetter }
-        if letters.isEmpty { return "" }
-        var alias = String(letters.prefix(3))
-        var counter = 1
-        while existing.contains(alias) { alias = String(letters.prefix(3)) + String(counter); counter += 1 }
-        return alias
+        MatchManager.setupAliases(from: names)
     }
 
     private func formatStroke(_ value: Double) -> String {
