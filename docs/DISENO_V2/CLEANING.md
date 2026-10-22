@@ -28,7 +28,7 @@ Anotado el 21-oct a pedido de Daniel. Nada de esto se toca hasta que él lo deci
 1. ✅ Oyes, Oyes Parejas y Match Parejas ahora se apagan de verdad (dejan de contar; sin Oyes no sale la tarjeta de Oyes en el hoyo).
 2. ✅ El "Vale" de Oyes / Oyes Parejas se usa (si el hoyo no trae un valor propio puesto por la voz).
 3. ✅ Se pueden renombrar y borrar las unidades creadas por el usuario (las que trae la app solo se apagan o cambian de valor).
-4. ➖ Unidades manuales de parejas: no se pueden crear desde la v2 (no hay dónde capturarlas). Las que ya existan siguen en el catálogo de la v1. Pendiente de diseñar si hacen falta.
+4. ✅ ELIMINADO por decisión de Daniel (21-oct): las unidades de parejas no son relevantes, el tag se define solo. No se capturan ni se crean desde la v2.
 5. ➖ Un tercer modo de captura "por input" (contador/paso) no existe; Sandy par y Green en regulación entran como manuales. Pendiente de definir con Daniel si hace falta.
 6. ✅ Una unidad apagada deja de contar y sus eventos se conservan; al reactivarla vuelven a contar.
 7. ✅ El catálogo se aplica al match en curso al instante (`setupDefaultBets()` en cada cambio).
