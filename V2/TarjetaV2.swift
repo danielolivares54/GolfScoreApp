@@ -15,6 +15,15 @@ struct TarjetaV2: View {
     @Environment(\.dismiss) private var dismiss
     /// 0 = primer nueve jugado (F9), 1 = segundo (B9). Con salida en 10: F9 = 10–18, B9 = 1–9.
     @State private var nineIndex = 0
+    /// Apagado = golpes; encendido = putts en las mismas celdas y total de putts por nueve (decisión de Daniel).
+    @State private var showPutts: Bool
+    /// Hoyo actual COMPARTIDO con la v1/HoleScreenV2: la fila de ese hoyo va en verde y tocar una celda lo cambia.
+    @AppStorage("currentHoleIndex") private var currentHoleIndex = 0
+
+    init(matchManager: MatchManager, startWithPutts: Bool = false) {
+        self.matchManager = matchManager
+        _showPutts = State(initialValue: startWithPutts)
+    }
 
     private var players: [PlayerModel] { matchManager.players }
 
@@ -34,7 +43,7 @@ struct TarjetaV2: View {
                         }
                         .pickerStyle(.segmented)
                         playersLine
-                        legend
+                        if !showPutts { legend }
                     }
                 }
                 .padding(.horizontal, CSV2.s2).padding(.bottom, CSV2.s1)
@@ -68,6 +77,11 @@ struct TarjetaV2: View {
             .buttonStyle(.plain)
             Spacer()
             Text("Tarjeta").font(.v2Name).foregroundStyle(CSV2.ink)
+            Spacer()
+            Toggle("Putts", isOn: $showPutts)
+                .font(.v2Body).foregroundStyle(CSV2.ink)
+                .fixedSize()
+                .tint(CSV2.green)
         }
     }
 
@@ -148,15 +162,44 @@ struct TarjetaV2: View {
                 .frame(width: ColumnT.par)
             HcpCellV2(hcp: hole.hcp).frame(width: ColumnT.hcp)
             ForEach(Array(hole.cells.enumerated()), id: \.offset) { index, cell in
-                ScoreMarkV2(gross: cell.gross, par: hole.par, size: 32,
-                            strokeDots: cell.strokes, hasEvent: cell.hasEvent)
-                    .frame(maxWidth: .infinity)
-                    .accessibilityElement(children: .ignore)
-                    .accessibilityLabel(cellLabel(player: players[index].alias, hole: hole, cell: cell))
+                Button { goToHole(hole.hole) } label: {
+                    cellMark(hole: hole, cell: cell)
+                        .frame(maxWidth: .infinity, minHeight: 52)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(cellLabel(player: players[index].alias, hole: hole, cell: cell))
+                .accessibilityHint("Va al hoyo \(hole.hole)")
             }
         }
         .padding(.horizontal, CSV2.s1 + 4)
         .frame(height: 52)
+        .background(hole.hole == currentHole ? CSV2.green.opacity(0.14) : Color.clear)
+    }
+
+    /// Golpes con su marca de golf, o los putts como número simple (sin color de par: no hay par de putts).
+    @ViewBuilder private func cellMark(hole: MatchManager.TarjetaHoleV2, cell: MatchManager.TarjetaCellV2) -> some View {
+        if showPutts {
+            Text(cell.putts.map(String.init) ?? "—")
+                .font(.system(size: 32 * 0.58, weight: .heavy).monospacedDigit())
+                .foregroundStyle(cell.putts == nil ? CSV2.secondary : CSV2.ink)
+                .frame(width: 32, height: 32)
+        } else {
+            ScoreMarkV2(gross: cell.gross, par: hole.par, size: 32,
+                        strokeDots: cell.strokes, hasEvent: cell.hasEvent)
+        }
+    }
+
+    private var currentHole: Int {
+        let order = matchManager.playOrder()
+        return order.indices.contains(currentHoleIndex) ? order[currentHoleIndex] : 1
+    }
+
+    /// Tocar una celda lleva a ese hoyo en la pantalla de captura (el dictado a ese jugador se conectará con v2t).
+    private func goToHole(_ hole: Int) {
+        if let index = matchManager.playOrder().firstIndex(of: hole) { currentHoleIndex = index }
+        dismiss()
     }
 
     /// Fila de cierre (fondo oscuro): nombre del nueve, suma del par y golpes totales por jugador.
@@ -165,7 +208,7 @@ struct TarjetaV2: View {
             Text(nine.name).frame(width: ColumnT.hole, alignment: .leading)
             Text("\(nine.parTotal)").frame(width: ColumnT.par)
             Spacer().frame(width: ColumnT.hcp)
-            ForEach(Array(nine.grossTotals.enumerated()), id: \.offset) { _, total in
+            ForEach(Array((showPutts ? nine.puttsTotals : nine.grossTotals).enumerated()), id: \.offset) { _, total in
                 Text(total.map(String.init) ?? "—").frame(maxWidth: .infinity)
             }
         }
@@ -180,13 +223,13 @@ struct TarjetaV2: View {
     private func total18(_ nines: [MatchManager.TarjetaNineV2]) -> some View {
         let par = nines.reduce(0) { $0 + $1.parTotal }
         let totals: [Int?] = players.indices.map { i in
-            let parts = nines.compactMap { $0.grossTotals[i] }
+            let parts = nines.compactMap { showPutts ? $0.puttsTotals[i] : $0.grossTotals[i] }
             return parts.isEmpty ? nil : parts.reduce(0, +)
         }
         // Segunda línea de la fila de cierre (mismo fondo oscuro): así la tabla y sus totales caben juntos.
         return HStack(spacing: 0) {
             // Mismos anchos que la tabla: etiqueta sobre Hoyo+P, par en la columna HCP, golpes bajo cada jugador.
-            Text("Total 18").frame(width: ColumnT.hole + ColumnT.par, alignment: .leading)
+            Text(showPutts ? "Putts 18" : "Total 18").frame(width: ColumnT.hole + ColumnT.par, alignment: .leading)
             Text("\(par)").frame(width: ColumnT.hcp)
             ForEach(Array(totals.enumerated()), id: \.offset) { _, total in
                 Text(total.map(String.init) ?? "—").frame(maxWidth: .infinity)
@@ -203,6 +246,7 @@ struct TarjetaV2: View {
     private func cellLabel(player: String, hole: MatchManager.TarjetaHoleV2, cell: MatchManager.TarjetaCellV2) -> String {
         var text = "\(player), hoyo \(hole.hole), "
         text += cell.gross.map { "\($0) golpes" } ?? "sin anotar"
+        if let putts = cell.putts { text += ", \(putts) putts" }
         if cell.strokes >= 1 { text += ", recibe stroke" } else if cell.strokes > 0 { text += ", recibe medio stroke" }
         if cell.hasEvent { text += ", con evento u oye" }
         return text
@@ -226,6 +270,19 @@ private struct HcpCellV2: View {
 }
 
 #if DEBUG
+#Preview("TarjetaV2 · putts, hoyo actual 5") {
+    UserDefaults.standard.set(4, forKey: "currentHoleIndex")
+    let manager = MatchManager()
+    manager.loadDemo18()
+    // El demo no trae putts: se anotan los de DAN (siempre se registran) en los primeros hoyos.
+    for (hole, putts) in [(1, 2), (2, 3), (3, 2), (4, 2), (5, 1)] {
+        manager.applyHoleEntry(HoleEntryData(hole_number: hole, player_alias: "DAN",
+                                             strokes: manager.getScore(hole: hole, player: "DAN"),
+                                             putts: putts, units: nil, tags: nil))
+    }
+    return TarjetaV2(matchManager: manager, startWithPutts: true)
+}
+
 #Preview("TarjetaV2 · ronda demo") {
     let manager = MatchManager()
     manager.loadDemo18()

@@ -98,4 +98,56 @@ struct TarjetaV2DataTests {
         #expect(byHole[1]?.cells[fer].hasEvent == false)
         #expect(byHole[1]?.cells[dan].hasEvent == false)
     }
+
+    // MARK: Putts (Paso 5)
+
+    @Test func puttsCellsAndTotalsMatchTheManager() {
+        let m = DemoFixture.make()
+        let nines = m.tarjetaNinesV2()
+        for nine in nines {
+            for (i, player) in m.players.enumerated() {
+                let expected = nine.holes.map { m.getPutts(hole: $0.hole, player: player.alias) }.filter { $0 > 0 }
+                #expect(nine.puttsTotals[i] == (expected.isEmpty ? nil : expected.reduce(0, +)))
+                for hole in nine.holes {
+                    let value = m.getPutts(hole: hole.hole, player: player.alias)
+                    #expect(hole.cells[i].putts == (value > 0 ? value : nil))
+                }
+            }
+        }
+    }
+
+    @Test func danPuttsAreRecordedAndSummed() {
+        let m = DemoFixture.make()
+        for (hole, putts) in [(1, 2), (2, 3), (3, 2)] {
+            m.applyHoleEntry(HoleEntryData(hole_number: hole, player_alias: "DAN",
+                                           strokes: m.getScore(hole: hole, player: "DAN"),
+                                           putts: putts, units: nil, tags: nil))
+        }
+        let f9 = m.tarjetaNinesV2()[0]
+        #expect(f9.holes[0].cells[dan].putts == 2)
+        #expect(f9.holes[1].cells[dan].putts == 3)
+        #expect(f9.holes[3].cells[dan].putts == nil)
+        #expect(f9.puttsTotals[dan] == 7)
+    }
+
+    @Test func puttsFollowTheStartHole() {
+        let m = DemoFixture.make()
+        m.applyHoleEntry(HoleEntryData(hole_number: 1, player_alias: "DAN",
+                                       strokes: m.getScore(hole: 1, player: "DAN"),
+                                       putts: 2, units: nil, tags: nil))
+        let before = m.tarjetaNinesV2()
+        m.updateStartHole(10, resetScores: false)
+        let after = m.tarjetaNinesV2()
+        // Los mismos putts, pero los nueves se intercambian con la salida en el 10.
+        #expect(after[0].puttsTotals == before[1].puttsTotals)
+        #expect(after[1].puttsTotals == before[0].puttsTotals)
+    }
+
+    @Test func holesWithoutPuttsHaveNone() {
+        let m = DemoFixture.make()
+        let hole = m.tarjetaNinesV2()[0].holes[0].hole
+        m.applyHoleEntry(HoleEntryData(hole_number: hole, player_alias: "ANS", strokes: 4, putts: 0, units: nil, tags: nil))
+        let cell = m.tarjetaNinesV2()[0].holes[0].cells[4]
+        #expect(cell.putts == nil)
+    }
 }

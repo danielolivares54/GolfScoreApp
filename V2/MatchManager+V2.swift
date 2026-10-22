@@ -147,6 +147,8 @@ extension MatchManager {
         let strokes: Double
         /// Evento de unidad u oye ganado en ese hoyo (cuadro dorado).
         let hasEvent: Bool
+        /// Putts anotados (nil = sin anotar; solo se registran los de quien rastrea putts, regla R8).
+        let putts: Int?
     }
 
     struct TarjetaHoleV2: Identifiable {
@@ -167,6 +169,8 @@ extension MatchManager {
         let parTotal: Int
         /// Suma de golpes por jugador (nil si no hay ningún score en ese nueve).
         let grossTotals: [Int?]
+        /// Suma de putts por jugador (nil si no hay ninguno en ese nueve).
+        let puttsTotals: [Int?]
         var title: String { "\(name) · \(rangeText)" }
     }
 
@@ -197,7 +201,8 @@ extension MatchManager {
                     return TarjetaCellV2(
                         gross: score > 0 ? score : nil,
                         strokes: distributedStrokes(total: p.strokesVsBase, hole: h),
-                        hasEvent: hasEvent(alias: p.alias, hole: h)
+                        hasEvent: hasEvent(alias: p.alias, hole: h),
+                        putts: getPutts(hole: h, player: p.alias) > 0 ? getPutts(hole: h, player: p.alias) : nil
                     )
                 }
                 return TarjetaHoleV2(hole: h, par: data?.par ?? 4, hcp: data?.si ?? 0, cells: cells)
@@ -206,8 +211,13 @@ extension MatchManager {
                 let scores = holes.compactMap { $0.cells[i].gross }
                 return scores.isEmpty ? nil : scores.reduce(0, +)
             }
+            let puttsTotals: [Int?] = players.indices.map { i in
+                let values = holes.compactMap { $0.cells[i].putts }
+                return values.isEmpty ? nil : values.reduce(0, +)
+            }
             return TarjetaNineV2(name: name, rangeText: Self.rangeTextV2(holeNumbers), holes: holes,
-                                 parTotal: holes.reduce(0) { $0 + $1.par }, grossTotals: totals)
+                                 parTotal: holes.reduce(0) { $0 + $1.par }, grossTotals: totals,
+                                 puttsTotals: puttsTotals)
         }
     }
 

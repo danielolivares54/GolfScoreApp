@@ -66,3 +66,8 @@
 - `HoleScreenV2`: tarjeta "Eventos y notas del hoyo" (arriba de los jugadores) con "DAN Oyes 1º", los eventos de unidad (manuales y calculados, sin BIRD) y las notas. `Evento` y `Nota` de la barra abren `EventSheetV2` (fichas del catálogo manual, agregar/quitar con upsert/removeUnitEvent) y `NoteSheetV2` (upsert "NOTA" / borra si queda vacía). Mismas llamadas que la v1.
 - Compila, 41 pruebas verdes; vistas previas P3_02 a P3_04. Falta revisión en simulador (agregar/quitar en v2 y verlo en v1).
 - Decisión de Daniel (21-oct): "Evento" pasa a llamarse **Unidades**. 3 Putt y Hole Out no son botones especiales: son unidades del catálogo como Sandy par, Green en regulación o Birdie en el 18; cada una se define por su modo de captura y se activa en el catálogo de apuestas. La hoja lista las unidades manuales activas, sin grupos ni tags fijos.
+
+## Paso 5 — TarjetaV2: putts, hoyo actual, tocar celda (21-oct)
+- Interruptor "Putts" (apagado = golpes con sus marcas; encendido = putts en las mismas celdas, total de putts por nueve y "Putts 18"). Datos: `TarjetaCellV2.putts` y `TarjetaNineV2.puttsTotals` (solo putts que ya registra el match, regla R8).
+- Fila del hoyo actual en verde claro (misma clave `currentHoleIndex` que v1 y la pantalla de captura). Tocar una celda lleva a ese hoyo en `HoleScreenV2` y cierra la Tarjeta; el dictado a ese jugador queda para v2t.
+- 45 pruebas verdes (+4 de putts); vista previa P3_05. Falta revisión en simulador.
