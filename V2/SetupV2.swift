@@ -46,7 +46,7 @@ struct SetupV2: View {
         .onChange(of: model.base1) { _, _ in model.syncLanes() }
         .onChange(of: model.base2) { _, _ in model.syncLanes() }
         .sheet(isPresented: $showDirectory) { PlayerDirectoryView() }
-        .sheet(isPresented: $showHistory) { RoundHistoryView() }
+        .sheet(isPresented: $showHistory) { HistorialV2() }
         .sheet(isPresented: $showBets, onDismiss: {
             // Recoge altas/bajas/cambios de valor hechos en el catálogo para que ya aparezcan en este Setup.
             matchManager.setupDefaultBets()

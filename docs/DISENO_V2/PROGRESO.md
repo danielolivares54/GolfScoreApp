@@ -92,3 +92,9 @@
 - Lógica compartida (no duplicada en la vista): `SetupDraftModel` (estado y reglas del Setup), `MatchManager.applySetupDraft` / `applyCourseAndStartHole` / `setupLanes` / `setupAliases` / `strokeHolesText`. 55 pruebas verdes (+6 del modelo).
 - Observación: en los carriles de pareja, quien "lleva" (strokeCarrier) es quien recibe los strokes (los puntos van en su columna); la v1 lo rotula "Da strokes". La v2 dice "Quién lleva los strokes". CONFIRMADO por Daniel (21-oct): en el Setup de parejas se define quién lleva los strokes; solo uno de la pareja los recibe y se puede reasignar al otro si hubo error.
 - Falta revisión en simulador: cambiar hoyo de salida / strokes en v2 y ver el efecto en v1.
+
+## Paso 9 — HistorialV2 y MyHistoryV2 (21-oct)
+- Decisión de Daniel: sin insignia "VIGENTE" ni cuadro beige; línea azul "DAN recibe 8 → próximo: recibe 7" (el "próximo" solo en la ronda más reciente contra cada rival).
+- `V2/HistorialV2.swift`: tarjeta por ronda (fecha · campo, hoyo de salida, total) y por rival: dinero, F9/B9 con flechas, resultado del match en palabras y strokes de esa ronda; filtro por rival; acceso a estadísticas. `V2/MyHistoryV2.swift`: histograma, golpes y putts (Prom. / Este match), promedio vs par por tipo de hoyo, impacto del stroke, oyes y dinero.
+- Las fórmulas de estadísticas se movieron tal cual de `MyHistoryView` a `MyHistoryData` (v1 y v2 las comparten); 6 pruebas nuevas con una ronda cerrada sintética (`MyHistoryDataTests`). 61 pruebas verdes. El Historial de `HoleScreenV2` y el Log del `SetupV2` ya abren `HistorialV2`.
+- No incluido: la etiqueta "En curso" de la spec (el historial solo lee rondas cerradas).

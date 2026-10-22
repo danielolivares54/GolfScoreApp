@@ -303,22 +303,17 @@ struct RoundHistoryView: View {
     }
 }
 
-// MARK: - Mi Historial de Golf
+// MARK: - Datos de "Mi Historial" (compartidos por MyHistoryView y la Vista v2)
 //
-// Estadísticas vitalicias calculadas sobre todas las rondas cerradas (closed_rounds/*.json) —
-// no se guarda nada nuevo aquí salvo oyesWinsByAlias (RoundResultFile), todo lo demás se deriva
-// de scores/strokesVsBase ya archivados + los pares/SI del campo (CourseCatalog).
-// Vive en este archivo (no en uno propio) porque el proyecto no registra automáticamente
-// Target Membership para archivos .swift nuevos vía herramientas — mismo problema que AppIcon.
-struct MyHistoryView: View {
-    @Environment(\.dismiss) private var dismiss
-    @State private var rounds: [RoundResultFile] = []
+// Las cifras salen de las rondas cerradas (closed_rounds/*.json). Se movieron tal cual desde MyHistoryView
+// para que la v2 use EXACTAMENTE las mismas fórmulas.
 
-    private enum HoleResult { case win, tie, loss }
+enum MyHistoryData {
+    enum HoleResult { case win, tie, loss }
 
     // Conteo de hoyos por resultado vs. par. "Doble o peor" se separó en Doble (+2), Triple (+3)
     // y +4 o más para ver cuánto pesa cada tipo de desastre.
-    private struct ScoreCounts {
+    struct ScoreCounts {
         var eagleOrBetter = 0, birdie = 0, par = 0, bogey = 0, double = 0, triple = 0, quadOrMore = 0
 
         mutating func add(diff: Int) {
@@ -336,13 +331,13 @@ struct MyHistoryView: View {
 
     // Cifras de UNA ronda cerrada (mías = round.players.first). F9/B9 siguen el orden de juego de
     // esa ronda (su startHole). Un nueve incompleto deja el valor en nil — no se promedia.
-    private struct RoundFigures {
+    struct RoundFigures {
         var counts = ScoreCounts()
         var strokesF9: Int?, strokesB9: Int?, strokesTotal: Int?
         var puttsF9: Int?, puttsB9: Int?, puttsTotal: Int?
     }
 
-    private static func figures(for round: RoundResultFile) -> RoundFigures? {
+    static func figures(for round: RoundResultFile) -> RoundFigures? {
         guard let yo = round.players.first,
               let course = CourseCatalog.all.first(where: { $0.id == round.courseId }) else { return nil }
         let parByHole = Dictionary(course.holes.map { ($0.number, $0.par) }, uniquingKeysWith: { a, _ in a })
@@ -372,7 +367,7 @@ struct MyHistoryView: View {
         return f
     }
 
-    private struct Stats {
+    struct Stats {
         var counts = ScoreCounts()
         var oyesWins = 0
         var moneyIndividual = 0
@@ -412,7 +407,7 @@ struct MyHistoryView: View {
         }
     }
 
-    private var stats: Stats {
+    static func stats(for rounds: [RoundResultFile]) -> Stats {
         var s = Stats()
         s.matchesCounted = rounds.count
         for round in rounds {
@@ -465,11 +460,29 @@ struct MyHistoryView: View {
         return s
     }
 
-    private static func result(yoGross: Double, oppGross: Double) -> HoleResult {
+    static func result(yoGross: Double, oppGross: Double) -> HoleResult {
         if yoGross < oppGross - 0.001 { return .win }
         if yoGross > oppGross + 0.001 { return .loss }
         return .tie
     }
+}
+
+// MARK: - Mi Historial de Golf
+//
+// Estadísticas vitalicias calculadas sobre todas las rondas cerradas (closed_rounds/*.json) —
+// no se guarda nada nuevo aquí salvo oyesWinsByAlias (RoundResultFile), todo lo demás se deriva
+// de scores/strokesVsBase ya archivados + los pares/SI del campo (CourseCatalog).
+// Vive en este archivo (no en uno propio) porque el proyecto no registra automáticamente
+// Target Membership para archivos .swift nuevos vía herramientas — mismo problema que AppIcon.
+struct MyHistoryView: View {
+    @Environment(\.dismiss) private var dismiss
+    @State private var rounds: [RoundResultFile] = []
+
+    private typealias ScoreCounts = MyHistoryData.ScoreCounts
+    private typealias RoundFigures = MyHistoryData.RoundFigures
+    private typealias Stats = MyHistoryData.Stats
+    private static func figures(for round: RoundResultFile) -> RoundFigures? { MyHistoryData.figures(for: round) }
+    private var stats: Stats { MyHistoryData.stats(for: rounds) }
 
     var body: some View {
         NavigationStack {

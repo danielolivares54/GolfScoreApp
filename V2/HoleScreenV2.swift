@@ -60,7 +60,7 @@ struct HoleScreenV2: View {
         .sheet(isPresented: $showResultado) { ResultadoV2(matchManager: matchManager) }
         .sheet(isPresented: $showAudit) { AuditV2(matchManager: matchManager) }
         .sheet(isPresented: $showSetup) { SetupV2(matchManager: matchManager) }
-        .sheet(isPresented: $showHistory) { RoundHistoryView() }
+        .sheet(isPresented: $showHistory) { HistorialV2() }
         .sheet(isPresented: $showEvento) { EventSheetV2(matchManager: matchManager, hole: currentHole).presentationDetents([.medium, .large]) }
         .sheet(isPresented: $showNota) { NoteSheetV2(matchManager: matchManager, hole: currentHole).presentationDetents([.medium, .large]) }
         .confirmationDialog("¿Cerrar ronda?", isPresented: $showCloseConfirm, titleVisibility: .visible) {

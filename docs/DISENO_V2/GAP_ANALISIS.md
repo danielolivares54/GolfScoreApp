@@ -90,15 +90,15 @@ v1 shows / does — all must exist in v2:
 - Note: v1 has no pair on/off switch and builds lanes from the base pair. The v2 mockup's "3 independent pairs with a switch" must follow the real model (base pair + lanes); don't add a switch.
 
 ### 8. `RoundHistoryView` → `HistorialV2` ⬜
-- [ ] Per round: date, course, start hole, total $
-- [ ] Per rival: name, vuelta and match points, F9/B9, $, strokes that round, next-match strokes, "vigente" state (show as text only if it means something; else drop with OK)
+- [x] Per round: date, course, start hole, total $
+- [x] Per rival: name, vuelta and match points, F9/B9, $, strokes that round, next-match strokes, "vigente" state (show as text only if it means something; else drop with OK)
 
 ### 9. `MyHistoryView` → `MyHistoryV2` ⬜
-- [ ] Golpes (medal, bruto) F9/B9/18 — Acumulado vs Este match
-- [ ] Putts F9/B9/18
-- [ ] Score distribution (águila … +4)
-- [ ] Impacto del stroke (% win/tie when giving / receiving)
-- [ ] Promedio vs par por tipo de hoyo
+- [x] Golpes (medal, bruto) F9/B9/18 — Acumulado vs Este match
+- [x] Putts F9/B9/18
+- [x] Score distribution (águila … +4)
+- [x] Impacto del stroke (% win/tie when giving / receiving)
+- [x] Promedio vs par por tipo de hoyo
 
 ### 10–13. Secondary screens
 - `UnitLogDetailView`, `CarryB9CardView`, `BetSetupSheet`/`BetsHubView`/editors, `PlayerDirectoryView`: open the **v1 views** from v2 first (data parity guaranteed); restyle only after P-A…P-D are done.
@@ -109,7 +109,7 @@ v1 shows / does — all must exist in v2:
 
 1. ✅ "demo" button: **hidden in v2** (stays only in v1).
 2. ✅ Putts in `TarjetaV2`: **a "Putts" toggle** (off = scores, on = putts in the same cells + putt totals per nine).
-3. ⬜ History "VIGENTE" badge: keep as text, or drop? — still open.
+3. ✅ History "VIGENTE" badge: dropped (Daniel, 21-oct); replaced by the blue line "DAN recibe 8 → próximo: recibe 7".
 4. ✅ **Voice is the core of the app and must be complete in v2.** Reuse the existing v2t pipeline (`VoiceRecorder` → `Interpreter`/`OpenAIService` → same validation and setters as v1) — no new parsing or rules. In v2:
    - Big mic in the centre of `RoundBarV2` dictates the whole hole; tapping a player's name dictates only that player (same as v1).
    - Show what was understood and what was applied ("Aplicado · falta FED"), and the same review/confirmation step v1 uses when the interpreter is unsure.
