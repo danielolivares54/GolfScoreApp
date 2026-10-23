@@ -101,11 +101,11 @@ struct ResultadoV2: View {
                     Text("Unid").frame(width: ColumnV2.units, alignment: .trailing)
                     Text("$").frame(width: ColumnV2.money, alignment: .trailing)
                 }
-                .font(.v2Caps).textCase(.uppercase).foregroundStyle(CSV2.secondary)
+                .capsStyleV2()
                 .padding(.horizontal, CSV2.s2).padding(.vertical, 12)
 
                 ForEach(rows) { row in
-                    Rectangle().fill(CSV2.rowLine).frame(height: 1)
+                    RowDividerV2()
                     matchRow(row)
                 }
             }

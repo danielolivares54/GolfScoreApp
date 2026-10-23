@@ -317,6 +317,45 @@ struct RoundBarV2: View {
     }
 }
 
+// MARK: - Repeated small pieces: row divider and the small uppercase caption style
+
+struct RowDividerV2: View {
+    var body: some View { Rectangle().fill(CSV2.rowLine).frame(height: 1) }
+}
+
+extension View {
+    /// Small uppercase grey caption ("INDIVIDUAL", "PUTTS", "PASO 2 DE 3").
+    func capsStyleV2() -> some View {
+        font(.v2Caps).textCase(.uppercase).foregroundStyle(CSV2.secondary)
+    }
+}
+
+// MARK: - Player chips: one row of equal-width chips, one selected (used to pick a player)
+
+struct AliasChipRowV2: View {
+    /// alias shown in the chip + the spoken label for VoiceOver ("Daniel").
+    let items: [(alias: String, label: String)]
+    let selected: String?
+    var tint: Color = CSV2.green
+    let onSelect: (String) -> Void
+
+    var body: some View {
+        HStack(spacing: 6) {
+            ForEach(items, id: \.alias) { item in
+                let on = item.alias == selected
+                Button { onSelect(item.alias) } label: {
+                    Text(item.alias).font(.v2Body).foregroundStyle(on ? .white : CSV2.ink)
+                        .frame(maxWidth: .infinity, minHeight: CSV2.minTap)
+                        .background(on ? tint : CSV2.surface, in: RoundedRectangle(cornerRadius: CSV2.rCell))
+                        .overlay(RoundedRectangle(cornerRadius: CSV2.rCell).stroke(on ? tint : CSV2.line))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("\(item.label)\(on ? ", seleccionado" : "")")
+            }
+        }
+    }
+}
+
 // MARK: - Back button ("‹ Volver", or "‹ Hoyo N" when the title is passed)
 
 struct BackButtonV2: View {

@@ -106,7 +106,7 @@ struct MatchDetailV2: View {
     private func strokesBlock(_ resumen: MatchResumen) -> some View {
         CardV2 {
             VStack(alignment: .leading, spacing: 8) {
-                Text("Strokes").font(.v2Caps).textCase(.uppercase).foregroundStyle(CSV2.secondary)
+                Text("Strokes").capsStyleV2()
                 if let receiver = row.strokesReceiver {
                     StrokeTextV2(receiver: receiver, amount: row.strokesAmount)
                         .font(.v2Body)
@@ -198,7 +198,7 @@ struct MatchDetailV2: View {
         CardV2 {
             VStack(spacing: 0) {
                 ForEach(Array(resumen.filas.enumerated()), id: \.element.id) { index, fila in
-                    if index > 0 { Rectangle().fill(CSV2.rowLine).frame(height: 1) }
+                    if index > 0 { RowDividerV2() }
                     conceptRow(fila)
                 }
             }

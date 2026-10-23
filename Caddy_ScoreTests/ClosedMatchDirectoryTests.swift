@@ -92,4 +92,56 @@ struct ClosedMatchDirectoryTests {
         #expect(!m.roundId.isEmpty)
         #expect(before.hasPrefix("R") && m.roundId.hasPrefix("R"))
     }
+
+    // MARK: Solo un match completo cuenta
+
+    @Test func anIncompleteMatchDoesNotTouchTheDirectoryOrTheStrokes() {
+        let (store, cleanup) = makeStore(); defer { cleanup() }
+        let m = DemoFixture.make()
+        #expect(m.isMatchComplete(opponentAlias: "ROB"))
+        // A ROB le falta el hoyo 18: ese match queda incompleto; los otros tres siguen completos.
+        m.players[m.players.firstIndex { $0.alias == "ROB" }!].scores.removeValue(forKey: 18)
+        #expect(!m.isMatchComplete(opponentAlias: "ROB"))
+        #expect(m.completeMatchCounts.complete == 3 && m.completeMatchCounts.total == 4)
+        let next = m.applyInterMatchStrokeCarry(directory: store)
+        #expect(next["ROB"] == nil)
+        #expect(Set(next.keys) == ["FER", "RIC", "ANS"])
+        #expect(entry(store, "Roberto")?.lastGameAt == nil)
+        #expect(entry(store, "Roberto")?.accumulatedMxn == nil)
+        #expect(m.closeRoundWarning.contains("incompleto"))
+    }
+
+    @Test func aFullyIncompleteRoundMovesNothing() {
+        let (store, cleanup) = makeStore(); defer { cleanup() }
+        let m = DemoFixture.make()
+        for i in m.players.indices { m.players[i].scores.removeValue(forKey: 12) }
+        #expect(m.applyInterMatchStrokeCarry(directory: store).isEmpty)
+        #expect(["Fernando", "Roberto", "Ricardo", "Anselmo"].allSatisfy { entry(store, $0)?.lastGameAt == nil })
+    }
+
+    // MARK: Log de notas
+
+    @Test func roundNotesAreLoggedInPlayOrderAndSkipEmptyOnes() {
+        let m = DemoFixture.make()
+        m.upsertUnitEvent(hole: 14, alias: "DAN", code: "NOTA", units: 0, note: "Bola al agua")
+        m.upsertUnitEvent(hole: 3, alias: "ROB", code: "NOTA", units: 0, note: "  Penalidad  ")
+        m.upsertUnitEvent(hole: 5, alias: "FER", code: "NOTA", units: 0, note: "   ")
+        let notes = m.roundNotes()
+        #expect(notes == [RoundResultNote(hole: 3, alias: "ROB", text: "Penalidad"),
+                          RoundResultNote(hole: 14, alias: "DAN", text: "Bola al agua")])
+        m.updateStartHole(10, resetScores: false)
+        #expect(m.roundNotes().map(\.hole) == [14, 3])     // en orden de juego: el 14 antes que el 3
+    }
+
+    @Test func archivedRoundsKeepTheirNotesAndOldFilesStillDecode() throws {
+        let note = RoundResultNote(hole: 7, alias: "DAN", text: "x")
+        let json = #"{"roundId":"R1","date":"d","courseId":"c","courseName":"n","startHole":1,"players":[],"lines":[],"totalMoney":0,"closedAt":"2026-10-23T00:00:00Z"}"#
+        let decoder = JSONDecoder(); decoder.dateDecodingStrategy = .iso8601
+        let old = try decoder.decode(RoundResultFile.self, from: Data(json.utf8))
+        #expect(old.notes == nil)
+        let withNotes = RoundResultFile(roundId: "R2", date: "d", courseId: "c", courseName: "n", startHole: 1, players: [], lines: [],
+                                        totalMoney: 0, closedAt: Date(), notes: [note])
+        let data = try JSONEncoder().encode(withNotes)
+        #expect(try JSONDecoder().decode(RoundResultFile.self, from: data).notes == [note])
+    }
 }

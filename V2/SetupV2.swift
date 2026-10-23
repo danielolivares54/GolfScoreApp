@@ -101,7 +101,7 @@ struct SetupV2: View {
                 }
             }
             Text("Paso \(stepIndex + 1) de \(stepTitles.count) · \(stepTitles[stepIndex])")
-                .font(.v2Caps).textCase(.uppercase).foregroundStyle(CSV2.secondary)
+                .capsStyleV2()
         }
         .padding(.horizontal, CSV2.s2).padding(.top, CSV2.s1).padding(.bottom, CSV2.s2)
     }
@@ -124,7 +124,7 @@ struct SetupV2: View {
     }
 
     private func sectionTitle(_ text: String) -> some View {
-        Text(text).font(.v2Caps).textCase(.uppercase).foregroundStyle(CSV2.secondary)
+        Text(text).capsStyleV2()
             .frame(maxWidth: .infinity, alignment: .leading)
     }
 
@@ -136,7 +136,7 @@ struct SetupV2: View {
             CardV2 {
                 VStack(spacing: 0) {
                     ForEach(Array(CourseCatalog.all.enumerated()), id: \.offset) { index, course in
-                        if index > 0 { Rectangle().fill(CSV2.rowLine).frame(height: 1) }
+                        if index > 0 { RowDividerV2() }
                         Button { model.courseId = course.id } label: {
                             HStack {
                                 Image(systemName: "flag.fill").foregroundStyle(CSV2.green)
@@ -236,7 +236,7 @@ struct SetupV2: View {
                 CardV2 {
                     VStack(spacing: 0) {
                         ForEach(Array(matches.enumerated()), id: \.element.id) { index, entry in
-                            if index > 0 { Rectangle().fill(CSV2.rowLine).frame(height: 1) }
+                            if index > 0 { RowDividerV2() }
                             Button {
                                 newPlayerName = entry.name
                                 pendingDirectoryMatch = entry
@@ -265,7 +265,7 @@ struct SetupV2: View {
                 CardV2 {
                     VStack(spacing: 0) {
                         ForEach(Array(model.aliasList.enumerated()), id: \.offset) { index, player in
-                            if index > 0 { Rectangle().fill(CSV2.rowLine).frame(height: 1) }
+                            if index > 0 { RowDividerV2() }
                             HStack(spacing: 12) {
                                 Text(player.alias).font(.v2Label).bold().foregroundStyle(.white)
                                     .frame(width: 44, height: 44)
@@ -302,7 +302,7 @@ struct SetupV2: View {
                 CardV2 {
                     VStack(spacing: 0) {
                         ForEach(Array(model.rivals.enumerated()), id: \.offset) { index, rival in
-                            if index > 0 { Rectangle().fill(CSV2.rowLine).frame(height: 1) }
+                            if index > 0 { RowDividerV2() }
                             rivalRow(rival)
                         }
                     }
@@ -374,7 +374,7 @@ struct SetupV2: View {
                 CardV2 {
                     VStack(spacing: 0) {
                         basePicker("Jugador 1", selection: $model.base1)
-                        Rectangle().fill(CSV2.rowLine).frame(height: 1)
+                        RowDividerV2()
                         basePicker("Jugador 2", selection: $model.base2)
                     }
                 }
@@ -415,7 +415,7 @@ struct SetupV2: View {
             VStack(alignment: .leading, spacing: 8) {
                 CardV2 {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("Pareja base").font(.v2Caps).textCase(.uppercase).foregroundStyle(CSV2.secondary)
+                        Text("Pareja base").capsStyleV2()
                         Text("\(model.base1) – \(model.base2)").font(.v2Name).foregroundStyle(CSV2.ink)
                         if !model.opponentsForBase.isEmpty {
                             Text("vs \(model.opponentsForBase.joined(separator: " – ")) · rotando")
@@ -431,7 +431,7 @@ struct SetupV2: View {
                     CardV2 {
                         VStack(spacing: 0) {
                             ForEach(Array(lanes.enumerated()), id: \.element.id) { index, lane in
-                                if index > 0 { Rectangle().fill(CSV2.rowLine).frame(height: 1) }
+                                if index > 0 { RowDividerV2() }
                                 laneRow(lane)
                             }
                         }
@@ -458,19 +458,9 @@ struct SetupV2: View {
                     .accessibilityLabel("Un stroke más")
                 Spacer(minLength: 0)
             }
-            Text("Quién lleva los strokes").font(.v2Caps).textCase(.uppercase).foregroundStyle(CSV2.secondary)
-            HStack(spacing: 6) {
-                ForEach(lane.base + lane.opp, id: \.self) { alias in
-                    let on = carrier == alias
-                    Button { model.laneCarrierByKey[lane.id] = alias } label: {
-                        Text(alias).font(.v2Body).foregroundStyle(on ? .white : CSV2.ink)
-                            .frame(maxWidth: .infinity, minHeight: CSV2.minTap)
-                            .background(on ? CSV2.stroke : CSV2.surface, in: RoundedRectangle(cornerRadius: CSV2.rCell))
-                            .overlay(RoundedRectangle(cornerRadius: CSV2.rCell).stroke(on ? CSV2.stroke : CSV2.line))
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("\(alias)\(on ? ", lleva los strokes" : "")")
-                }
+            Text("Quién lleva los strokes").capsStyleV2()
+            AliasChipRowV2(items: (lane.base + lane.opp).map { ($0, "\($0) lleva los strokes") }, selected: carrier, tint: CSV2.stroke) {
+                model.laneCarrierByKey[lane.id] = $0
             }
             if strokes > 0 {
                 if carrier.isEmpty {

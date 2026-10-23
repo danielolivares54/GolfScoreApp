@@ -70,7 +70,7 @@ struct HoleScreenV2: View {
             }
             Button("Cancelar", role: .cancel) {}
         } message: {
-            Text("Se borrará toda la tarjeta (scores, putts, unidades) para empezar una ronda nueva. Esta acción no se puede deshacer.")
+            Text(matchManager.closeRoundWarning)
         }
     }
 
@@ -212,7 +212,7 @@ struct HoleScreenV2: View {
                     .multilineTextAlignment(.center).padding(CSV2.s3).frame(maxWidth: .infinity)
             } else {
                 ForEach(Array(matchManager.players.enumerated()), id: \.element.id) { index, player in
-                    if index > 0 { Rectangle().fill(CSV2.rowLine).frame(height: 1) }
+                    if index > 0 { RowDividerV2() }
                     playerRow(player)
                 }
             }
@@ -285,7 +285,7 @@ struct HoleScreenV2: View {
         let count = max(2, matchManager.players.count)
         return CardV2 {
             VStack(alignment: .leading, spacing: CSV2.s1) {
-                Text("Oyes · puesto de cada jugador").font(.v2Caps).textCase(.uppercase).foregroundStyle(CSV2.secondary)
+                Text("Oyes · puesto de cada jugador").capsStyleV2()
                 ForEach(matchManager.players, id: \.id) { player in
                     HStack(spacing: 6) {
                         Text(player.alias).font(.v2Body).foregroundStyle(CSV2.ink).frame(width: 52, alignment: .leading)
@@ -345,7 +345,7 @@ struct HoleScreenV2: View {
         if !(events.isEmpty && notes.isEmpty && winners.isEmpty) {
             CardV2 {
                 VStack(alignment: .leading, spacing: CSV2.s1) {
-                    Text("Eventos y notas del hoyo").font(.v2Caps).textCase(.uppercase).foregroundStyle(CSV2.secondary)
+                    Text("Eventos y notas del hoyo").capsStyleV2()
                     FlowPillsV2 {
                         ForEach(winners, id: \.self) { alias in
                             Text("\(alias) Oyes 1º").font(.v2Label).foregroundStyle(CSV2.unitFg)

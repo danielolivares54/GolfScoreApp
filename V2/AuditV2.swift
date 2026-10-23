@@ -77,7 +77,7 @@ struct AuditV2: View {
     @ViewBuilder private func chapter(_ title: String, _ holes: [HoleAuditStatus]) -> some View {
         if !holes.isEmpty {
             VStack(alignment: .leading, spacing: CSV2.s1) {
-                Text(title).font(.v2Caps).textCase(.uppercase).foregroundStyle(CSV2.secondary)
+                Text(title).capsStyleV2()
                 ForEach(holes, id: \.hole) { holeCard($0) }
             }
         }
@@ -95,7 +95,7 @@ struct AuditV2: View {
                     statusIcon(status)
                 }
                 .padding(.horizontal, 14).padding(.vertical, 10)
-                Rectangle().fill(CSV2.rowLine).frame(height: 1)
+                RowDividerV2()
                 HStack(spacing: 0) {
                     ForEach(Array(status.playerData.enumerated()), id: \.offset) { _, pd in
                         Button { open(hole: status.hole, par: status.par, alias: pd.alias) } label: {
@@ -184,7 +184,7 @@ struct AuditV2: View {
         let oyes = oyeRows(played: playedHoles), units = unitRows(played: playedHoles)
         if !oyes.isEmpty || !units.isEmpty {
             VStack(alignment: .leading, spacing: CSV2.s1) {
-                Text("Oyes y unidades").font(.v2Caps).textCase(.uppercase).foregroundStyle(CSV2.secondary)
+                Text("Oyes y unidades").capsStyleV2()
                 CardV2 {
                     VStack(spacing: 0) {
                         ForEach(oyes) { row in
@@ -212,7 +212,7 @@ struct AuditV2: View {
                 Text(text).font(.v2Label).bold().foregroundStyle(color)
             }
             .padding(.horizontal, 14).frame(minHeight: CSV2.minTap)
-            .overlay(alignment: .bottom) { Rectangle().fill(CSV2.rowLine).frame(height: 1) }
+            .overlay(alignment: .bottom) { RowDividerV2() }
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -283,7 +283,7 @@ struct CorrectionSheetV2: View {
     private func stepper(_ label: String, value: Int, range: ClosedRange<Int>,
                          minus: @escaping () -> Void, plus: @escaping () -> Void, color: Color) -> some View {
         VStack(spacing: 8) {
-            Text(label).font(.v2Caps).textCase(.uppercase).foregroundStyle(CSV2.secondary)
+            Text(label).capsStyleV2()
             StepButtonV2(symbol: "plus", action: plus).disabled(value >= range.upperBound)
             Text("\(value)").font(.system(size: 44, weight: .heavy).monospacedDigit()).foregroundStyle(color)
             StepButtonV2(symbol: "minus", action: minus).disabled(value <= range.lowerBound)
@@ -295,7 +295,7 @@ struct CorrectionSheetV2: View {
         let current = matchManager.oyesRanksByHole[target.hole]?[target.alias]
         let count = max(2, matchManager.players.count)
         return VStack(alignment: .leading, spacing: 6) {
-            Text("Oye · puesto").font(.v2Caps).textCase(.uppercase).foregroundStyle(CSV2.secondary)
+            Text("Oye · puesto").capsStyleV2()
             HStack(spacing: 6) {
                 ForEach(1...count, id: \.self) { rank in
                     let selected = current == rank
@@ -329,7 +329,7 @@ struct CorrectionSheetV2: View {
         let bets = matchManager.manualUnitBetsV2
         if !bets.isEmpty {
             VStack(alignment: .leading, spacing: 6) {
-                Text("Unidades activas").font(.v2Caps).textCase(.uppercase).foregroundStyle(CSV2.secondary)
+                Text("Unidades activas").capsStyleV2()
                 LazyVGrid(columns: [GridItem(.flexible(), spacing: 8), GridItem(.flexible(), spacing: 8)], spacing: 8) {
                     ForEach(bets, id: \.id) { bet in
                         let on = hasTag(bet.tag)

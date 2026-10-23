@@ -79,11 +79,11 @@ struct CatalogoV2: View {
     @ViewBuilder private func group(_ title: String, _ defs: [BetDefinition]) -> some View {
         if !defs.isEmpty {
             VStack(alignment: .leading, spacing: 8) {
-                Text(title).font(.v2Caps).textCase(.uppercase).foregroundStyle(CSV2.secondary)
+                Text(title).capsStyleV2()
                 CardV2 {
                     VStack(spacing: 0) {
                         ForEach(Array(defs.enumerated()), id: \.element.id) { index, def in
-                            if index > 0 { Rectangle().fill(CSV2.rowLine).frame(height: 1) }
+                            if index > 0 { RowDividerV2() }
                             row(def)
                         }
                     }

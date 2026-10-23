@@ -34,21 +34,10 @@ struct NoteSheetV2: View {
                 if matchManager.players.isEmpty {
                     Text("Configura jugadores en Setup.").font(.v2Body).foregroundStyle(CSV2.secondary)
                 } else {
-                    HStack(spacing: 6) {
-                        ForEach(matchManager.players, id: \.id) { player in
-                            let on = player.alias == alias
-                            Button {
-                                save()
-                                selectedAlias = player.alias
-                                text = savedNote(for: player.alias)
-                            } label: {
-                                Text(player.alias).font(.v2Body).foregroundStyle(on ? .white : CSV2.ink)
-                                    .frame(maxWidth: .infinity, minHeight: CSV2.minTap)
-                                    .background(on ? CSV2.green : CSV2.surface, in: RoundedRectangle(cornerRadius: CSV2.rCell))
-                                    .overlay(RoundedRectangle(cornerRadius: CSV2.rCell).stroke(on ? CSV2.green : CSV2.line))
-                            }
-                            .buttonStyle(.plain)
-                        }
+                    AliasChipRowV2(items: matchManager.players.map { ($0.alias, $0.name) }, selected: alias) { chosen in
+                        save()
+                        selectedAlias = chosen
+                        text = savedNote(for: chosen)
                     }
                     TextField("penalidad o comentario…", text: $text, axis: .vertical)
                         .font(.v2Body).lineLimit(3...6)
@@ -57,12 +46,37 @@ struct NoteSheetV2: View {
                         .overlay(RoundedRectangle(cornerRadius: CSV2.rCard).stroke(CSV2.line))
                     Text("Dejarla vacía borra la nota de este jugador en este hoyo.")
                         .font(.v2Label).foregroundStyle(CSV2.secondary)
+                    notesLog
                 }
                 Spacer()
             }
             .padding(CSV2.s2)
         }
         .onAppear { text = savedNote(for: alias) }
+    }
+
+    /// Log de la ronda: todas las notas y penalidades anotadas, por hoyo (al cerrar la ronda se archivan en el historial).
+    @ViewBuilder private var notesLog: some View {
+        let notes = matchManager.roundNotes()
+        if !notes.isEmpty {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Notas de la ronda").capsStyleV2()
+                CardV2 {
+                    VStack(spacing: 0) {
+                        ForEach(Array(notes.enumerated()), id: \.offset) { index, note in
+                            if index > 0 { RowDividerV2() }
+                            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                                Text("H\(note.hole)").font(.v2Body).foregroundStyle(CSV2.ink)
+                                Text(note.alias).font(.v2Label).bold().foregroundStyle(CSV2.ink)
+                                Text(note.text).font(.v2Label).foregroundStyle(CSV2.secondary)
+                                Spacer(minLength: 0)
+                            }
+                            .padding(.horizontal, CSV2.s2).padding(.vertical, 10)
+                        }
+                    }
+                }
+            }
+        }
     }
 
     private func save() {

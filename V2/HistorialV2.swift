@@ -127,7 +127,7 @@ struct HistorialV2: View {
                     CardV2 {
                         VStack(spacing: 0) {
                             ForEach(Array(playerNames.enumerated()), id: \.offset) { index, name in
-                                if index > 0 { Rectangle().fill(CSV2.rowLine).frame(height: 1) }
+                                if index > 0 { RowDividerV2() }
                                 Button {
                                     selectedPlayerName = name
                                     showPicker = false
@@ -177,15 +177,28 @@ struct HistorialV2: View {
                 if !individual.isEmpty {
                     sectionHeader("Individual", total: individualTotal)
                     ForEach(Array(individual.enumerated()), id: \.offset) { _, line in
-                        Rectangle().fill(CSV2.rowLine).frame(height: 1)
+                        RowDividerV2()
                         rivalRow(round: round, line: line, latestRoundByName: latestRoundByName)
                     }
                 }
                 if !pairs.isEmpty {
                     sectionHeader("Parejas", total: pairsTotal)
                     ForEach(Array(pairs.enumerated()), id: \.offset) { _, line in
-                        Rectangle().fill(CSV2.rowLine).frame(height: 1)
+                        RowDividerV2()
                         pairRow(round: round, line: line)
+                    }
+                }
+                if let notes = round.notes, !notes.isEmpty, !filtered {
+                    sectionHeader("Notas", total: nil)
+                    ForEach(Array(notes.enumerated()), id: \.offset) { _, note in
+                        RowDividerV2()
+                        HStack(alignment: .firstTextBaseline, spacing: 8) {
+                            Text("H\(note.hole)").font(.v2Body).foregroundStyle(CSV2.ink)
+                            Text(note.alias).font(.v2Label).bold().foregroundStyle(CSV2.ink)
+                            Text(note.text).font(.v2Label).foregroundStyle(CSV2.secondary)
+                            Spacer(minLength: 0)
+                        }
+                        .padding(.horizontal, CSV2.s2).padding(.vertical, 10)
                     }
                 }
             }
@@ -193,15 +206,15 @@ struct HistorialV2: View {
         }
     }
 
-    private func sectionHeader(_ title: String, total: Int) -> some View {
+    private func sectionHeader(_ title: String, total: Int?) -> some View {
         HStack {
-            Text(title).font(.v2Caps).textCase(.uppercase).foregroundStyle(CSV2.secondary)
+            Text(title).capsStyleV2()
             Spacer()
-            MoneyTextV2(amount: total, size: 14, weight: .semibold)
+            if let total { MoneyTextV2(amount: total, size: 14, weight: .semibold) }
         }
         .padding(.horizontal, CSV2.s2).padding(.vertical, 8)
         .background(CSV2.background.opacity(0.6))
-        .overlay(alignment: .top) { Rectangle().fill(CSV2.rowLine).frame(height: 1) }
+        .overlay(alignment: .top) { RowDividerV2() }
     }
 
     /// Una pareja: "con FER" / "RIC – ANS", resultado del match en palabras y dinero (sin F9/B9: no se archivan para parejas).

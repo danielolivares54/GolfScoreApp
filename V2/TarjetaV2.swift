@@ -193,7 +193,7 @@ struct TarjetaV2: View {
             VStack(spacing: 0) {
                 columnHeader(ctx)
                 ForEach(nine.holes) { hole in
-                    Rectangle().fill(CSV2.rowLine).frame(height: 1)
+                    RowDividerV2()
                     holeRow(hole, ctx)
                 }
                 footer(nine)
@@ -213,7 +213,7 @@ struct TarjetaV2: View {
                     .opacity(ctx.participants.map { $0.contains(p.alias) } ?? true ? 1 : 0.3)
             }
         }
-        .font(.v2Caps).textCase(.uppercase).foregroundStyle(CSV2.secondary)
+        .capsStyleV2()
         .padding(.horizontal, CSV2.s1 + 4).padding(.vertical, 12)
     }
 

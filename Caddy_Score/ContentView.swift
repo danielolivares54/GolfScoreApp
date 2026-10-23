@@ -59,6 +59,13 @@ struct RoundResultPlayer: Codable {
     let putts: [String: Int]   // "hoyo" -> putts
 }
 
+/// Una nota o penalidad anotada en un hoyo (se archiva con la ronda cerrada).
+struct RoundResultNote: Codable, Equatable {
+    let hole: Int
+    let alias: String
+    let text: String
+}
+
 struct RoundResultFile: Codable {
     let roundId: String
     let date: String
@@ -73,6 +80,8 @@ struct RoundResultFile: Codable {
     // (oyesRanksByHole) y se perdía al cerrar. Optional con default nil: los archivos
     // guardados antes de este campo decodifican bien (ver MyHistoryView).
     var oyesWinsByAlias: [String: Int]? = nil
+    // Notas y penalidades de la ronda (log). Optional: las rondas archivadas antes de este campo decodifican igual.
+    var notes: [RoundResultNote]? = nil
 
     static func closedRoundsDirectory() -> URL? {
         guard let dir = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.comDOG.Caddy-Score")
@@ -210,7 +219,7 @@ struct ContentView: View {
             Button("Cerrar Ronda", role: .destructive) { cerrarRonda() }
             Button("Cancelar", role: .cancel) {}
         } message: {
-            Text("Se borrará toda la tarjeta (scores, putts, unidades) para empezar una ronda nueva. Esta acción no se puede deshacer.")
+            Text(matchManager.closeRoundWarning)
         }
     }
 

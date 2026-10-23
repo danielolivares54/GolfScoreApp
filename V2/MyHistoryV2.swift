@@ -66,7 +66,7 @@ struct MyHistoryV2: View {
     }
 
     private func caption(_ text: String) -> some View {
-        Text(text).font(.v2Caps).textCase(.uppercase).foregroundStyle(CSV2.secondary)
+        Text(text).capsStyleV2()
     }
 
     private func columnHeader(_ accumulated: String, last: String = "Este match") -> some View {
@@ -75,7 +75,7 @@ struct MyHistoryV2: View {
             Text(accumulated).frame(width: 112, alignment: .trailing)
             Text(last).frame(width: 84, alignment: .trailing)
         }
-        .font(.v2Caps).textCase(.uppercase).foregroundStyle(CSV2.secondary)
+        .capsStyleV2()
     }
 
     private func twoColRow(_ label: String, acc: String, last: String, color: Color = CSV2.ink) -> some View {
@@ -150,7 +150,7 @@ struct MyHistoryV2: View {
             averageRow("F9", \.strokesF9)
             averageRow("B9", \.strokesB9)
             averageRow("Total 18", \.strokesTotal)
-            Rectangle().fill(CSV2.rowLine).frame(height: 1)
+            RowDividerV2()
             caption("Putts")
             columnHeader("Prom. ± σ")
             averageRow("F9", \.puttsF9)
@@ -200,7 +200,7 @@ struct MyHistoryV2: View {
             valueRow("   Decidió victoria", "\(stats.receiveDecidedWin)", color: CSV2.green)
             valueRow("   Decidió empate", "\(stats.receiveDecidedTie)", color: CSV2.unitFg)
             valueRow("   No fue factor", "\(stats.receiveNoFactor)", color: CSV2.secondary)
-            Rectangle().fill(CSV2.rowLine).frame(height: 1)
+            RowDividerV2()
             valueRow("Cuando doy — igual gano o empato", "\(Int((stats.giveWinOrTiePct * 100).rounded()))%", color: CSV2.green)
             Text("de \(stats.giveTotal) hoyos donde le di stroke a un rival").font(.v2Label).foregroundStyle(CSV2.secondary)
         }

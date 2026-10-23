@@ -3859,6 +3859,8 @@ extension MatchManager {
         let snapshot = self.walletSnapshot()
         for opp in opponents {
             guard let player = self.players.first(where: { $0.alias == opp }) else { continue }
+            // Solo un match COMPLETO (los 18 hoyos de los dos) actualiza strokes, tag y acumulado del Directorio.
+            guard isMatchComplete(opponentAlias: opp) else { continue }
             let templateId = self.betValues(forOpponent: opp).templateId
             let carryEnabled = BetTemplateStore.shared.entries.first(where: { $0.id == templateId })?.carryMatchEnabled ?? true
 
@@ -3939,7 +3941,8 @@ extension MatchManager {
             courseId: self.courseId, courseName: self.courseName,
             startHole: self.startHole, players: players, lines: lines,
             totalMoney: snapshot.totalMoney, closedAt: Date(),
-            oyesWinsByAlias: oyesWins
+            oyesWinsByAlias: oyesWins,
+            notes: roundNotes().isEmpty ? nil : roundNotes()
         )
         guard let roundsDir = RoundResultFile.closedRoundsDirectory() else { return }
         try? FileManager.default.createDirectory(at: roundsDir, withIntermediateDirectories: true)
@@ -4303,5 +4306,43 @@ extension MatchManager {
         if c == "NOTA" { return true }
         guard BetDefinitionStore.shared.entries.contains(where: { $0.tag.uppercased() == c }) else { return true }
         return isCatalogTagEnabled(c)
+    }
+}
+
+
+// MARK: - Match completo y log de notas
+
+extension MatchManager {
+    /// ¿Están anotados los 18 hoyos de yo y de ese rival? Solo entonces el match cuenta para el Directorio y los strokes del próximo.
+    func isMatchComplete(opponentAlias: String) -> Bool {
+        (1...18).allSatisfy { getScore(hole: $0, player: yoAlias) > 0 && getScore(hole: $0, player: opponentAlias) > 0 }
+    }
+
+    /// Cuántos matches individuales de la ronda están completos y cuántos hay.
+    var completeMatchCounts: (complete: Int, total: Int) {
+        let rivals = players.map(\.alias).filter { $0 != yoAlias }
+        return (rivals.filter { isMatchComplete(opponentAlias: $0) }.count, rivals.count)
+    }
+
+    /// Texto del aviso al cerrar la ronda (dice si hay matches incompletos).
+    var closeRoundWarning: String {
+        let counts = completeMatchCounts
+        var text = "Se borrará toda la tarjeta (scores, putts, unidades) para empezar una ronda nueva. Esta acción no se puede deshacer."
+        if counts.complete < counts.total {
+            text += " Hay \(counts.total - counts.complete) match(es) incompleto(s): se archivan en el historial, pero no cambian los strokes del próximo juego ni el Directorio."
+        }
+        return text
+    }
+
+    /// Notas y penalidades de la ronda (código NOTA), ordenadas por hoyo en orden de juego.
+    func roundNotes() -> [RoundResultNote] {
+        let order = playOrder()
+        return unitEventsByHole.values.flatMap { $0 }
+            .filter { $0.code.uppercased() == "NOTA" }
+            .compactMap { event in
+                guard let text = event.note?.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty else { return nil }
+                return RoundResultNote(hole: event.hole, alias: event.alias, text: text)
+            }
+            .sorted { (order.firstIndex(of: $0.hole) ?? 99, $0.alias) < (order.firstIndex(of: $1.hole) ?? 99, $1.alias) }
     }
 }

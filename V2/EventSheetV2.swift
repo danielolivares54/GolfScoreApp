@@ -61,20 +61,8 @@ struct EventSheetV2: View {
 
     private var playerPicker: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("Jugador").font(.v2Caps).textCase(.uppercase).foregroundStyle(CSV2.secondary)
-            HStack(spacing: 6) {
-                ForEach(matchManager.players, id: \.id) { player in
-                    let on = player.alias == alias
-                    Button { selectedAlias = player.alias } label: {
-                        Text(player.alias).font(.v2Body).foregroundStyle(on ? .white : CSV2.ink)
-                            .frame(maxWidth: .infinity, minHeight: CSV2.minTap)
-                            .background(on ? CSV2.green : CSV2.surface, in: RoundedRectangle(cornerRadius: CSV2.rCell))
-                            .overlay(RoundedRectangle(cornerRadius: CSV2.rCell).stroke(on ? CSV2.green : CSV2.line))
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("\(player.name)\(on ? ", seleccionado" : "")")
-                }
-            }
+            Text("Jugador").capsStyleV2()
+            AliasChipRowV2(items: matchManager.players.map { ($0.alias, $0.name) }, selected: alias) { selectedAlias = $0 }
         }
     }
 
@@ -85,7 +73,7 @@ struct EventSheetV2: View {
             .filter { $0.alias == alias }.map { $0.code.uppercased() })
         let bets = matchManager.manualUnitBetsV2
         return VStack(alignment: .leading, spacing: 6) {
-            Text("Unidades activas").font(.v2Caps).textCase(.uppercase).foregroundStyle(CSV2.secondary)
+            Text("Unidades activas").capsStyleV2()
             if bets.isEmpty {
                 Text("No hay unidades de captura manual activas. Se definen y se activan en el catálogo de apuestas.")
                     .font(.v2Label).foregroundStyle(CSV2.secondary)
