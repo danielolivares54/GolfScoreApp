@@ -761,7 +761,7 @@ struct CorrectionRouteTests {
         let m = DemoFixture.make()
         let text = VoiceHolePipeline.answer(.init(tipo: "estatus", jugador: "yo", oponente: "Roberto"), match: m, currentHole: 14,
                                             slang: VoiceSlangStore(defaults: UserDefaults(suiteName: "status-\(UUID().uuidString)")!))
-        #expect(text.hasPrefix("Daniel contra Roberto.") && text.contains(" contra ") && text.contains("Vuelta "))
+        #expect((text.hasPrefix("Daniel contra Roberto.") || text.hasPrefix("Individuales. Daniel contra Roberto.")) && text.contains(" contra ") && text.contains("Vuelta "))
         #expect(!text.contains("Presiones abiertas"))
     }
 }

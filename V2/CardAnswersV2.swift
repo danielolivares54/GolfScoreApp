@@ -114,20 +114,24 @@ extension MatchManager {
         let p = alias ?? me
         let order = playOrder()
         func lastHole(_ holesWithRows: Set<Int>) -> Int? { order.last { holesWithRows.contains($0) } }
-        var blocks: [String] = []
+        var singles: [String] = [], pairs: [String] = []
         for opp in players.map(\.alias) where opp != me {
             guard p == me || p == opp else { continue }
             if let opponent, opponent != (p == me ? opp : me) { continue }
             let held = Set(["F9", "B9"].flatMap { individualZoomRows(opponentAlias: opp, segmentOverride: $0).map(\.hole) })
-            if let h = lastHole(held), let b = individualHoleBlock(perspective: p, opponent: opp, holes: [h], detail: false) { blocks.append(b) }
+            if let h = lastHole(held), let b = individualHoleBlock(perspective: p, opponent: opp, holes: [h], detail: false) { singles.append(b) }
         }
         for lane in activeLanes where lane.base.contains(p) || lane.opp.contains(p) {
             if let opponent, !((lane.base.contains(p) ? lane.opp : lane.base).contains(opponent)) { continue }
             let held = Set(["F9", "B9"].flatMap { pairZoomRows(laneId: lane.id, segmentOverride: $0).map(\.hole) })
-            if let h = lastHole(held), let b = pairHoleBlock(perspective: p, lane: lane, holes: [h], detail: false) { blocks.append(b) }
+            if let h = lastHole(held), let b = pairHoleBlock(perspective: p, lane: lane, holes: [h], detail: false) { pairs.append(b) }
         }
-        guard !blocks.isEmpty else { return "Todavía no hay hoyos completos para ese match." }
-        return blocks.joined(separator: " ")
+        guard !(singles + pairs).isEmpty else { return "Todavía no hay hoyos completos para ese match." }
+        // Primero los individuales y luego las parejas contrarias.
+        var out: [String] = []
+        if !singles.isEmpty { out.append((pairs.isEmpty ? "" : "Individuales. ") + singles.joined(separator: " ")) }
+        if !pairs.isEmpty { out.append((singles.isEmpty ? "" : "Parejas contrarias. ") + pairs.joined(separator: " ")) }
+        return out.joined(separator: " ")
     }
 
     private func outcomeWords(_ r: Int, _ name: String) -> String { r > 0 ? "gana \(name)" : r < 0 ? "pierde \(name)" : "empatan" }
