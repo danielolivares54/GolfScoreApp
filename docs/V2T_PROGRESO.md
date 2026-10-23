@@ -67,4 +67,4 @@
 ## Estatus corto: "¿cómo voy contra Ricardo?" (23-oct)
 - Decisión de Daniel: las reglas locales NO se conectan al apuntador todavía; primero se prueba qué contesta y con qué alcance. Las respuestas deben ser más cortas y como una película, no una foto: se pregunta sobre el último hoyo y se asume lo anterior.
 - Nuevo tipo `estatus`: el último hoyo jugado de cada match (individual y parejas): golpes brutos de cada lado, quién ganó, quién recibe stroke (o "sin strokes") y cómo va la vuelta. Con un jugador nombrado, "cómo voy / cómo vamos" ya no cae en el resumen general: lo clasifica el LLM (`ReadbackIntentV2.detect(names:)`).
-- La lectura breve de un hoyo contra el rival ahora incluye siempre quién recibe stroke, en individual y en parejas.
+- La lectura breve de un hoyo contra el rival solo menciona "ventaja de X" cuando alguien tiene stroke en ese hoyo (si no, no dice nada); cuántos strokes recibe es otra pregunta.
