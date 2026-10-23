@@ -26,6 +26,8 @@ struct VoiceHoleExtraction: Codable, Equatable {
         var jugador: String; var gross: Int?; var putts: Int?; var relativo: String? = nil
         /// "se levantó" / "perdió el hoyo": la app le pone un score que pierde el hoyo.
         var levanto: Bool? = nil
+        /// Por qué perdió el hoyo ("bola equivocada"); queda como nota en ese hoyo.
+        var motivo: String? = nil
     }
     /// "Del hoyo 5 al 8 Daniel tiró par, bogey, doble bogey y dos putts por hoyo".
     struct Run: Codable, Equatable {
@@ -34,6 +36,7 @@ struct VoiceHoleExtraction: Codable, Equatable {
         var resultados: [Result] = []
         var putts: Int? = nil
         var levanto: Bool? = nil
+        var motivo: String? = nil
     }
     struct Oyes: Codable, Equatable { var jugador: String; var rank: Int }
     struct Unit: Codable, Equatable { var jugador: String; var codigo: String; var cantidad: Int? }
@@ -68,7 +71,7 @@ struct VoiceHoleDraft: Equatable {
     struct Cell: Equatable { var gross: Int?; var putts: Int? }
     struct Unit: Hashable { var alias: String; var code: String; var units: Int }
     struct Note: Hashable { var alias: String; var text: String }
-    struct Edit: Hashable { var alias: String; var hole: Int; var gross: Int?; var putts: Int?; var pickup: Bool }
+    struct Edit: Hashable { var alias: String; var hole: Int; var gross: Int?; var putts: Int?; var pickup: Bool; var reason: String? = nil }
 
     var hole: Int?
     var cells: [String: Cell] = [:]
@@ -127,6 +130,10 @@ struct VoiceUndoToken {
     let unitEvents: [UnitEvent]?
     /// Scores de los otros hoyos tocados por una corrida o un "se levantó".
     var otherHoles: [Int: [String: (gross: Int, putts: Int?)?]] = [:]
+    /// Hoyos perdidos ("se levantó") que había antes en las celdas tocadas, por "alias#hoyo".
+    var lostBefore: [String: CellOverride] = [:]
+    /// Eventos/notas de los otros hoyos tocados (la nota del motivo).
+    var otherUnitEvents: [Int: [UnitEvent]?] = [:]
 }
 
 // MARK: - Apodos que se aprenden
@@ -348,7 +355,7 @@ enum VoiceHolePipeline {
                 continue
             }
             let who = resolveSpoken(name, match: match, slang: slang)
-            setEdit(&out, .init(alias: who.alias, hole: hole, gross: nil, putts: nil, pickup: true))
+            setEdit(&out, .init(alias: who.alias, hole: hole, gross: nil, putts: nil, pickup: true, reason: reasonText(sc.motivo)))
             markDoubts(&out, alias: who.alias, known: who.known, fuzzy: who.fuzzy)
         }
 
@@ -375,7 +382,8 @@ enum VoiceHolePipeline {
                 if gross == nil, let p = holePar, let d = relativeDelta(r.relativo) { gross = p + d }
                 let pickup = r.levanto == true
                 if gross == nil && run.putts == nil && !pickup { continue }
-                setEdit(&out, .init(alias: who.alias, hole: hole, gross: pickup ? nil : gross, putts: run.putts, pickup: pickup))
+                setEdit(&out, .init(alias: who.alias, hole: hole, gross: pickup ? nil : gross, putts: run.putts, pickup: pickup,
+                                    reason: pickup ? reasonText(run.motivo) : nil))
             }
         }
 
@@ -422,6 +430,12 @@ enum VoiceHolePipeline {
             markDoubts(&out, alias: who.alias, known: who.known, fuzzy: who.fuzzy)
         }
         return out
+    }
+
+    /// "bola equivocada" → "Bola equivocada" (nil si no dijeron motivo).
+    private static func reasonText(_ raw: String?) -> String? {
+        guard let t = raw?.trimmingCharacters(in: .whitespacesAndNewlines), !t.isEmpty else { return nil }
+        return t.prefix(1).uppercased() + t.dropFirst()
     }
 
     private static func setEdit(_ d: inout VoiceHoleDraft, _ e: VoiceHoleDraft.Edit) {
@@ -537,7 +551,7 @@ enum VoiceHolePipeline {
             }
             for e in mine where e.pickup {
                 if let g = pickupGross(draft: draft, match: match, alias: alias, hole: e.hole) {
-                    understood.append("\(alias) se levantó en el \(e.hole) (se le pone \(g))")
+                    understood.append("\(alias) " + (e.reason.map { "\($0.lowercased()) · pierde el " } ?? "se levantó en el ") + "\(e.hole) (se le pone \(g): más que el neto más alto de los demás, sin strokes, con ✕)")
                 } else {
                     missing.append("scores de los demás en el hoyo \(e.hole) para calcular el \"se levantó\" de \(alias)")
                 }
@@ -579,36 +593,40 @@ enum VoiceHolePipeline {
 
     // MARK: Se levantó / perdió el hoyo
 
-    /// Golpes que se le ponen a quien se levanta: uno más que el neto más alto de los demás, para que pierda el hoyo
-    /// en cada match en que participa (contra yo, con los strokes de ese match). nil si no hay con quién compararlo.
+    /// Golpes que se le ponen a quien se levanta o pierde el hoyo: uno más que el neto más alto de los demás jugadores
+    /// (el neto de cada quien con los strokes de SU match, individual y parejas). A él no se le aplica stroke en ese
+    /// hoyo (queda con la cruz ✕ en la tarjeta), así su neto es el más alto y pierde. nil si no hay otro score con
+    /// qué compararlo.
     static func pickupGross(draft: VoiceHoleDraft, match: MatchManager, alias: String, hole: Int) -> Int? {
         func gross(_ a: String) -> Int? {
             if hole == draft.hole, let g = draft.cells[a]?.gross { return g }
             if let e = draft.edits.first(where: { $0.alias == a && $0.hole == hole && !$0.pickup }), let g = e.gross { return g }
-            if draft.edits.contains(where: { $0.alias == a && $0.hole == hole && $0.pickup }) { return nil }
+            if draft.edits.contains(where: { $0.alias == a && $0.hole == hole && $0.pickup }) { return nil }   // otro que también se levantó
             let g = match.getScore(hole: hole, player: a)
             return g > 0 ? g : nil
         }
         let me = match.yoAlias
-        var needed: Double?
-        func raise(_ v: Double) { needed = max(needed ?? v, v) }
-        if alias == me {
-            for opp in match.players.map(\.alias) where opp != me {
-                guard let g = gross(opp) else { continue }
-                let st = match.individualMatchupStrokes(yoAlias: me, oppAlias: opp, hole: hole, carryAlias: nil)
-                raise(Double(g) - st.opp + st.yo)
+        var highest: Double?
+        func consider(_ net: Double) { highest = max(highest ?? net, net) }
+
+        // Individual: cada match es yo contra un rival, con los strokes de ESE match.
+        for opp in match.players.map(\.alias) where opp != me {
+            guard alias == me || alias == opp else {
+                // Match que no incluye a quien se levantó: el neto del rival contra yo cuenta como "los demás".
+                if let g = gross(opp) { consider(Double(g) - match.individualMatchupStrokes(yoAlias: me, oppAlias: opp, hole: hole, carryAlias: nil).opp) }
+                continue
             }
-        } else {
-            if let g = gross(me) {
-                let st = match.individualMatchupStrokes(yoAlias: me, oppAlias: alias, hole: hole, carryAlias: nil)
-                raise(Double(g) - st.yo + st.opp)
-            }
-            for other in match.players.map(\.alias) where other != me && other != alias {
-                if let g = gross(other) { raise(Double(g)) }
+            let st = match.individualMatchupStrokes(yoAlias: me, oppAlias: opp, hole: hole, carryAlias: nil)
+            let other = alias == me ? opp : me
+            if let g = gross(other) { consider(Double(g) - (alias == me ? st.opp : st.yo)) }
+        }
+        // Parejas: la bola de cada jugador con el stroke de su pareja.
+        for lane in match.activeLanes where lane.base.contains(alias) || lane.opp.contains(alias) {
+            for other in (lane.base + lane.opp) where other != alias {
+                if let g = gross(other) { consider(Double(g) - match.pairStrokeForPlayer(laneId: lane.id, alias: other, hole: hole)) }
             }
         }
-        guard let n = needed else { return nil }
-        return Int(n.rounded(.down)) + 1
+        return highest.map { Int($0.rounded(.down)) + 1 }
     }
 
     // MARK: Anotar y deshacer
@@ -634,6 +652,7 @@ enum VoiceHolePipeline {
         for (alias, cell) in draft.cells {
             guard let gross = cell.gross else { continue }
             let putts = cell.putts ?? match.getPutts(hole: hole, player: alias)
+            if match.cellOverride(alias: alias, hole: hole) == .lostHole { match.setCellOverride(alias: alias, hole: hole, override: .none) }
             match.applyHoleEntry(HoleEntryData(hole_number: hole, player_alias: alias, strokes: gross,
                                                putts: putts, units: nil, tags: nil))
             _ = ScoreManager.shared.saveScore(record: GolfScoreRecord(player: alias, hole: hole, strokes: gross, putts: putts))
@@ -642,15 +661,30 @@ enum VoiceHolePipeline {
         for h in Set(draft.edits.map(\.hole)) where h != hole {
             token.otherHoles[h] = Dictionary(uniqueKeysWithValues: match.players.map { ($0.alias, $0.scores[h]) })
         }
+        for h in Set(draft.edits.filter { $0.pickup && $0.reason != nil }.map(\.hole)) where h != hole {
+            token.otherUnitEvents[h] = .some(match.unitEventsByHole[h])
+        }
+        for e in draft.edits {
+            token.lostBefore["\(e.alias)#\(e.hole)"] = match.cellOverride(alias: e.alias, hole: e.hole)
+        }
+        for (alias, cell) in draft.cells where cell.gross != nil {
+            token.lostBefore["\(alias)#\(hole)"] = match.cellOverride(alias: alias, hole: hole)
+        }
         for e in draft.edits where !e.pickup {
             let current = match.getScore(hole: e.hole, player: e.alias)
             guard let g = e.gross ?? (current > 0 ? current : nil) else { continue }
             let p = e.putts ?? match.getPutts(hole: e.hole, player: e.alias)
             writeScore(match, alias: e.alias, hole: e.hole, gross: g, putts: p)
+            if match.cellOverride(alias: e.alias, hole: e.hole) == .lostHole { match.setCellOverride(alias: e.alias, hole: e.hole, override: .none) }
         }
         for e in draft.edits where e.pickup {
             if let g = pickupGross(draft: draft, match: match, alias: e.alias, hole: e.hole) {
                 writeScore(match, alias: e.alias, hole: e.hole, gross: g, putts: match.getPutts(hole: e.hole, player: e.alias))
+                match.setCellOverride(alias: e.alias, hole: e.hole, override: .lostHole)   // sin strokes: pierde el hoyo
+                if let reason = e.reason {   // el motivo queda de nota en ese hoyo, sin pisar una nota que ya hubiera
+                    let hasNote = match.unitEventsByHole[e.hole]?.contains { $0.alias == e.alias && $0.code == "NOTA" } == true
+                    if !hasNote { match.upsertUnitEvent(hole: e.hole, alias: e.alias, code: "NOTA", units: 0, note: reason) }
+                }
             }
         }
         if !draft.oyes.isEmpty { match.setOyesRanks(hole: hole, ranksByAlias: draft.oyes) }
@@ -690,6 +724,11 @@ enum VoiceHolePipeline {
                 }
             }
         }
+        for (key, previous) in token.lostBefore {
+            let parts = key.split(separator: "#")
+            if parts.count == 2, let h = Int(parts[1]) { match.setCellOverride(alias: String(parts[0]), hole: h, override: previous) }
+        }
+        for (h, events) in token.otherUnitEvents { match.unitEventsByHole[h] = events ?? nil }
         match.oyesRanksByHole[token.hole] = token.oyes
         match.unitEventsByHole[token.hole] = token.unitEvents
     }

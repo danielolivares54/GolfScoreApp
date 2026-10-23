@@ -346,36 +346,147 @@ struct RunsAndPickupsTests {
         #expect((5...8).map { m.getScore(hole: $0, player: "ROB") } == before)
     }
 
-    // "Se levantó": un golpe más que el neto más alto de los demás, con los strokes de cada match.
+    // "Se levantó": un golpe más que el neto más alto de los demás, sin strokes para él y con cruz ✕ en la tarjeta.
 
-    @Test func aRivalWhoPicksUpLosesTheHoleToYo() async throws {
+    /// Netos de los demás en ese hoyo, calculados aparte (cada match con sus strokes), ANTES de que se levante.
+    private func othersNets(_ m: MatchManager, picker: String, hole: Int) -> [Double] {
+        var nets: [Double] = []
+        for opp in m.players.map(\.alias) where opp != "DAN" {
+            let st = m.individualMatchupStrokes(yoAlias: "DAN", oppAlias: opp, hole: hole, carryAlias: nil)
+            if picker == "DAN" || picker == opp {
+                let other = picker == "DAN" ? opp : "DAN"
+                nets.append(Double(m.getScore(hole: hole, player: other)) - (picker == "DAN" ? st.opp : st.yo))
+            } else {
+                nets.append(Double(m.getScore(hole: hole, player: opp)) - st.opp)
+            }
+        }
+        for lane in m.lanes where lane.base.contains(picker) || lane.opp.contains(picker) {
+            for other in lane.base + lane.opp where other != picker {
+                nets.append(Double(m.getScore(hole: hole, player: other)) - m.pairStrokeForPlayer(laneId: lane.id, alias: other, hole: hole))
+            }
+        }
+        return nets
+    }
+
+    @Test func aRivalWhoPicksUpGetsOneMoreThanTheHighestNetOfTheOthers() async throws {
         let m = DemoFixture.make()
         let hole = 3
+        let highest = othersNets(m, picker: "ROB", hole: hole).max()!
         let d = try await run(m, "Roberto se levantó", hole: hole, .init(hoyo: hole, scores: [.init(jugador: "ROB", gross: nil, putts: nil, levanto: true)]))
-        let g = try #require(VoiceHolePipeline.pickupGross(draft: d, match: m, alias: "ROB", hole: hole))
+        #expect(VoiceHolePipeline.pickupGross(draft: d, match: m, alias: "ROB", hole: hole) == Int(highest.rounded(.down)) + 1)
         _ = VoiceHolePipeline.apply(d, match: m)
-        #expect(m.getScore(hole: hole, player: "ROB") == g)
-        let st = m.individualMatchupStrokes(yoAlias: "DAN", oppAlias: "ROB", hole: hole, carryAlias: nil)
-        let danNet = Double(m.getScore(hole: hole, player: "DAN")) - st.yo
-        let robNet = Double(g) - st.opp
-        #expect(robNet > danNet)                       // pierde el hoyo contra yo
-        #expect(Double(g - 1) - st.opp <= danNet + 0.001)   // y no se le pone de más
-        // Y peor que lo que hicieron los otros rivales.
-        for other in ["FER", "RIC", "ANS"] { #expect(g > m.getScore(hole: hole, player: other)) }
+        let g = m.getScore(hole: hole, player: "ROB")
+        #expect(Double(g) > highest)                  // su neto (sin strokes) es el más alto
+        #expect(Double(g - 1) <= highest + 0.001)     // y no se le pone de más
+        #expect(m.cellOverride(alias: "ROB", hole: hole) == .lostHole)
+        #expect(m.individualMatchupStrokes(yoAlias: "DAN", oppAlias: "ROB", hole: hole, carryAlias: nil).opp == 0)
+    }
+
+    @Test func theCardShowsACrossAndNoStrokeDotsForTheOneWhoPickedUp() async throws {
+        let m = DemoFixture.make()
+        let hole = (1...18).first { h in
+            m.individualMatchupStrokes(yoAlias: "DAN", oppAlias: "ROB", hole: h, carryAlias: nil).yo > 0 } ?? 1   // DAN recibe de ROB ahí
+        func danCell() -> MatchManager.TarjetaCellV2? { m.tarjetaNinesV2().flatMap(\.holes).first { $0.hole == hole }?.cells[0] }
+        #expect(danCell()?.lostHole == false)
+        let d = try await run(m, "yo me levanté", hole: hole, .init(hoyo: hole, scores: [.init(jugador: "yo", gross: nil, putts: nil, levanto: true)]))
+        let token = try #require(VoiceHolePipeline.apply(d, match: m))
+        #expect(danCell()?.lostHole == true)
+        #expect(danCell()?.strokes == 0)
+        VoiceHolePipeline.undo(token, match: m)
+        #expect(danCell()?.lostHole == false)
+    }
+
+    @Test func strokesComeBackAfterUndo() async throws {
+        let m = DemoFixture.make()
+        let hole = (1...18).first { h in
+            m.individualMatchupStrokes(yoAlias: "DAN", oppAlias: "ROB", hole: h, carryAlias: nil).yo > 0 } ?? 1   // DAN recibe de ROB
+        let before = m.individualMatchupStrokes(yoAlias: "DAN", oppAlias: "ROB", hole: hole, carryAlias: nil)
+        let d = try await run(m, "yo me levanté", hole: hole, .init(hoyo: hole, scores: [.init(jugador: "yo", gross: nil, putts: nil, levanto: true)]))
+        let token = try #require(VoiceHolePipeline.apply(d, match: m))
+        #expect(m.individualMatchupStrokes(yoAlias: "DAN", oppAlias: "ROB", hole: hole, carryAlias: nil).yo == 0)
+        VoiceHolePipeline.undo(token, match: m)
+        #expect(m.cellOverride(alias: "DAN", hole: hole) == .none)
+        #expect(m.individualMatchupStrokes(yoAlias: "DAN", oppAlias: "ROB", hole: hole, carryAlias: nil).yo == before.yo)
     }
 
     @Test func yoWhoPicksUpLosesToEveryRival() async throws {
         let m = DemoFixture.make()
         let hole = 3
+        let highest = othersNets(m, picker: "DAN", hole: hole).max()!
         let d = try await run(m, "yo me levanté", hole: hole, .init(hoyo: hole, scores: [.init(jugador: "yo", gross: nil, putts: nil, levanto: true)]))
         _ = VoiceHolePipeline.apply(d, match: m)
-        let danGross = m.getScore(hole: hole, player: "DAN")
+        let g = m.getScore(hole: hole, player: "DAN")
+        #expect(g == Int(highest.rounded(.down)) + 1)
         for opp in ["FER", "ROB", "RIC", "ANS"] {
             let st = m.individualMatchupStrokes(yoAlias: "DAN", oppAlias: opp, hole: hole, carryAlias: nil)
-            let danNet = Double(danGross) - st.yo
-            let oppNet = Double(m.getScore(hole: hole, player: opp)) - st.opp
-            #expect(danNet > oppNet)
+            #expect(Double(g) - st.yo > Double(m.getScore(hole: hole, player: opp)) - st.opp)   // pierde contra cada rival
         }
+    }
+
+    @Test func inPairsThePickedUpBallHasTheHighestNet() async throws {
+        let m = DemoFixture.make()
+        let hole = 3
+        let d = try await run(m, "Roberto se levantó", hole: hole, .init(hoyo: hole, scores: [.init(jugador: "ROB", gross: nil, putts: nil, levanto: true)]))
+        _ = VoiceHolePipeline.apply(d, match: m)
+        let lanes = m.lanes.filter { $0.base.contains("ROB") || $0.opp.contains("ROB") }
+        #expect(!lanes.isEmpty)
+        for lane in lanes {
+            let row = try #require(m.pairZoomRows(laneId: lane.id, segmentOverride: "F9").first { $0.hole == hole })
+            let balls = row.basePlayers + row.oppPlayers
+            let rob = try #require(balls.first { $0.alias == "ROB" })
+            #expect(rob.laneStrokes == 0)
+            #expect(balls.filter { $0.alias != "ROB" }.allSatisfy { rob.net > $0.net })
+        }
+    }
+
+    @Test func aWrongBallIsTheSameRuleAndLeavesTheReasonAsANote() async throws {
+        let m = DemoFixture.make()
+        let hole = 3
+        let highest = othersNets(m, picker: "ROB", hole: hole).max()!
+        let d = try await run(m, "Roberto jugó bola equivocada", hole: hole,
+                              .init(hoyo: hole, scores: [.init(jugador: "ROB", gross: nil, putts: nil, levanto: true, motivo: "bola equivocada")]))
+        let report = VoiceHolePipeline.report(d, match: m)
+        #expect(report.understood.contains { $0.contains("bola equivocada") && $0.contains("pierde el 3") })
+        let token = try #require(VoiceHolePipeline.apply(d, match: m))
+        let g = m.getScore(hole: hole, player: "ROB")
+        #expect(g == Int(highest.rounded(.down)) + 1)
+        #expect(m.cellOverride(alias: "ROB", hole: hole) == .lostHole)
+        #expect(m.unitEventsByHole[hole]?.contains { $0.alias == "ROB" && $0.code == "NOTA" && $0.note == "Bola equivocada" } == true)
+        VoiceHolePipeline.undo(token, match: m)
+        #expect(m.unitEventsByHole[hole]?.contains { $0.alias == "ROB" && $0.code == "NOTA" } != true)
+        #expect(m.cellOverride(alias: "ROB", hole: hole) == .none)
+    }
+
+    @Test func aWrongBallInARunOfHolesNotesEachHoleAndUndoClearsThem() async throws {
+        let m = DemoFixture.make()
+        let d = try await run(m, "del 5 al 6 Roberto bola equivocada",
+                              .init(corridas: [.init(jugador: "ROB", desde: 5, hasta: 6, levanto: true, motivo: "bola equivocada")]))
+        let token = try #require(VoiceHolePipeline.apply(d, match: m))
+        for hole in [5, 6] {
+            #expect(m.cellOverride(alias: "ROB", hole: hole) == .lostHole)
+            #expect(m.unitEventsByHole[hole]?.contains { $0.alias == "ROB" && $0.note == "Bola equivocada" } == true)
+        }
+        VoiceHolePipeline.undo(token, match: m)
+        for hole in [5, 6] { #expect(m.unitEventsByHole[hole]?.contains { $0.alias == "ROB" && $0.code == "NOTA" } != true) }
+    }
+
+    @Test func resettingTheScoresForgetsTheLostHoles() async throws {
+        let m = DemoFixture.make()
+        m.setCellOverride(alias: "ROB", hole: 3, override: .lostHole)
+        m.resetScores()
+        #expect(m.cellOverride(alias: "ROB", hole: 3) == .none)
+    }
+
+    @Test func correctingAPickedUpScoreBringsTheStrokesBack() async throws {
+        let m = DemoFixture.make()
+        let hole = 3
+        let d = try await run(m, "Roberto se levantó", hole: hole, .init(hoyo: hole, scores: [.init(jugador: "ROB", gross: nil, putts: nil, levanto: true)]))
+        _ = VoiceHolePipeline.apply(d, match: m)
+        #expect(m.cellOverride(alias: "ROB", hole: hole) == .lostHole)
+        let fix = try await run(m, "Roberto cinco", hole: hole, .init(hoyo: hole, scores: [.init(jugador: "ROB", gross: 5, putts: nil)]))
+        _ = VoiceHolePipeline.apply(fix, match: m)
+        #expect(m.cellOverride(alias: "ROB", hole: hole) == .none)
+        #expect(m.getScore(hole: hole, player: "ROB") == 5)
     }
 
     @Test func aPickupInARunNeedsTheOtherScoresAndAsksWhenTheyAreMissing() async throws {

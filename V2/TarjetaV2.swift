@@ -260,7 +260,7 @@ struct TarjetaV2: View {
         } else if ctx.participants != nil {
             // Match elegido: solo cuentan los strokes de ESE match (también los míos); los demás jugadores se atenúan.
             let strokes = ctx.strokes[hole.hole]?[alias] ?? 0
-            ScoreMarkV2(gross: cell.gross, par: hole.par, size: 32, strokeDots: strokes, hasEvent: cell.hasEvent)
+            ScoreMarkV2(gross: cell.gross, par: hole.par, size: 32, strokeDots: cell.lostHole ? 0 : strokes, hasEvent: cell.hasEvent, lostHole: cell.lostHole)
                 .padding(6)
                 .background {
                     if strokes > 0 {
@@ -271,7 +271,7 @@ struct TarjetaV2: View {
                 .opacity(ctx.participants?.contains(alias) == true ? 1 : 0.45)
         } else {
             ScoreMarkV2(gross: cell.gross, par: hole.par, size: 32,
-                        strokeDots: cell.strokes, hasEvent: cell.hasEvent)
+                        strokeDots: cell.strokes, hasEvent: cell.hasEvent, lostHole: cell.lostHole)
         }
     }
 
@@ -342,6 +342,7 @@ struct TarjetaV2: View {
         let scope = matchStrokes == nil ? "" : " en este match"
         if strokes >= 1 { text += ", recibe stroke" + scope } else if strokes > 0 { text += ", recibe medio stroke" + scope }
         if cell.hasEvent { text += ", con evento u oye" }
+        if cell.lostHole { text += ", se levantó: hoyo perdido" }
         return text
     }
 }

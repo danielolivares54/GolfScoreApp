@@ -175,6 +175,8 @@ extension MatchManager {
         let hasEvent: Bool
         /// Putts anotados (nil = sin anotar; solo se registran los de quien rastrea putts, regla R8).
         let putts: Int?
+        /// El jugador se levantó / perdió el hoyo: se dibuja una cruz ✕ y no lleva strokes.
+        var lostHole = false
     }
 
     struct TarjetaHoleV2: Identifiable {
@@ -225,11 +227,13 @@ extension MatchManager {
                 let cells = players.map { p -> TarjetaCellV2 in
                     let score = getScore(hole: h, player: p.alias)
                     let putts = getPutts(hole: h, player: p.alias)
+                    let lost = cellOverride(alias: p.alias, hole: h) == .lostHole
                     return TarjetaCellV2(
                         gross: score > 0 ? score : nil,
-                        strokes: distributedStrokes(total: p.strokesVsBase, hole: h),
+                        strokes: lost ? 0 : distributedStrokes(total: p.strokesVsBase, hole: h),
                         hasEvent: hasEvent(alias: p.alias, hole: h),
-                        putts: putts > 0 ? putts : nil
+                        putts: putts > 0 ? putts : nil,
+                        lostHole: lost
                     )
                 }
                 return TarjetaHoleV2(hole: h, par: data?.par ?? 4, hcp: data?.si ?? 0, cells: cells)

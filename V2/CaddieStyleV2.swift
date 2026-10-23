@@ -83,6 +83,7 @@ struct ScoreMarkV2: View {
     var size: CGFloat = 44
     var strokeDots: Double = 0      // strokes received on this hole for the match being viewed (0.5 = half)
     var hasEvent = false            // gold marker: event or oye on this hole
+    var lostHole = false            // se levantó / perdió el hoyo: cruz ✕ sobre el número, sin strokes
     // Sin contornos (círculos/cuadros dobles): el resultado vs par lo dice el COLOR del número y el único marcador
     // redondo extra es el de evento/oye (dorado). `outlined: true` dibuja la marca estándar de golf (solo comparación).
     var outlined = false
@@ -101,6 +102,13 @@ struct ScoreMarkV2: View {
             .foregroundStyle(color)
             .frame(width: size * scale, height: size * scale)
             .overlay { if outlined { outline } }
+            .overlay {
+                if lostHole {
+                    Image(systemName: "xmark").font(.system(size: size * scale * 0.78, weight: .light))
+                        .foregroundStyle(CSV2.red.opacity(0.85))
+                        .accessibilityLabel("se levantó, hoyo perdido")
+                }
+            }
             .overlay(alignment: .topTrailing) {
                 if strokeDots > 0 {
                     Circle()

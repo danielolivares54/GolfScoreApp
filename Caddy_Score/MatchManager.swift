@@ -749,6 +749,8 @@ class MatchManager: ObservableObject {
         // Qué apuestas están encendidas en cada match ("no apuesto oyes"). Por alias del rival y, en parejas, por la clave estable de aliases.
         var individualSwitchesByOpponent: [String: MatchBetSwitches] = [:]
         var pairSwitchesByOppKey: [String: MatchBetSwitches] = [:]
+        // Hoyos que alguien perdió por levantarse (alias → hoyos): sin esto, al relanzar la app volverían a aplicarse sus strokes.
+        var lostHolesByAlias: [String: [Int]] = [:]
         // Roster + campo — sin esto, syncFromScoreManager()/el resto de este snapshot no tienen
         // a quién aplicarse tras matar la app a medio match: players arranca vacío en cada
         // relanzamiento (setupDefaultPlayers), y el replay por alias/nombre no encuentra nada.
@@ -764,6 +766,7 @@ class MatchManager: ObservableObject {
              laneCarrierByOppKey: [String: String],
              pairAdjust50ByOppKey: [String] = [], pairDoublePressByOppKey: [String] = [],
              individualSwitchesByOpponent: [String: MatchBetSwitches] = [:], pairSwitchesByOppKey: [String: MatchBetSwitches] = [:],
+             lostHolesByAlias: [String: [Int]] = [:],
              playerNames: [String] = [], courseId: String = "", matchStartHole: Int = 1) {
             self.activeTemplateId = activeTemplateId
             self.vueltaValue = vueltaValue
@@ -783,6 +786,7 @@ class MatchManager: ObservableObject {
             self.pairDoublePressByOppKey = pairDoublePressByOppKey
             self.individualSwitchesByOpponent = individualSwitchesByOpponent
             self.pairSwitchesByOppKey = pairSwitchesByOppKey
+            self.lostHolesByAlias = lostHolesByAlias
             self.playerNames = playerNames
             self.courseId = courseId
             self.matchStartHole = matchStartHole
@@ -808,6 +812,7 @@ class MatchManager: ObservableObject {
             pairDoublePressByOppKey = try c.decodeIfPresent([String].self, forKey: .pairDoublePressByOppKey) ?? []
             individualSwitchesByOpponent = try c.decodeIfPresent([String: MatchBetSwitches].self, forKey: .individualSwitchesByOpponent) ?? [:]
             pairSwitchesByOppKey = try c.decodeIfPresent([String: MatchBetSwitches].self, forKey: .pairSwitchesByOppKey) ?? [:]
+            lostHolesByAlias = try c.decodeIfPresent([String: [Int]].self, forKey: .lostHolesByAlias) ?? [:]
             playerNames = try c.decodeIfPresent([String].self, forKey: .playerNames) ?? []
             courseId = try c.decodeIfPresent(String.self, forKey: .courseId) ?? ""
             matchStartHole = try c.decodeIfPresent(Int.self, forKey: .matchStartHole) ?? 1
@@ -863,6 +868,10 @@ class MatchManager: ObservableObject {
             pairAdjust50ByOppKey: pairAdjust50Keys,
             pairDoublePressByOppKey: pairDoublePressKeys,
             individualSwitchesByOpponent: individualBetSwitchesByOpponent, pairSwitchesByOppKey: pairSwitchesKeys,
+            lostHolesByAlias: Dictionary(uniqueKeysWithValues: players.compactMap { p -> (String, [Int])? in
+                let holes = p.cellOverrides.filter { $0.value == .lostHole }.map(\.key).sorted()
+                return holes.isEmpty ? nil : (p.alias, holes)
+            }),
             playerNames: players.map { $0.name }, courseId: courseId, matchStartHole: startHole
         )
         do {
@@ -918,6 +927,9 @@ class MatchManager: ObservableObject {
             }
             for (opp, sw) in snapshot.individualSwitchesByOpponent where individualBetSwitchesByOpponent[opp] != nil {
                 individualBetSwitchesByOpponent[opp] = sw
+            }
+            for (alias, holes) in snapshot.lostHolesByAlias {
+                for hole in holes { setCellOverride(alias: alias, hole: hole, override: .lostHole) }
             }
             for (opp, req) in snapshot.individualCarryRequesterByOpponent {
                 if let start = snapshot.individualCarryStartHoleByOpponent[opp] {
@@ -1706,6 +1718,7 @@ class MatchManager: ObservableObject {
     func resetScores() {
         for i in players.indices {
             players[i].scores.removeAll()
+            players[i].cellOverrides.removeAll()
         }
     }
 
@@ -3090,6 +3103,14 @@ class MatchManager: ObservableObject {
     // Individuales usan el histórico por jugador vs base:
     // positivo = ese jugador recibe; negativo = ese jugador da (recibe el rival).
     func individualMatchupStrokes(yoAlias: String, oppAlias: String, hole: Int, carryAlias: String?) -> (yo: Double, opp: Double) {
+        var strokes = rawIndividualMatchupStrokes(yoAlias: yoAlias, oppAlias: oppAlias, hole: hole, carryAlias: carryAlias)
+        // Quien se levantó / perdió el hoyo no recibe strokes ahí: su score ya es el peor y pierde el hoyo.
+        if cellOverride(alias: yoAlias, hole: hole) == .lostHole { strokes.yo = 0 }
+        if cellOverride(alias: oppAlias, hole: hole) == .lostHole { strokes.opp = 0 }
+        return strokes
+    }
+
+    private func rawIndividualMatchupStrokes(yoAlias: String, oppAlias: String, hole: Int, carryAlias: String?) -> (yo: Double, opp: Double) {
         let yoTotal = playerStrokes(alias: yoAlias)
         let oppTotal = playerStrokes(alias: oppAlias)
 
@@ -3280,6 +3301,8 @@ class MatchManager: ObservableObject {
     }
 
     private func laneCarrierStroke(lane: LaneModel, alias: String, hole: Int, carryRequesterAlias: String? = nil) -> Double {
+        // Quien se levantó / perdió el hoyo no recibe strokes ahí (igual que en individual).
+        if cellOverride(alias: alias, hole: hole) == .lostHole { return 0 }
         if let requester = carryRequesterAlias, segmentForHole(hole) == "B9" {
             let p = laneB9CarryProfile(lane: lane, requesterAlias: requester)
             guard p.carrier == alias, p.total > 0.001 else { return 0 }
@@ -3616,6 +3639,7 @@ class MatchManager: ObservableObject {
             players[idx].cellOverrides[hole] = value
         }
         objectWillChange.send()
+        saveBetConfig()
     }
 
     // Lee ScoreManager desde disco y aplica los records al estado en memoria.
