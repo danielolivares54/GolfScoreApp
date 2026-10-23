@@ -563,15 +563,12 @@ struct PairsNoticeTests {
         #expect(!m.resultadoRowsV2().filter(\.isPair).isEmpty)
     }
 
-    @Test func matchParejasOffInTheCatalogSaysSoAndOneTapTurnsItOn() {
+    @Test func definedPairsAlwaysCountEvenIfTheCatalogLacksMatchParejas() {
         let m = DemoFixture.make()
         m.betCatalog = m.betCatalog.filter { $0.tag != "PAIR" }
-        #expect(m.pairsNoticeV2() == .offInCatalog)
-        #expect(m.resultadoRowsV2().filter(\.isPair).isEmpty)          // definidas y con strokes, pero no cuentan
-        #expect(m.pairsNoticeTextV2(.offInCatalog).contains("apagado en el catálogo"))
-        // El resumen hablado también lo avisa.
-        #expect(m.moneyReadbackV2().contains("Ojo: Match Parejas está apagado"))
-        #expect(m.countsReadbackV2().contains("Ojo: Match Parejas está apagado"))
+        #expect(m.pairsNoticeV2() == nil)
+        #expect(m.resultadoRowsV2().filter(\.isPair).count == 3)
+        #expect(!m.moneyReadbackV2().contains("Ojo"))
     }
 
     @Test func noBaseTeamMeansNotDefined() {

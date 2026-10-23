@@ -4381,7 +4381,9 @@ extension MatchManager {
 
     var isOyesEnabled: Bool { isCatalogTagEnabled("OYES") }
     var isOyesPairEnabled: Bool { isCatalogTagEnabled("OYESP") }
-    var isPairMatchEnabled: Bool { isCatalogTagEnabled("PAIR") }
+    /// Las parejas cuentan siempre que haya pareja base definida en el Setup: ya no hay interruptor de "Match Parejas" en el catálogo
+    /// (se contraponía con las parejas definidas: apagado, las parejas con strokes dejaban de contar sin avisar).
+    var isPairMatchEnabled: Bool { true }
 
     /// Las parejas que participan: ninguna si "Match Parejas" está apagado en el catálogo.
     var activeLanes: [LaneModel] { isPairMatchEnabled ? lanes : [] }

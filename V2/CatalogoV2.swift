@@ -25,8 +25,9 @@ struct CatalogoV2: View {
     private var individual: [BetDefinition] {
         store.entries.filter { $0.type == .individual }.sorted { $0.name < $1.name }
     }
+    /// "Match Parejas" no aparece: las parejas cuentan siempre que haya pareja base en el Setup.
     private var parejas: [BetDefinition] {
-        store.entries.filter { $0.type == .parejas }.sorted { $0.name < $1.name }
+        store.entries.filter { $0.type == .parejas && $0.tag != "PAIR" }.sorted { $0.name < $1.name }
     }
 
     var body: some View {
@@ -36,7 +37,7 @@ struct CatalogoV2: View {
                 header
                 ScrollView {
                     VStack(spacing: CSV2.s2) {
-                        Text("Qué cuenta y cuántas unidades vale. Lo que apagues deja de contar en el match en curso; lo que reactives vuelve a contar.")
+                        Text("Qué cuenta y cuántas unidades vale. Lo que apagues deja de contar en el match en curso; lo que reactives vuelve a contar. Las parejas cuentan siempre que haya pareja base en el Setup.")
                             .font(.v2Label).foregroundStyle(CSV2.secondary)
                             .frame(maxWidth: .infinity, alignment: .leading)
                         group("Individual", individual)

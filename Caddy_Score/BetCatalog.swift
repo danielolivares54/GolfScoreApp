@@ -152,6 +152,19 @@ final class BetDefinitionStore: ObservableObject {
         load()
         if entries.isEmpty { seedDefaults() }
         ensurePuttsTag()
+        ensurePairTagOn()
+    }
+
+    // "Match Parejas" ya no se apaga: un catálogo guardado con ese tag apagado (que hacía que las parejas definidas no contaran)
+    // se vuelve a encender, y si falta se agrega.
+    private func ensurePairTagOn() {
+        if let idx = entries.firstIndex(where: { $0.tag == "PAIR" }) {
+            guard !entries[idx].isEnabled else { return }
+            entries[idx].isEnabled = true
+        } else {
+            entries.append(BetDefinition(tag: "PAIR", name: "Match Parejas", type: .parejas, mode: .manual, units: 1, description: "Manual"))
+        }
+        save()
     }
 
     // Tag de la apuesta de putts. Encendido = apuesta abierta, "Vale" = precio en unidades,
@@ -298,7 +311,7 @@ struct BetDefinitionEditorView: View {
         store.entries.filter { $0.type == .individual }.sorted { $0.name < $1.name }
     }
     private var parejasDefs: [BetDefinition] {
-        store.entries.filter { $0.type == .parejas }.sorted { $0.name < $1.name }
+        store.entries.filter { $0.type == .parejas && $0.tag != "PAIR" }.sorted { $0.name < $1.name }
     }
 
     // Sin NavigationStack/toolbar propios — vive embebido como una de las dos páginas de

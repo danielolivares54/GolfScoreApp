@@ -43,3 +43,8 @@
 - **Ejemplos tuyos para el LLM:** las últimas frases tuyas y la tarjeta final que quedó bien (primero las de hoyos que costaron más de una dictada) viajan en cada llamada como `ejemplos`, junto a los `apodos`, para calibrar tu jerga sin copiar datos.
 - **Medirlo:** la hoja de voz muestra "N dictadas · X de Y hoyos salieron a la primera · N apodos y frases aprendidos".
 - Sigue pendiente (fase aparte): exportar los pares audio + texto + tarjeta final para ajustar un modelo; antes hay que decidir si esos audios se pueden subir.
+
+## Match Parejas ya no se apaga (23-oct)
+- Causa de "las parejas definidas y con strokes no contaban": el interruptor **Match Parejas** del catálogo estaba apagado y apaga todas las parejas de golpe, contraponiéndose a la pareja base del Setup. El interruptor se eliminó: las parejas cuentan siempre que haya pareja base en el Setup (`isPairMatchEnabled` siempre verdadero; no aparece en el editor de unidades v2 ni en el catálogo v1) y un catálogo guardado con ese tag apagado se vuelve a encender solo (`BetDefinitionStore.ensurePairTagOn`).
+- Para no jugar parejas basta no definir la pareja base; para quitar una apuesta de parejas, las fichas por match (Vuelta, Presión, Match, Carry, Ajuste 50, Oyes, Unidades).
+- El aviso de parejas sin calcular se queda para dos casos: sin pareja base y scores faltantes en un hoyo.

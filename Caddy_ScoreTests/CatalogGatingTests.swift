@@ -56,15 +56,19 @@ struct CatalogGatingTests {
         #expect(robUnits(m) == individualBefore)
     }
 
-    @Test func switchingPairMatchOffRemovesEveryPairLine() {
+    @Test func matchParejasCannotBeSwitchedOffTheCatalogNeverHidesDefinedPairs() {
         let m = DemoFixture.make()
-        #expect(m.resultadoRowsV2().filter(\.isPair).count == 3)
-        let individualsOnly = m.resultadoRowsV2().filter { !$0.isPair }.reduce(0) { $0 + $1.money }
-        m.betCatalog = catalog(without: ["PAIR"])
-        #expect(m.resultadoRowsV2().filter(\.isPair).isEmpty)
-        #expect(m.walletSnapshot().lines.allSatisfy { $0.scope != .parejas })
-        #expect(m.walletSnapshot().totalMoney == individualsOnly)
-        #expect(m.activeLanes.isEmpty && !m.lanes.isEmpty)   // las parejas siguen definidas, solo no cuentan
+        let before = m.resultadoRowsV2().filter(\.isPair).count
+        #expect(before == 3)
+        m.betCatalog = catalog(without: ["PAIR"])          // aunque el tag falte o esté apagado en el catálogo
+        #expect(m.isPairMatchEnabled)
+        #expect(m.resultadoRowsV2().filter(\.isPair).count == before)
+        #expect(m.activeLanes.count == m.lanes.count)
+    }
+
+    @Test func theSavedCatalogAlwaysHasMatchParejasOn() {
+        // Un catálogo guardado con Match Parejas apagado se vuelve a encender al abrirse, y el editor ya no lo muestra.
+        #expect(BetDefinitionStore.shared.entries.first { $0.tag == "PAIR" }?.isEnabled == true)
     }
 
     @Test func aSwitchedOffManualUnitStopsCountingButKeepsItsEvents() {
