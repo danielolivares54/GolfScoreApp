@@ -24,17 +24,14 @@ struct AuditV2: View {
     @Environment(\.dismiss) private var dismiss
     @State private var target: CorrectionTargetV2?
 
-    private var audited: [HoleAuditStatus] { HoleAudit.playedHoles(manager: matchManager) }
-    private var incompleteCount: Int { audited.filter { $0.hasWarning }.count }
-    private var f9: [HoleAuditStatus] {
-        let set = Set(matchManager.playOrder().prefix(9)); return audited.filter { set.contains($0.hole) }
-    }
-    private var b9: [HoleAuditStatus] {
-        let set = Set(matchManager.playOrder().suffix(9)); return audited.filter { set.contains($0.hole) }
-    }
-
     var body: some View {
-        ZStack {
+        // La auditoría recorre los 18 hoyos: se calcula UNA vez por render y se pasa a cada sección.
+        let audited = HoleAudit.playedHoles(manager: matchManager)
+        let order = matchManager.playOrder()
+        let f9 = audited.filter { Set(order.prefix(9)).contains($0.hole) }
+        let b9 = audited.filter { Set(order.suffix(9)).contains($0.hole) }
+        let incompleteCount = audited.filter { $0.hasWarning }.count
+        return ZStack {
             CSV2.background.ignoresSafeArea()
             ScrollView {
                 VStack(spacing: CSV2.s2) {
@@ -43,10 +40,10 @@ struct AuditV2: View {
                         Text("Sin hoyos anotados aún").font(.v2Body).foregroundStyle(CSV2.secondary)
                             .frame(maxWidth: .infinity).padding(CSV2.s3)
                     } else {
-                        if incompleteCount > 0 { banner }
+                        if incompleteCount > 0 { banner(incompleteCount) }
                         chapter("F9", f9)
                         chapter("B9", b9)
-                        oyesAndUnits
+                        oyesAndUnits(playedHoles: Set(audited.map(\.hole)))
                     }
                 }
                 .padding(CSV2.s2)
@@ -66,7 +63,7 @@ struct AuditV2: View {
         }
     }
 
-    private var banner: some View {
+    private func banner(_ incompleteCount: Int) -> some View {
         HStack(spacing: 10) {
             Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
             Text("\(incompleteCount) hoyo\(incompleteCount == 1 ? "" : "s") con datos incompletos — toca una celda para corregir")
@@ -161,8 +158,7 @@ struct AuditV2: View {
     private struct OyeRow: Identifiable { let id = UUID(); let hole: Int; let alias: String; let rank: Int }
     private struct UnitRow: Identifiable { let id: UUID; let hole: Int; let alias: String; let code: String }
 
-    private var oyeRows: [OyeRow] {
-        let played = Set(audited.map(\.hole))
+    private func oyeRows(played: Set<Int>) -> [OyeRow] {
         var rows: [OyeRow] = []
         for (hole, ranks) in matchManager.oyesRanksByHole where played.contains(hole) {
             for (alias, rank) in ranks { rows.append(OyeRow(hole: hole, alias: alias, rank: rank)) }
@@ -170,8 +166,7 @@ struct AuditV2: View {
         return rows.sorted { $0.hole == $1.hole ? $0.rank < $1.rank : $0.hole < $1.hole }
     }
 
-    private var unitRows: [UnitRow] {
-        let played = Set(audited.map(\.hole))
+    private func unitRows(played: Set<Int>) -> [UnitRow] {
         var rows: [UnitRow] = []
         for (hole, events) in matchManager.unitEventsByHole where played.contains(hole) {
             for event in events where event.code.uppercased() != "NOTA" {
@@ -185,8 +180,8 @@ struct AuditV2: View {
         matchManager.betCatalog.first { $0.tag.uppercased() == code.uppercased() }?.name ?? code
     }
 
-    @ViewBuilder private var oyesAndUnits: some View {
-        let oyes = oyeRows, units = unitRows
+    @ViewBuilder private func oyesAndUnits(playedHoles: Set<Int>) -> some View {
+        let oyes = oyeRows(played: playedHoles), units = unitRows(played: playedHoles)
         if !oyes.isEmpty || !units.isEmpty {
             VStack(alignment: .leading, spacing: CSV2.s1) {
                 Text("Oyes y unidades").font(.v2Caps).textCase(.uppercase).foregroundStyle(CSV2.secondary)

@@ -24,18 +24,17 @@ struct ResultadoV2: View {
         return order.indices.contains(currentHoleIndex) ? order[currentHoleIndex] : 1
     }
 
-    private var rows: [MatchManager.ResultadoRowV2] { matchManager.resultadoRowsV2() }
-    private var individualRows: [MatchManager.ResultadoRowV2] { rows.filter { !$0.isPair } }
-    private var pairRows: [MatchManager.ResultadoRowV2] { rows.filter { $0.isPair } }
-    private var total: Int { rows.reduce(0) { $0 + $1.money } }
-
     var body: some View {
-        ZStack {
+        // Se calcula UNA vez por render (resultadoRowsV2 recorre el dinero y los hoyos de cada match).
+        let rows = matchManager.resultadoRowsV2()
+        let individualRows = rows.filter { !$0.isPair }
+        let pairRows = rows.filter { $0.isPair }
+        return ZStack {
             CSV2.background.ignoresSafeArea()
             ScrollView {
                 VStack(spacing: CSV2.s2) {
                     header
-                    totalCard
+                    totalCard(total: rows.reduce(0) { $0 + $1.money }, individuals: individualRows.count, pairs: pairRows.count)
                     if rows.isEmpty {
                         Text("Configura jugadores en Setup para ver resultados.")
                             .font(.v2Body).foregroundStyle(CSV2.secondary)
@@ -71,13 +70,13 @@ struct ResultadoV2: View {
 
     // MARK: Total
 
-    private var totalCard: some View {
+    private func totalCard(total: Int, individuals: Int, pairs: Int) -> some View {
         CardV2 {
             VStack(alignment: .leading, spacing: 4) {
                 Text("\(matchManager.yoAlias) · total en curso")
                     .font(.v2Label).foregroundStyle(CSV2.secondary)
                 MoneyTextV2(amount: total, size: 32, weight: .regular)
-                Text(summaryLine)
+                Text(summaryLine(individuals: individuals, pairs: pairs))
                     .font(.v2Label).foregroundStyle(CSV2.secondary)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -86,9 +85,8 @@ struct ResultadoV2: View {
         .accessibilityElement(children: .combine)
     }
 
-    private var summaryLine: String {
-        let i = individualRows.count, p = pairRows.count
-        return "\(i) \(i == 1 ? "individual" : "individuales") · \(p) \(p == 1 ? "pareja activa" : "parejas activas")"
+    private func summaryLine(individuals i: Int, pairs p: Int) -> String {
+        "\(i) \(i == 1 ? "individual" : "individuales") · \(p) \(p == 1 ? "pareja activa" : "parejas activas")"
     }
 
     // MARK: Tarjetas de matches

@@ -34,6 +34,7 @@ struct TarjetaV2: View {
 
     var body: some View {
         let nines = matchManager.tarjetaNinesV2()
+        let ctx = matchContext()
         let safeIndex = min(nineIndex, max(nines.count - 1, 0))
         ZStack {
             CSV2.background.ignoresSafeArea()
@@ -49,8 +50,8 @@ struct TarjetaV2: View {
                         .pickerStyle(.segmented)
                         playersLine
                         if !showPutts {
-                            matchBar
-                            if selectedRow != nil { matchSummary } else { legend }
+                            matchBar(ctx)
+                            if ctx.selected != nil { matchSummary(ctx) } else { legend }
                         }
                     }
                 }
@@ -62,7 +63,7 @@ struct TarjetaV2: View {
                             .font(.v2Body).foregroundStyle(CSV2.secondary)
                             .multilineTextAlignment(.center).padding(CSV2.s3)
                     } else {
-                        table(nines[safeIndex], allNines: nines)
+                        table(nines[safeIndex], allNines: nines, ctx: ctx)
                             .padding(.horizontal, CSV2.s2).padding(.bottom, CSV2.s3)
                     }
                 }
@@ -75,22 +76,28 @@ struct TarjetaV2: View {
 
     // MARK: Match elegido (resalta los strokes de ese match hoyo por hoyo)
 
-    private var rows: [MatchManager.ResultadoRowV2] { matchManager.resultadoRowsV2() }
-    private var selectedRow: MatchManager.ResultadoRowV2? {
-        showPutts ? nil : rows.first { $0.id == selectedMatchId }
-    }
-    private var matchStrokes: [Int: [String: Double]] {
-        selectedRow.map { matchManager.matchStrokesByHoleV2($0.target) } ?? [:]
-    }
-    private var participants: Set<String>? {
-        selectedRow.map { matchManager.matchParticipantsV2($0.target) }
+    /// Todo lo del match elegido, calculado UNA vez por render (resultadoRowsV2 y matchStrokesByHoleV2 son costosos).
+    private struct MatchContext {
+        let rows: [MatchManager.ResultadoRowV2]
+        let selected: MatchManager.ResultadoRowV2?
+        let strokes: [Int: [String: Double]]
+        let participants: Set<String>?
     }
 
-    private var matchBar: some View {
+    private func matchContext() -> MatchContext {
+        guard !showPutts else { return MatchContext(rows: [], selected: nil, strokes: [:], participants: nil) }
+        let rows = matchManager.resultadoRowsV2()
+        let selected = rows.first { $0.id == selectedMatchId }
+        return MatchContext(rows: rows, selected: selected,
+                            strokes: selected.map { matchManager.matchStrokesByHoleV2($0.target) } ?? [:],
+                            participants: selected.map { matchManager.matchParticipantsV2($0.target) })
+    }
+
+    private func matchBar(_ ctx: MatchContext) -> some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
                 matchChip("Todos", id: nil)
-                ForEach(rows) { row in
+                ForEach(ctx.rows) { row in
                     matchChip(row.isPair ? "vs \(row.rivalsText ?? row.title)" : row.title, id: row.id)
                 }
             }
@@ -110,8 +117,8 @@ struct TarjetaV2: View {
     }
 
     /// "DAN recibe 8 · hoyos 17, 4, 11…" — o "sin strokes" si ese match no tiene.
-    @ViewBuilder private var matchSummary: some View {
-        if let row = selectedRow {
+    @ViewBuilder private func matchSummary(_ ctx: MatchContext) -> some View {
+        if let row = ctx.selected {
             Group {
                 if let receiver = row.strokesReceiver, row.strokesAmount > 0 {
                     StrokeTextV2(receiver: receiver, amount: row.strokesAmount,
@@ -181,13 +188,13 @@ struct TarjetaV2: View {
 
     // MARK: Tabla
 
-    private func table(_ nine: MatchManager.TarjetaNineV2, allNines: [MatchManager.TarjetaNineV2]) -> some View {
+    private func table(_ nine: MatchManager.TarjetaNineV2, allNines: [MatchManager.TarjetaNineV2], ctx: MatchContext) -> some View {
         CardV2 {
             VStack(spacing: 0) {
-                columnHeader
+                columnHeader(ctx)
                 ForEach(nine.holes) { hole in
                     Rectangle().fill(CSV2.rowLine).frame(height: 1)
-                    holeRow(hole)
+                    holeRow(hole, ctx)
                 }
                 footer(nine)
                 total18(allNines)
@@ -196,21 +203,21 @@ struct TarjetaV2: View {
         }
     }
 
-    private var columnHeader: some View {
+    private func columnHeader(_ ctx: MatchContext) -> some View {
         HStack(spacing: 0) {
             Text("Hoyo").frame(width: ColumnT.hole, alignment: .leading)
             Text("P").frame(width: ColumnT.par)
             Text("HCP").frame(width: ColumnT.hcp)
             ForEach(players, id: \.id) { p in
                 Text(p.alias).frame(maxWidth: .infinity)
-                    .opacity(participants.map { $0.contains(p.alias) } ?? true ? 1 : 0.3)
+                    .opacity(ctx.participants.map { $0.contains(p.alias) } ?? true ? 1 : 0.3)
             }
         }
         .font(.v2Caps).textCase(.uppercase).foregroundStyle(CSV2.secondary)
         .padding(.horizontal, CSV2.s1 + 4).padding(.vertical, 12)
     }
 
-    private func holeRow(_ hole: MatchManager.TarjetaHoleV2) -> some View {
+    private func holeRow(_ hole: MatchManager.TarjetaHoleV2, _ ctx: MatchContext) -> some View {
         HStack(spacing: 0) {
             Button { goToHole(hole.hole) } label: {
                 Text("\(hole.hole)").font(.v2Body).foregroundStyle(CSV2.ink)
@@ -225,7 +232,7 @@ struct TarjetaV2: View {
             HcpCellV2(hcp: hole.hcp).frame(width: ColumnT.hcp)
             ForEach(Array(hole.cells.enumerated()), id: \.offset) { index, cell in
                 Button { openCorrection(hole: hole, index: index, cell: cell) } label: {
-                    cellMark(hole: hole, cell: cell, alias: players[index].alias)
+                    cellMark(hole: hole, cell: cell, alias: players[index].alias, ctx: ctx)
                         .frame(maxWidth: .infinity, minHeight: 52)
                         .contentShape(Rectangle())
                 }
@@ -241,15 +248,15 @@ struct TarjetaV2: View {
     }
 
     /// Golpes con su marca de golf, o los putts como número simple (sin color de par: no hay par de putts).
-    @ViewBuilder private func cellMark(hole: MatchManager.TarjetaHoleV2, cell: MatchManager.TarjetaCellV2, alias: String) -> some View {
+    @ViewBuilder private func cellMark(hole: MatchManager.TarjetaHoleV2, cell: MatchManager.TarjetaCellV2, alias: String, ctx: MatchContext) -> some View {
         if showPutts {
             Text(cell.putts.map(String.init) ?? "—")
                 .font(.system(size: 32 * 0.58, weight: .heavy).monospacedDigit())
                 .foregroundStyle(cell.putts == nil ? CSV2.secondary : CSV2.ink)
                 .frame(width: 32, height: 32)
-        } else if participants != nil {
+        } else if ctx.participants != nil {
             // Match elegido: solo cuentan los strokes de ESE match (también los míos); los demás jugadores se atenúan.
-            let strokes = matchStrokes[hole.hole]?[alias] ?? 0
+            let strokes = ctx.strokes[hole.hole]?[alias] ?? 0
             ScoreMarkV2(gross: cell.gross, par: hole.par, size: 32, strokeDots: strokes, hasEvent: cell.hasEvent)
                 .padding(6)
                 .background {
@@ -258,7 +265,7 @@ struct TarjetaV2: View {
                             .overlay(RoundedRectangle(cornerRadius: CSV2.rCell).stroke(CSV2.stroke, lineWidth: 1.5))
                     }
                 }
-                .opacity(participants?.contains(alias) == true ? 1 : 0.3)
+                .opacity(ctx.participants?.contains(alias) == true ? 1 : 0.3)
         } else {
             ScoreMarkV2(gross: cell.gross, par: hole.par, size: 32,
                         strokeDots: cell.strokes, hasEvent: cell.hasEvent)

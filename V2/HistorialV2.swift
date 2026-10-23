@@ -65,17 +65,20 @@ struct HistorialV2: View {
     // MARK: Cuerpo
 
     var body: some View {
-        ZStack {
+        // Una vez por render (no por ronda ni por rival): las rondas a mostrar y cuál es la más reciente de cada rival.
+        let shownRounds = filteredRounds
+        let latest = mostRecentRoundIdByName
+        return ZStack {
             CSV2.background.ignoresSafeArea()
             VStack(spacing: 0) {
                 header
                 ScrollView {
                     VStack(spacing: CSV2.s2) {
-                        if filteredRounds.isEmpty {
+                        if shownRounds.isEmpty {
                             Text("Sin rondas cerradas todavía").font(.v2Body).foregroundStyle(CSV2.secondary)
                                 .frame(maxWidth: .infinity).padding(CSV2.s3)
                         }
-                        ForEach(filteredRounds, id: \.roundId) { roundCard($0) }
+                        ForEach(shownRounds, id: \.roundId) { roundCard($0, latestRoundByName: latest) }
                     }
                     .padding(CSV2.s2)
                 }
@@ -150,7 +153,7 @@ struct HistorialV2: View {
 
     // MARK: Tarjeta de ronda
 
-    private func roundCard(_ round: RoundResultFile) -> some View {
+    private func roundCard(_ round: RoundResultFile, latestRoundByName: [String: String]) -> some View {
         let filtered = selectedPlayerName != "Todos"
         let individual = round.lines.filter { line in
             guard line.scope == "individual" else { return false }
@@ -175,7 +178,7 @@ struct HistorialV2: View {
                     sectionHeader("Individual", total: individualTotal)
                     ForEach(Array(individual.enumerated()), id: \.offset) { _, line in
                         Rectangle().fill(CSV2.rowLine).frame(height: 1)
-                        rivalRow(round: round, line: line)
+                        rivalRow(round: round, line: line, latestRoundByName: latestRoundByName)
                     }
                 }
                 if !pairs.isEmpty {
@@ -225,11 +228,11 @@ struct HistorialV2: View {
         .padding(.horizontal, CSV2.s2).padding(.vertical, 12)
     }
 
-    private func rivalRow(round: RoundResultFile, line: RoundResultLine) -> some View {
+    private func rivalRow(round: RoundResultFile, line: RoundResultLine, latestRoundByName: [String: String]) -> some View {
         let rivalName = name(for: round, alias: line.opponentAlias)
         let yoAlias = round.players.first?.alias ?? "DAN"
         let strokes = round.players.first { $0.alias == line.opponentAlias }?.strokesVsBase ?? 0
-        let isLatest = rivalName.map { mostRecentRoundIdByName[$0] == round.roundId } ?? false
+        let isLatest = rivalName.map { latestRoundByName[$0] == round.roundId } ?? false
         let live = rivalName.flatMap { n in directory.entries.first { $0.name == n }?.strokesVsBase }
         let rival = line.opponentAlias ?? "—"
         return VStack(alignment: .leading, spacing: 6) {

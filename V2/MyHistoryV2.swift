@@ -18,7 +18,6 @@ struct MyHistoryV2: View {
     init(sampleRounds: [RoundResultFile]? = nil) { self.sampleRounds = sampleRounds }
 
     private var stats: MyHistoryData.Stats { MyHistoryData.stats(for: rounds) }
-    private var allFigures: [MyHistoryData.RoundFigures] { rounds.compactMap { MyHistoryData.figures(for: $0) } }
     /// rounds viene de la más nueva a la más vieja: first = último match cerrado.
     private var lastFigures: MyHistoryData.RoundFigures? { rounds.first.flatMap { MyHistoryData.figures(for: $0) } }
 
@@ -208,14 +207,6 @@ struct MyHistoryV2: View {
     }
 
     // MARK: Oyes y dinero
-
-    private func moneyRow(_ label: String, _ value: Int, big: Bool = false) -> some View {
-        HStack {
-            Text(label).font(.v2Body).foregroundStyle(CSV2.secondary)
-            Spacer()
-            MoneyTextV2(amount: value, size: big ? 24 : 18, weight: .semibold)
-        }
-    }
 
     private func moneyCard(_ stats: MyHistoryData.Stats) -> some View {
         let last = rounds.first.map { MyHistoryData.money(for: $0) }

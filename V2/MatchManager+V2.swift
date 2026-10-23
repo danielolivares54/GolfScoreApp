@@ -76,6 +76,7 @@ extension MatchManager {
             let b9Rows = individualZoomRows(opponentAlias: opp.alias, segmentOverride: "B9")
             // strokesVsBase: > 0 = el rival recibe de yo; < 0 = yo recibo del rival.
             let receiver: String? = opp.strokesVsBase > 0 ? opp.alias : (opp.strokesVsBase < 0 ? yoAlias : nil)
+            let bet = betValues(forOpponent: opp.alias)
             rows.append(ResultadoRowV2(
                 kind: .individual(alias: opp.alias),
                 title: opp.alias,
@@ -92,8 +93,7 @@ extension MatchManager {
                 carryMoney: line?.carryMoney ?? 0,
                 unitsNet: line?.unitsPoints ?? 0,
                 money: line?.totalMoney ?? 0,
-                betText: betSummaryV2(templateId: betValues(forOpponent: opp.alias).templateId,
-                                      values: betValues(forOpponent: opp.alias))
+                betText: betSummaryV2(templateId: bet.templateId, values: bet)
             ))
         }
 
@@ -213,11 +213,12 @@ extension MatchManager {
                 let data = getHole(h)
                 let cells = players.map { p -> TarjetaCellV2 in
                     let score = getScore(hole: h, player: p.alias)
+                    let putts = getPutts(hole: h, player: p.alias)
                     return TarjetaCellV2(
                         gross: score > 0 ? score : nil,
                         strokes: distributedStrokes(total: p.strokesVsBase, hole: h),
                         hasEvent: hasEvent(alias: p.alias, hole: h),
-                        putts: getPutts(hole: h, player: p.alias) > 0 ? getPutts(hole: h, player: p.alias) : nil
+                        putts: putts > 0 ? putts : nil
                     )
                 }
                 return TarjetaHoleV2(hole: h, par: data?.par ?? 4, hcp: data?.si ?? 0, cells: cells)
