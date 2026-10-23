@@ -227,16 +227,9 @@ struct RoundHistoryView: View {
                         Text(playerName ?? line.opponentAlias ?? "—")
                             .font(.system(size: 13, weight: .bold, design: .monospaced))
                             .foregroundColor(.cInk)
-                        if isCurrent {
-                            Text("VIGENTE")
-                                .font(.system(size: 8, weight: .black)).kerning(0.4)
-                                .foregroundColor(.white)
-                                .padding(.horizontal, 6).padding(.vertical, 2)
-                                .background(Color.cFairway)
-                                .cornerRadius(5)
-                        }
                     }
-                    Text("Vuelta \(line.vueltaPoints >= 0 ? "+" : "")\(line.vueltaPoints) · Match \(line.matchPoints >= 0 ? "+" : "")\(line.matchPoints)")
+                    // Solo el resultado del match en palabras (antes: "Vuelta +0 · Match +0", con ceros que no decían nada).
+                    Text(line.matchPoints > 0 ? "Match ganado" : line.matchPoints < 0 ? "Match perdido" : "Match empatado")
                         .font(.system(size: 11)).foregroundColor(resultColor(line.matchPoints))
                 }
                 Spacer()

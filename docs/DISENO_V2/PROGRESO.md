@@ -110,3 +110,7 @@
 ## Splash nuevo y Unidades sin 3 Putt / Hole Out (21-oct)
 - La carátula usa el logo nuevo (`CaddieSplashMarkV2`, `V2/SplashMarkV2.swift`, dibujado con SwiftUI Canvas): pelota con hoyuelos y "CGM", hoyo y bandera. Se quitaron las formas del logo anterior de `Caddy_ScoreApp.swift`.
 - La hoja Unidades de la v2 ya no muestra botones de 3 Putt, 4 Putt ni Hole Out (decisión de Daniel); siguen en el catálogo y el 3 Putt se marca solo al anotar putts.
+
+## Quick fix Historial v1 (23-oct)
+- El Historial de la v1 (que sigue abriéndose desde la ficha del Directorio, el Setup de la v1 y la pantalla de la v1) ya no muestra "Vuelta +0 · Match +0" ni la insignia "VIGENTE": solo "Match ganado / perdido / empatado". La línea "Próximo match: N strokes" se conserva en la ronda más reciente de cada rival. `HistorialV2` ya estaba así.
+- Propuestas de Daniel pendientes de decidir (ver la conversación): acumulado en el Directorio, estadísticas con promedio y desviación estándar + porcentajes de "este match", y dinero acumulado en lugar de oyes ganados/perdidos.
