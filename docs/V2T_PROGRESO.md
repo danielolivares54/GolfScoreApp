@@ -55,3 +55,11 @@
 
 ## Corregir desde lo que se revisa (23-oct)
 - Bajo cada lectura del apuntador sale **Corregir**: abre la tarjeta del jugador y la vuelta de lo que se preguntó con el hoyo resaltado (`ContrastSheetV2`), o el hoyo de todos los jugadores (`HoleCorrectionSheetV2`) cuando no se dijo de quién; cada lápiz abre la hoja de corrección (score, putts, oyes, unidades). Dinero, presiones, strokes y explicaciones no tienen botón (no se corrigen ahí). Rutas en `VoiceHolePipeline.correctionRoute`.
+
+## Reglas/Notas y cierre de estatus (23-oct)
+- La pestaña **Nota** pasó a **Reglas/Notas**: además de la nota por jugador y hoyo, tiene un campo de **reglas locales** (texto libre, guardado en el dispositivo; aún no se interpreta).
+- Barra: Tarjeta · Unidades · Mic · Reglas/Notas · Resultado.
+- Ya existe el dictado por jugador y hoyo con edición (Contrastar / Corregir).
+- **Siguiente mejora:** Daniel entregará un archivo con las reglas locales para anotarlas e interpretarlas (cómo afectan o se consultan).
+- Pendientes abiertos: notificaciones del apuntador, capa Watch, exportar voice records, revalidar prompts del LLM en vivo, rotar la clave de OpenAI.
+- Todo en `diseno/v2t`, sin subir.
