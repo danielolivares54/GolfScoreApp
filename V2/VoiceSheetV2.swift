@@ -20,6 +20,11 @@ struct VoiceSheetV2: View {
     @State private var speech = SpeechReadbackV2()
     /// Lo que el apuntador acaba de leer (también se ve en pantalla).
     @State private var readbackText: String?
+    @State private var showContrast = false
+    /// Lo último que se leyó: si es un resumen, el botón "Más detalle" repite lo mismo con el detalle.
+    private enum LastRequest: Equatable { case intent(ReadbackIntentV2), query(ReadbackQueryV2) }
+    @State private var lastRequest: LastRequest?
+    @State private var lastWasDetailed = false
 
     private enum Phase: Equatable { case idle, recording, processing, failed(String) }
     @State private var phase: Phase = .idle
@@ -51,6 +56,7 @@ struct VoiceSheetV2: View {
             }
         }
         .dynamicTypeSize(...DynamicTypeSize.accessibility2)
+        .sheet(isPresented: $showContrast) { ContrastSheetV2(matchManager: matchManager) }
     }
 
     /// Qué hoyo se está grabando: el de la pantalla, hasta que el dictado diga otro.
@@ -121,6 +127,7 @@ struct VoiceSheetV2: View {
                 readbackChip("Strokes", "circle.dotted") { ask(.init(tipo: "strokes")) }
                 readbackChip("Este hoyo", "list.number") { ask(.init(tipo: "hoyo", jugador: "yo")) }
                 readbackChip("Qué falta", "questionmark.circle") { readAloud(.missing) }
+                readbackChip("Contrastar tarjeta", "checklist") { showContrast = true }
             }
             readbackGroup("Apuestas") {
                 readbackChip("Vuelta", "arrow.triangle.2.circlepath") { ask(.init(tipo: "vuelta")) }
@@ -146,8 +153,9 @@ struct VoiceSheetV2: View {
     }
 
     /// Una pregunta de los botones: se responde igual que una hablada.
-    private func ask(_ q: ReadbackQueryV2) {
-        let text = VoiceHolePipeline.answer(q, match: matchManager, currentHole: draft.hole ?? hole)
+    private func ask(_ q: ReadbackQueryV2, detail: Bool = false) {
+        let text = VoiceHolePipeline.answer(q, match: matchManager, currentHole: draft.hole ?? hole, detail: detail)
+        lastRequest = .query(q); lastWasDetailed = detail || (q.detalle ?? false)
         readbackText = text
         speech.speak(text)
     }
@@ -165,10 +173,17 @@ struct VoiceSheetV2: View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Lo anotado").capsStyleV2()
             Text(text).font(.v2Body).foregroundStyle(CSV2.ink)
-            if speech.isSpeaking {
-                Button { speech.stop() } label: {
-                    Label("Detener", systemImage: "stop.fill").font(.v2Body).foregroundStyle(CSV2.warning).frame(minHeight: CSV2.minTap)
-                }.buttonStyle(.plain)
+            HStack(spacing: 16) {
+                if !lastWasDetailed, lastRequest != nil {
+                    Button { moreDetail() } label: {
+                        Label("Más detalle", systemImage: "text.append").font(.v2Body.weight(.semibold)).foregroundStyle(CSV2.green).frame(minHeight: CSV2.minTap)
+                    }.buttonStyle(.plain)
+                }
+                if speech.isSpeaking {
+                    Button { speech.stop() } label: {
+                        Label("Detener", systemImage: "stop.fill").font(.v2Body).foregroundStyle(CSV2.warning).frame(minHeight: CSV2.minTap)
+                    }.buttonStyle(.plain)
+                }
             }
         }
         .padding(CSV2.s2).frame(maxWidth: .infinity, alignment: .leading)
@@ -177,10 +192,20 @@ struct VoiceSheetV2: View {
         .accessibilityElement(children: .combine)
     }
 
-    private func readAloud(_ intent: ReadbackIntentV2) {
-        let text = matchManager.readbackV2(intent, hole: draft.hole ?? hole)
+    private func readAloud(_ intent: ReadbackIntentV2, detail: Bool = false) {
+        let text = matchManager.readbackV2(intent, hole: draft.hole ?? hole, detail: detail)
+        lastRequest = .intent(intent); lastWasDetailed = detail
         readbackText = text
         speech.speak(text)
+    }
+
+    /// Repite lo último con el detalle.
+    private func moreDetail() {
+        switch lastRequest {
+        case .intent(let intent)?: readAloud(intent, detail: true)
+        case .query(let q)?: ask(q, detail: true)
+        case nil: break
+        }
     }
 
     // MARK: Tarjeta: cómo se vería + qué falta
@@ -345,7 +370,7 @@ struct VoiceSheetV2: View {
                 let text = try await OpenAIService.shared.transcribeAudio(url: url, prompt: VoiceHolePipeline.transcriptionPrompt(match: matchManager))
                 // "Qué llevo" / "cómo vamos" / "qué falta": no es un dato del hoyo, es una petición de lectura.
                 if let intent = ReadbackIntentV2.detect(text) {
-                    readAloud(intent)
+                    readAloud(intent, detail: ReadbackIntentV2.asksForDetail(text))
                     phase = .idle
                     return
                 }
@@ -355,9 +380,7 @@ struct VoiceSheetV2: View {
                 draft = try await VoiceHolePipeline.propose(transcript: text, match: matchManager, draft: draft, defaultHole: hole)
                 phase = .idle
             } catch VoiceHoleError.query(let q) {
-                let text = VoiceHolePipeline.answer(q, match: matchManager, currentHole: draft.hole ?? hole)
-                readbackText = text
-                speech.speak(text)
+                ask(q)
                 phase = .idle
             } catch let error as VoiceHoleError {
                 phase = .failed(error.message)

@@ -18,6 +18,12 @@ import Observation
 enum ReadbackIntentV2: Equatable {
     case hole, round, missing
 
+    /// ¿Pidieron el detalle? ("con detalle", "todo", "hoyo por hoyo", "explícame"): si no, la respuesta es un resumen corto.
+    static func asksForDetail(_ transcript: String) -> Bool {
+        let t = transcript.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .init(identifier: "es_MX")).lowercased()
+        return ["detalle", "detallado", "detalladamente", "hoyo por hoyo", "explicame", "todo el detalle", "mas informacion", "amplia"].contains { t.contains($0) }
+    }
+
     /// ¿Lo dicho es una petición de lectura? (se resuelve en el teléfono, sin LLM)
     static func detect(_ transcript: String) -> ReadbackIntentV2? {
         let t = transcript.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .init(identifier: "es_MX"))
@@ -66,7 +72,7 @@ extension MatchManager {
     }
 
     /// Lo que lleva un hoyo: anotado y pendiente.
-    func holeReadbackV2(_ hole: Int) -> CardReadbackV2 {
+    func holeReadbackV2(_ hole: Int, detail: Bool = true) -> CardReadbackV2 {
         let par = getHole(hole)?.par ?? 4
         let order = players.map(\.alias)
         var parts: [String] = ["Hoyo \(hole), par \(par)."]
@@ -78,7 +84,7 @@ extension MatchManager {
             let gross = getScore(hole: hole, player: alias)
             let putts = getPutts(hole: hole, player: alias)
             var line = "\(spokenName(alias)) \(gross)"
-            if putts > 0 { line += ", \(putts) putt\(putts == 1 ? "" : "s")" }
+            if detail, putts > 0 { line += ", \(putts) putt\(putts == 1 ? "" : "s")" }
             if cellOverride(alias: alias, hole: hole) == .lostHole { line += ", se levantó, hoyo perdido" }
             parts.append(line + ".")
         }
@@ -97,7 +103,7 @@ extension MatchManager {
         }
 
         // Unidades y notas
-        let events = (unitEventsByHole[hole] ?? []).filter { isUnitCodeActive($0.code) || $0.code.uppercased() == "NOTA" }
+        let events = detail ? (unitEventsByHole[hole] ?? []).filter { isUnitCodeActive($0.code) || $0.code.uppercased() == "NOTA" } : []
         for e in events where e.code.uppercased() != "NOTA" {
             parts.append("\(spokenName(e.alias)): \(spokenUnitName(e.code)).")
         }
@@ -116,16 +122,17 @@ extension MatchManager {
     }
 
     /// Cómo va la ronda: hoyos completos, PRIMERO el conteo de las apuestas y DESPUÉS el dinero (total, individuales, parejas).
-    func roundReadbackV2() -> String {
+    func roundReadbackV2(detail: Bool = true) -> String {
         guard !resultadoRowsV2().isEmpty else { return "Todavía no hay matches en la ronda." }
         let done = completedHolesCountV2()
-        return "Llevas \(done) hoyo\(done == 1 ? "" : "s") completo\(done == 1 ? "" : "s"). " + countsReadbackV2() + " " + moneyReadbackV2()
+        return "Llevas \(done) hoyo\(done == 1 ? "" : "s") completo\(done == 1 ? "" : "s"). " + countsReadbackV2(detail: detail) + " " + moneyReadbackV2(detail: detail)
     }
 
-    func readbackV2(_ intent: ReadbackIntentV2, hole: Int) -> String {
+    /// Por defecto las respuestas son un resumen corto; con `detail` se da el detalle.
+    func readbackV2(_ intent: ReadbackIntentV2, hole: Int, detail: Bool = true) -> String {
         switch intent {
-        case .hole: return holeReadbackV2(hole).text
-        case .round: return roundReadbackV2()
+        case .hole: return holeReadbackV2(hole, detail: detail).text
+        case .round: return roundReadbackV2(detail: detail)
         case .missing:
             let r = holeReadbackV2(hole)
             return r.missing.isEmpty ? "En el hoyo \(hole) no falta nada." : "En el hoyo \(hole) falta " + spokenList(r.missing) + "."
@@ -137,7 +144,7 @@ extension MatchManager {
 
 /// Lo que el LLM entiende de una pregunta. La respuesta NUNCA la escribe el LLM: sale de lo anotado, abajo.
 struct ReadbackQueryV2: Codable, Equatable {
-    /// score · total · putts · oyes · unidades · notas · nueve · presiones · strokes · hoyo (cómo quedó un hoyo o grupo de hoyos contra el rival) · dinero · conteo · vuelta · presion · match · explicar (por qué resultó así)
+    /// score · total · putts · oyes · unidades · notas · nueve · presiones · strokes · hoyo (cómo quedó un hoyo o grupo de hoyos contra el rival) · dinero · conteo · vuelta · presion · match · explicar (por qué resultó así) · tarjeta (golpes, putts y strokes de un jugador por vuelta u hoyos, para contrastar con la tarjeta)
     var tipo: String
     var jugador: String? = nil
     var hoyo: Int? = nil
@@ -146,9 +153,11 @@ struct ReadbackQueryV2: Codable, Equatable {
     /// Contra quién (preguntas de un hoyo) y hasta qué hoyo (grupo de hoyos: hoyo = desde, hasta = hasta).
     var oponente: String? = nil
     var hasta: Int? = nil
+    /// El usuario pidió el detalle ("con detalle", "explícame todo"); si no, la respuesta es un resumen corto.
+    var detalle: Bool? = nil
 
-    init(tipo: String, jugador: String? = nil, oponente: String? = nil, hoyo: Int? = nil, hasta: Int? = nil, segmento: String? = nil) {
-        self.tipo = tipo; self.jugador = jugador; self.oponente = oponente; self.hoyo = hoyo; self.hasta = hasta; self.segmento = segmento
+    init(tipo: String, jugador: String? = nil, oponente: String? = nil, hoyo: Int? = nil, hasta: Int? = nil, segmento: String? = nil, detalle: Bool? = nil) {
+        self.tipo = tipo; self.jugador = jugador; self.oponente = oponente; self.hoyo = hoyo; self.hasta = hasta; self.segmento = segmento; self.detalle = detalle
     }
 }
 
@@ -173,12 +182,12 @@ extension MatchManager {
 
     /// Responde una pregunta con lo que hay anotado. `alias` ya viene resuelto (nil = no dijeron de quién).
     func queryAnswerV2(_ kind: String, alias: String?, hole: Int?, currentHole: Int, segment: String? = nil,
-                       opponent: String? = nil, to: Int? = nil) -> String {
+                       opponent: String? = nil, to: Int? = nil, detail: Bool = true) -> String {
         let order = playOrder()
         let name = alias.map(spokenName)
         switch kind.lowercased() {
         case "score", "golpes":
-            guard let alias, let name else { return holeReadbackV2(hole ?? currentHole).text }
+            guard let alias, let name else { return holeReadbackV2(hole ?? currentHole, detail: detail).text }
             let h = hole ?? currentHole
             let gross = getScore(hole: h, player: alias)
             guard gross > 0 else { return "\(name) no tiene score en el hoyo \(h)." }
@@ -189,7 +198,7 @@ extension MatchManager {
             if cellOverride(alias: alias, hole: h) == .lostHole { text += ". Se levantó: hoyo perdido" }
             return text + "."
         case "total":
-            guard let alias, let name else { return roundReadbackV2() }
+            guard let alias, let name else { return roundReadbackV2(detail: detail) }
             let holes = order.filter { getScore(hole: $0, player: alias) > 0 }
             guard !holes.isEmpty else { return "\(name) todavía no tiene scores." }
             let sum = holes.reduce(0) { $0 + getScore(hole: $1, player: alias) }
@@ -248,18 +257,20 @@ extension MatchManager {
                 guard let es = grouped[a] else { return nil }
                 return "\(spokenName(a)): " + spokenList(es.map(describe))
             }.joined(separator: ". ") + "."
+        case "tarjeta", "golpes_nueve", "contrastar":
+            return playerCardAnswerV2(alias: alias, segment: segment, from: hole, to: to, currentHole: currentHole, detail: detail)
         case "hoyo", "resultado_hoyo", "resultado":
-            return holeResultsReadbackV2(alias: alias, opponent: opponent, from: hole, to: to, currentHole: currentHole)
+            return holeResultsReadbackV2(alias: alias, opponent: opponent, from: hole, to: to, currentHole: currentHole, detail: detail)
         case "vuelta", "presion", "presión", "match":
             return betKindAnswerV2(kind.lowercased().replacingOccurrences(of: "ó", with: "o"), alias: alias, opponent: opponent)
         case "explicar", "porque", "por_que", "acumulado":
-            return explainReadbackV2(alias: alias, opponent: opponent)
+            return explainReadbackV2(alias: alias, opponent: opponent, detail: detail)
         case "dinero", "money":
-            return moneyReadbackV2()
+            return moneyReadbackV2(detail: detail)
         case "conteo", "cuenta":
-            return countsReadbackV2()
+            return countsReadbackV2(detail: detail)
         case "nueve", "resultados", "presiones", "strokes", "apuestas":
-            return nineAnswerV2(kind.lowercased(), alias: alias, segment: segment)
+            return nineAnswerV2(kind.lowercased(), alias: alias, segment: segment, detail: detail)
         case "notas":
             let notes = unitEventsByHole.values.flatMap { $0 }
                 .filter { $0.code.uppercased() == "NOTA" && ($0.note?.isEmpty == false) && (alias == nil || $0.alias == alias) && (hole == nil || $0.hole == hole) }
@@ -296,7 +307,7 @@ extension MatchManager {
     }
 
     /// F9 / B9 de cada match: cómo van, qué presiones están abiertas, cuántos strokes y qué refresh de B9 está activo.
-    func nineAnswerV2(_ kind: String, alias: String?, segment: String?) -> String {
+    func nineAnswerV2(_ kind: String, alias: String?, segment: String?, detail: Bool = true) -> String {
         let seg = segment?.uppercased()
         let onlyF9 = seg == "F9", onlyB9 = seg == "B9"
         let rows = resultadoRowsV2().filter { row in
@@ -308,8 +319,10 @@ extension MatchManager {
         }
         guard !rows.isEmpty else { return "No encontré ese match." }
         let wantsResults = kind != "presiones" && kind != "strokes"
-        let wantsPressures = kind != "strokes"
-        let wantsStrokes = kind != "presiones"
+        // Resumen corto: solo el conteo de cada nueve, el match y el dinero. Las presiones y los strokes salen con "detalle"
+        // o cuando se pregunta directo por ellos.
+        let wantsPressures = kind != "strokes" && (detail || kind == "presiones")
+        let wantsStrokes = kind != "presiones" && (detail || kind == "strokes")
 
         let lines = rows.map { row -> String in
             let who: String

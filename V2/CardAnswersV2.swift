@@ -38,13 +38,14 @@ extension MatchManager {
     // MARK: Cómo vamos: conteo primero, dinero después
 
     /// Los conteos de cada match (F9, B9, match y presiones abiertas), sin dinero.
-    func countsReadbackV2() -> String {
+    func countsReadbackV2(detail: Bool = true) -> String {
         let rows = resultadoRowsV2()
         guard !rows.isEmpty else { return "Todavía no hay matches en la ronda." }
         func line(_ row: ResultadoRowV2) -> String {
             let name = row.isPair ? "pareja \(row.title)" + (row.rivalsText.map { " contra \($0)" } ?? "") : "contra " + spokenName(row.title)
             let match = row.f9Net + row.b9Net
             let open = row.f9Presiones.count + row.b9Presiones.count
+            if !detail { return name + ": match \(countWords(match))" }
             var parts = ["F9 \(countWords(row.f9Net))", "B9 \(countWords(row.b9Net))", "match \(countWords(match))"]
             parts.append(open == 0 ? "sin presiones abiertas" : "\(open) presion\(open == 1 ? "" : "es") abierta\(open == 1 ? "" : "s")")
             return name + ": " + parts.joined(separator: ", ")
@@ -59,7 +60,7 @@ extension MatchManager {
     }
 
     /// El dinero: primero el total y luego individuales y parejas.
-    func moneyReadbackV2() -> String {
+    func moneyReadbackV2(detail: Bool = true) -> String {
         let rows = resultadoRowsV2()
         guard !rows.isEmpty else { return "Todavía no hay matches en la ronda." }
         func line(_ row: ResultadoRowV2) -> String {
@@ -70,10 +71,12 @@ extension MatchManager {
         if let n = pairsNoticeV2() { text += " Ojo: " + pairsNoticeTextV2(n) }
         let individuals = rows.filter { !$0.isPair }, pairs = rows.filter(\.isPair)
         if !individuals.isEmpty {
-            text += " Individuales, \(moneyWords(individuals.reduce(0) { $0 + $1.money })): " + individuals.map(line).joined(separator: "; ") + "."
+            let sum = moneyWords(individuals.reduce(0) { $0 + $1.money })
+            text += detail ? " Individuales, \(sum): " + individuals.map(line).joined(separator: "; ") + "." : " Individuales, \(sum)."
         }
         if !pairs.isEmpty {
-            text += " Parejas, \(moneyWords(pairs.reduce(0) { $0 + $1.money })): " + pairs.map(line).joined(separator: "; ") + "."
+            let sum = moneyWords(pairs.reduce(0) { $0 + $1.money })
+            text += detail ? " Parejas, \(sum): " + pairs.map(line).joined(separator: "; ") + "." : " Parejas, \(sum)."
         }
         return text
     }
@@ -81,7 +84,7 @@ extension MatchManager {
     // MARK: Cómo quedó un hoyo (o un grupo de hoyos) contra el rival
 
     /// `alias` = de quién se pregunta; `opponent` = contra quién (nil = todos sus matches).
-    func holeResultsReadbackV2(alias: String?, opponent: String?, from: Int?, to: Int?, currentHole: Int) -> String {
+    func holeResultsReadbackV2(alias: String?, opponent: String?, from: Int?, to: Int?, currentHole: Int, detail: Bool = true) -> String {
         let me = yoAlias
         let p = alias ?? me
         let holes = (from.map { f in holeRange(f, to ?? f) } ?? [currentHole])
@@ -92,12 +95,12 @@ extension MatchManager {
         for opp in players.map(\.alias) where opp != me {
             guard p == me || p == opp else { continue }
             if let opponent, opponent != (p == me ? opp : me) { continue }
-            if let b = individualHoleBlock(perspective: p, opponent: opp, holes: holes) { blocks.append(b) }
+            if let b = individualHoleBlock(perspective: p, opponent: opp, holes: holes, detail: detail) { blocks.append(b) }
         }
         // Parejas donde juega p (y, si se dijo, donde el rival está del otro lado).
         for lane in activeLanes where lane.base.contains(p) || lane.opp.contains(p) {
             if let opponent, !((lane.base.contains(p) ? lane.opp : lane.base).contains(opponent)) { continue }
-            if let b = pairHoleBlock(perspective: p, lane: lane, holes: holes) { blocks.append(b) }
+            if let b = pairHoleBlock(perspective: p, lane: lane, holes: holes, detail: detail) { blocks.append(b) }
         }
         guard !blocks.isEmpty else { return "No encontré ese match." }
         var text = blocks.joined(separator: " ")
@@ -115,7 +118,7 @@ extension MatchManager {
             "Presiones abiertas: antes \(beforeP), ahora \(afterP)."
     }
 
-    private func individualHoleBlock(perspective p: String, opponent opp: String, holes: [Int]) -> String? {
+    private func individualHoleBlock(perspective p: String, opponent opp: String, holes: [Int], detail: Bool = true) -> String? {
         let me = yoAlias
         let sign = p == me ? 1 : -1
         let other = p == me ? opp : me
@@ -140,7 +143,9 @@ extension MatchManager {
             if cellOverride(alias: p, hole: hole) == .lostHole { strokeText += ". \(myName) se levantó" }
             else if cellOverride(alias: other, hole: hole) == .lostHole { strokeText += ". \(hisName) se levantó" }
             let ba = beforeAfter(prev.map { ($0.0, $0.1) }, (r.vueltaAccum, r.openPressures), sign: sign, nine: nine)
-            if holes.count <= 3 {
+            if holes.count <= 3 && !detail {
+                lines.append("Hoyo \(hole): \(myGross) contra \(hisGross), \(outcomeWords(r.result * sign, myName)). Vuelta \(nine) ahora \(countWords(r.vueltaAccum * sign)).")
+            } else if holes.count <= 3 {
                 lines.append("Hoyo \(hole): \(myName) tiró \(myGross) y \(hisName) \(hisGross). \(strokeText). \(outcomeWords(r.result * sign, myName).prefix(1).uppercased() + outcomeWords(r.result * sign, myName).dropFirst()). \(ba)")
             } else {
                 lines.append("hoyo \(hole), \(myGross) contra \(hisGross), \(outcomeWords(r.result * sign, myName))")
@@ -157,7 +162,7 @@ extension MatchManager {
         return head + " " + lines.joined(separator: "; ") + ". " + tail.joined(separator: ". ") + "."
     }
 
-    private func pairHoleBlock(perspective p: String, lane: LaneModel, holes: [Int]) -> String? {
+    private func pairHoleBlock(perspective p: String, lane: LaneModel, holes: [Int], detail: Bool = true) -> String? {
         let mine = lane.base.contains(p)
         let sign = mine ? 1 : -1
         let mySide = mine ? lane.base : lane.opp, hisSide = mine ? lane.opp : lane.base
@@ -180,7 +185,9 @@ extension MatchManager {
             let result = r.result * sign
             let word = result > 0 ? "gana la pareja (\(result))" : result < 0 ? "pierde la pareja (\(-result))" : "empatan"
             let ba = beforeAfter(prev.map { ($0.0, $0.1) }, (r.vueltaAccum, r.openPressures), sign: sign, nine: nine)
-            if holes.count <= 3 {
+            if holes.count <= 3 && !detail {
+                lines.append("Hoyo \(hole): \(word). Vuelta \(nine) ahora \(countWords(r.vueltaAccum * sign)).")
+            } else if holes.count <= 3 {
                 lines.append("Hoyo \(hole): tiraron \(spokenList(myBalls.map(ball))) contra \(spokenList(hisBalls.map(ball))). \(stroke). \(word.prefix(1).uppercased() + word.dropFirst()). \(ba)")
             } else {
                 lines.append("hoyo \(hole), \(word)")
@@ -281,7 +288,7 @@ extension MatchManager {
 
     /// Explica cómo se llegó al resultado de cada match: hoyos ganados y perdidos, vuelta, presiones, match, strokes y unidades,
     /// y al final lo que suma. Todo con los mismos números de la tabla de conceptos de Resultados.
-    func explainReadbackV2(alias: String?, opponent: String?) -> String {
+    func explainReadbackV2(alias: String?, opponent: String?, detail: Bool = true) -> String {
         let rows = matchesFor(alias: alias, opponent: opponent)
         guard !rows.isEmpty else { return "No encontré ese match." }
         let blocks = rows.compactMap { row -> String? in
@@ -289,6 +296,11 @@ extension MatchManager {
             let sign = signFor(row, alias: alias)
             let me = sign == 1 && (alias == nil || alias == yoAlias || { if case .pair = row.kind { return true } else { return false } }())
             let money = row.money * sign
+            if !detail {
+                let counts = "F9 \(countWords(row.f9Net * sign)), B9 \(countWords(row.b9Net * sign)), match \(countWords((row.f9Net + row.b9Net) * sign))"
+                let units = r.unidades.monto == 0 ? "" : ", unidades \(r.unidades.monto * sign > 0 ? "a favor" : "en contra")"
+                return "\(matchName(row).prefix(1).uppercased() + matchName(row).dropFirst()), \(moneyWords(money)): \(counts)\(units)."
+            }
             var parts: [String] = []
             func concept(_ name: String, _ c: ConceptoMatch, nine: String?) {
                 var text = name + ": "

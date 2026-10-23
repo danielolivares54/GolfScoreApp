@@ -559,7 +559,8 @@ enum VoiceHolePipeline {
     // MARK: Responder una pregunta sobre lo anotado
 
     /// El jugador de la pregunta se resuelve igual que al dictar ("yo" = USER_NAME, apodos, nombres aproximados).
-    static func answer(_ q: ReadbackQueryV2, match: MatchManager, currentHole: Int, slang: VoiceSlangStore = .shared) -> String {
+    /// Por defecto responde un resumen corto; con `detail` (o si el usuario lo pidió) da el detalle.
+    static func answer(_ q: ReadbackQueryV2, match: MatchManager, currentHole: Int, slang: VoiceSlangStore = .shared, detail: Bool = false) -> String {
         var alias: String?
         if let who = q.jugador?.trimmingCharacters(in: .whitespacesAndNewlines), !who.isEmpty {
             let r = resolveSpoken(who, match: match, slang: slang)
@@ -575,7 +576,7 @@ enum VoiceHolePipeline {
         let hole = q.hoyo.flatMap { (1...18).contains($0) ? $0 : nil }
         let to = q.hasta.flatMap { (1...18).contains($0) ? $0 : nil }
         return match.queryAnswerV2(q.tipo, alias: alias, hole: hole, currentHole: currentHole, segment: q.segmento,
-                                   opponent: opponent, to: to)
+                                   opponent: opponent, to: to, detail: detail || (q.detalle ?? false))
     }
 
     // MARK: Reporte (qué entendí, qué falta)

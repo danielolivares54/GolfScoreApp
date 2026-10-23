@@ -259,7 +259,7 @@ struct CardReadbackTests {
 struct CardQuestionsTests {
     private func slang() -> VoiceSlangStore { VoiceSlangStore(defaults: UserDefaults(suiteName: "q-\(UUID().uuidString)")!) }
     private func ask(_ m: MatchManager, _ kind: String, _ who: String? = nil, hole: Int? = nil, current: Int = 14) -> String {
-        VoiceHolePipeline.answer(.init(tipo: kind, jugador: who, hoyo: hole), match: m, currentHole: current, slang: slang())
+        VoiceHolePipeline.answer(.init(tipo: kind, jugador: who, hoyo: hole), match: m, currentHole: current, slang: slang(), detail: true)
     }
 
     @Test func whatSomeoneShotOnAHole() {
@@ -322,9 +322,9 @@ struct CardQuestionsTests {
         let open = rob.b9Presiones.count
         #expect(text.contains(open == 0 ? "sin presiones abiertas" : "\(open) presion"))
         // Solo B9 / solo presiones / solo strokes.
-        let b9 = VoiceHolePipeline.answer(.init(tipo: "nueve", jugador: "Roberto", segmento: "B9"), match: m, currentHole: 14, slang: slang())
+        let b9 = VoiceHolePipeline.answer(.init(tipo: "nueve", jugador: "Roberto", segmento: "B9"), match: m, currentHole: 14, slang: slang(), detail: true)
         #expect(b9.contains("B9: ") && !b9.contains("F9: "))
-        let pres = VoiceHolePipeline.answer(.init(tipo: "presiones", jugador: "Roberto", segmento: "B9"), match: m, currentHole: 14, slang: slang())
+        let pres = VoiceHolePipeline.answer(.init(tipo: "presiones", jugador: "Roberto", segmento: "B9"), match: m, currentHole: 14, slang: slang(), detail: true)
         #expect(!pres.contains("Strokes") && pres.contains("B9: "))
         let st = ask(m, "strokes", "Roberto")
         #expect(st.contains("Strokes: Daniel recibe 8") && !st.contains("F9:") && !st.contains("B9:"))
@@ -380,7 +380,7 @@ struct CardQuestionsTests {
 struct CardResultsTests {
     private func slang() -> VoiceSlangStore { VoiceSlangStore(defaults: UserDefaults(suiteName: "res-\(UUID().uuidString)")!) }
     private func ask(_ m: MatchManager, _ q: ReadbackQueryV2, current: Int = 14) -> String {
-        VoiceHolePipeline.answer(q, match: m, currentHole: current, slang: slang())
+        VoiceHolePipeline.answer(q, match: m, currentHole: current, slang: slang(), detail: true)
     }
     private func signed(_ n: Int) -> String { m_countWords(n) }
     private func m_countWords(_ n: Int) -> String { n > 0 ? "\(n) arriba" : n < 0 ? "\(-n) abajo" : "parejos" }
@@ -593,5 +593,115 @@ struct PairsNoticeTests {
         let m = DemoFixture.make()
         m.setPlayers(names: ["Daniel", "Beto", "Chuy"], preserveScores: false)
         #expect(m.pairsNoticeV2() == nil)
+    }
+}
+
+// MARK: - Contrastar la tarjeta de un jugador por vuelta, y respuestas breves (con "más detalle" a pedido)
+
+@MainActor
+struct ContrastAndBriefTests {
+    private func slang() -> VoiceSlangStore { VoiceSlangStore(defaults: UserDefaults(suiteName: "brief-\(UUID().uuidString)")!) }
+    private func brief(_ m: MatchManager, _ q: ReadbackQueryV2) -> String {
+        VoiceHolePipeline.answer(q, match: m, currentHole: 14, slang: slang())
+    }
+    private func full(_ m: MatchManager, _ q: ReadbackQueryV2) -> String {
+        VoiceHolePipeline.answer(q, match: m, currentHole: 14, slang: slang(), detail: true)
+    }
+
+    // Tarjeta de un jugador
+
+    @Test func aPlayersNineHoleByHoleMatchesTheCard() {
+        let m = DemoFixture.make()
+        let lines = m.playerHolesV2(alias: "DAN", holes: m.holesForNineV2("F9"))
+        #expect(lines.count == 9)
+        #expect(lines.map(\.hole) == Array(1...9))
+        #expect(lines.map(\.gross) == (1...9).map { Optional(m.getScore(hole: $0, player: "DAN")) })
+        // Daniel recibe de Roberto: sus strokes salen con quién se los da.
+        let withStroke = lines.filter { !$0.strokes.isEmpty }
+        #expect(!withStroke.isEmpty)
+        #expect(withStroke.allSatisfy { $0.strokes.contains { $0.from == "ROB" } })
+        // Roberto no recibe de Daniel.
+        #expect(m.playerHolesV2(alias: "ROB", holes: Array(1...9)).allSatisfy { $0.strokes.isEmpty })
+    }
+
+    @Test func theDetailedReadingGivesEveryHoleAndTheTotals() {
+        let m = DemoFixture.make()
+        let text = m.playerCardReadbackV2(alias: "DAN", holes: m.holesForNineV2("F9"), label: "F9", detail: true)
+        let sum = (1...9).reduce(0) { $0 + m.getScore(hole: $1, player: "DAN") }
+        #expect(text.hasPrefix("Daniel, F9."))
+        #expect(text.contains("Hoyo 1, par 4: \(m.getScore(hole: 1, player: "DAN")) golpes"))
+        #expect(text.contains("Total F9: \(sum) golpes en 9 hoyos"))
+        #expect(text.contains("recibe") && text.contains("de Roberto"))
+    }
+
+    @Test func theBriefReadingIsOneLineWithTheStrokeHoles() {
+        let m = DemoFixture.make()
+        let text = brief(m, .init(tipo: "tarjeta", jugador: "Daniel", segmento: "F9"))
+        let row = (1...9).map { String(m.getScore(hole: $0, player: "DAN")) }.joined(separator: ", ")
+        #expect(text.hasPrefix("Daniel, F9: \(row)."))
+        #expect(text.contains("Total ") && text.contains("Recibe stroke en los hoyos"))
+        #expect(!text.contains("Hoyo 1, par"))
+        // Sin jugador es yo; un grupo de hoyos con detalle, y "más detalle" lo da completo.
+        #expect(brief(m, .init(tipo: "tarjeta", segmento: "B9")).hasPrefix("Daniel, B9:"))
+        #expect(full(m, .init(tipo: "tarjeta", jugador: "Daniel", segmento: "F9")).contains("Hoyo 1, par 4"))
+        let range = brief(m, .init(tipo: "tarjeta", jugador: "Daniel", hoyo: 3, hasta: 5))
+        #expect(range.hasPrefix("Daniel, hoyos 3 al 5: \(m.getScore(hole: 3, player: "DAN")), "))
+        #expect(full(m, .init(tipo: "tarjeta", jugador: "Daniel", hoyo: 3, hasta: 5)).contains("Hoyo 3, par"))
+        #expect(brief(m, .init(tipo: "tarjeta", jugador: "Daniel", hoyo: 3)).contains("Hoyo 3, par"))   // un solo hoyo: completo
+    }
+
+    // Respuestas breves
+
+    @Test func briefAnswersAreShorterAndLeaveOutTheDetail() {
+        let m = DemoFixture.make()
+        let hole = brief(m, .init(tipo: "otro"))
+        #expect(hole.hasPrefix("No sé responder"))
+
+        let money = m.moneyReadbackV2(detail: false), moneyFull = m.moneyReadbackV2(detail: true)
+        #expect(money.count < moneyFull.count)
+        #expect(money.contains("En total,") && money.contains("Individuales,") && !money.contains("contra Roberto"))
+
+        let round = m.roundReadbackV2(detail: false), roundFull = m.roundReadbackV2(detail: true)
+        #expect(round.count < roundFull.count)
+        #expect(round.contains("Por conteo.") && round.contains("Dinero."))
+
+        let explain = brief(m, .init(tipo: "explicar", jugador: "yo", oponente: "Roberto"))
+        let explainFull = full(m, .init(tipo: "explicar", jugador: "yo", oponente: "Roberto"))
+        #expect(explain.count < explainFull.count)
+        #expect(explain.hasPrefix("Contra Roberto, ") && explain.contains("F9 ") && !explain.contains("Strokes:"))
+
+        let nine = brief(m, .init(tipo: "nueve", jugador: "yo", oponente: "Roberto"))
+        #expect(nine.contains("F9: ") && nine.contains("Dinero:") && !nine.contains("Strokes:") && !nine.contains("presion"))
+        #expect(full(m, .init(tipo: "nueve", jugador: "yo", oponente: "Roberto")).contains("Strokes:"))
+    }
+
+    @Test func aHoleAgainstARivalIsOneLineUntilYouAskForMore() throws {
+        let m = DemoFixture.make()
+        let r = try #require(m.individualZoomRows(opponentAlias: "ROB", segmentOverride: "F9").first { $0.hole == 8 })
+        let short = brief(m, .init(tipo: "hoyo", jugador: "Daniel", oponente: "Roberto", hoyo: 8))
+        #expect(short.contains("Hoyo 8: \(r.yoGross) contra \(r.oppGross)"))
+        #expect(short.contains("Vuelta F9 ahora") && !short.contains("Presiones abiertas") && !short.contains("recibe"))
+        let long = full(m, .init(tipo: "hoyo", jugador: "Daniel", oponente: "Roberto", hoyo: 8))
+        #expect(long.contains("Presiones abiertas: antes") && long.count > short.count)
+    }
+
+    @Test func theHoleReadingIsShortByDefault() {
+        let m = DemoFixture.make()
+        m.upsertUnitEvent(hole: 14, alias: "DAN", code: "HO", units: 1)
+        let short = m.holeReadbackV2(14, detail: false).text, long = m.holeReadbackV2(14, detail: true).text
+        #expect(short.count < long.count)
+        #expect(!short.contains("hole out") && long.contains("hole out"))
+        #expect(short.hasPrefix("Hoyo 14, par 3."))
+    }
+
+    @Test func askingForTheDetailIsRecognized() {
+        #expect(ReadbackIntentV2.asksForDetail("qué llevo con detalle"))
+        #expect(ReadbackIntentV2.asksForDetail("léeme el hoyo por hoyo"))
+        #expect(ReadbackIntentV2.asksForDetail("explícame cómo voy"))
+        #expect(!ReadbackIntentV2.asksForDetail("qué llevo"))
+        // El LLM lo marca con `detalle` y entonces la respuesta ya sale completa.
+        let m = DemoFixture.make()
+        let q = ReadbackQueryV2(tipo: "tarjeta", jugador: "Daniel", segmento: "F9", detalle: true)
+        #expect(VoiceHolePipeline.answer(q, match: m, currentHole: 14, slang: slang()).contains("Hoyo 1, par 4"))
     }
 }

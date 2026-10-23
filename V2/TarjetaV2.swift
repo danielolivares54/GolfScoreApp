@@ -23,6 +23,7 @@ struct TarjetaV2: View {
     @State private var selectedMatchId: String?
     /// Celda tocada: se abre la hoja de corrección (la misma de la Auditoría) para editar score, putts, oye y unidades.
     @State private var correction: CorrectionTargetV2?
+    @State private var showContrast = false
 
     init(matchManager: MatchManager, startWithPutts: Bool = false, initialMatchId: String? = nil) {
         self.matchManager = matchManager
@@ -73,6 +74,7 @@ struct TarjetaV2: View {
         .sheet(item: $correction) { target in
             CorrectionSheetV2(target: target, matchManager: matchManager).presentationDetents([.large])
         }
+        .sheet(isPresented: $showContrast) { ContrastSheetV2(matchManager: matchManager) }
     }
 
     // MARK: Match elegido (resalta los strokes de ese match hoyo por hoyo)
@@ -141,6 +143,10 @@ struct TarjetaV2: View {
             Spacer()
             Text("Tarjeta").font(.v2Name).foregroundStyle(CSV2.ink)
             Spacer()
+            Button { showContrast = true } label: {
+                Image(systemName: "checklist").frame(width: CSV2.minTap, height: CSV2.minTap).foregroundStyle(CSV2.green)
+            }
+            .buttonStyle(.plain).accessibilityLabel("Contrastar la tarjeta de un jugador por vuelta")
             Toggle("Putts", isOn: $showPutts)
                 .font(.v2Body).foregroundStyle(CSV2.ink)
                 .fixedSize()
