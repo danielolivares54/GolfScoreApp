@@ -47,6 +47,30 @@ struct SetupDraftTests {
         #expect(m.individualDoublePressOpponents.contains("ROB"))
     }
 
+    @Test func savingTheSetupKeepsTheValuesEditedByHandUnlessTheTagChanges() throws {
+        let templates = BetTemplateStore.shared.entries
+        let t1 = try #require(templates.first)
+        let m = DemoFixture.make()
+        m.setTemplateV2(t1, for: .individual("ROB"))
+        m.setTemplateV2(t1, for: .pair(m.lanes[0].id))
+        var rob = m.betValuesV2(for: .individual("ROB")); rob.presionValue += 7
+        m.setBetValuesV2(rob, for: .individual("ROB"))
+        var pair = m.betValuesV2(for: .pair(m.lanes[0].id)); pair.matchValue += 9
+        m.setBetValuesV2(pair, for: .pair(m.lanes[0].id))
+
+        m.applySetupDraft(currentDraft(m))   // guardar sin cambiar el tag: no pisa lo editado
+        #expect(m.betValuesV2(for: .individual("ROB")).presionValue == rob.presionValue)
+        #expect(m.betValuesV2(for: .pair(m.lanes[0].id)).matchValue == pair.matchValue)
+
+        // Si en el Setup se elige OTRO tag para ese rival, sí se copian los valores de ese tag.
+        guard let t2 = templates.first(where: { $0.id != t1.id }) else { return }
+        var draft = currentDraft(m)
+        draft.templateIdByOpponent["ROB"] = t2.id
+        m.applySetupDraft(draft)
+        #expect(m.betValuesV2(for: .individual("ROB")).presionValue == t2.presionValue)
+        #expect(m.betValuesV2(for: .individual("ROB")).templateId == t2.id)
+    }
+
     @Test func changingTheStartHoleResetsCarryAndMovesTheNines() {
         let m = DemoFixture.make()
         var draft = currentDraft(m)

@@ -4132,7 +4132,10 @@ extension MatchManager {
             let strokes = draft.strokesByAlias[p.alias] ?? 0
             setStrokesVsBase(alias: p.alias, value: strokes)
             let tplId = draft.templateIdByOpponent[p.alias]
-            if let tplId, let tpl = templates.first(where: { $0.id == tplId }) {
+            // La plantilla solo se copia si cambió (o si el rival aún no tenía apuesta): guardar el Setup sin tocar el tag
+            // no pisa los valores que se corrigieron a mano en la apuesta de ese match.
+            if let tplId, let tpl = templates.first(where: { $0.id == tplId }),
+               betValuesByOpponent[p.alias]?.templateId != tplId {
                 setBetTemplateForOpponent(p.alias, template: tpl)
             }
             // Aprende/actualiza el directorio con lo que realmente quedó configurado para este
@@ -4152,9 +4155,15 @@ extension MatchManager {
             }
         }
         if let tpl = templates.first(where: { $0.id == draft.selectedTemplateId }) {
-            applyBetTemplate(tpl)
-            // Si el usuario ajustó el monto de vuelta a mano después de elegir la plantilla, respeta ese override.
-            if let v = Int(draft.vueltaValueText), v != tpl.vueltaValue { setVueltaValue(v) }
+            // Igual que con los rivales: la plantilla de parejas solo se copia si cambió; si es la misma se respetan
+            // los valores editados a mano (presión, match, unidad) y solo se aplica el monto de vuelta si cambió.
+            if activeTemplateId != tpl.id {
+                applyBetTemplate(tpl)
+                // Si el usuario ajustó el monto de vuelta a mano después de elegir la plantilla, respeta ese override.
+                if let v = Int(draft.vueltaValueText), v != tpl.vueltaValue { setVueltaValue(v) }
+            } else if let v = Int(draft.vueltaValueText), v != vueltaValue {
+                setVueltaValue(v)
+            }
         } else if let v = Int(draft.vueltaValueText) {
             setVueltaValue(v)
         }

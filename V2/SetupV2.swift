@@ -23,6 +23,8 @@ struct SetupV2: View {
     @State private var showHistory = false
     @State private var showBets = false
     @State private var showCatalog = false
+    /// Rival cuya apuesta (valores y qué cuenta) se está corrigiendo.
+    @State private var editingBetAlias: String?
 
     private let stepTitles = ["Campo", "Oponentes", "Parejas"]
 
@@ -49,6 +51,12 @@ struct SetupV2: View {
         .sheet(isPresented: $showDirectory) { PlayerDirectoryView() }
         .sheet(isPresented: $showHistory) { HistorialV2() }
         .sheet(isPresented: $showCatalog) { CatalogoV2(matchManager: matchManager) }
+        .sheet(isPresented: Binding(get: { editingBetAlias != nil }, set: { if !$0 { editingBetAlias = nil } })) {
+            if let alias = editingBetAlias {
+                BetEditSheetV2(matchManager: matchManager, target: .individual(alias),
+                               title: "vs " + (matchManager.players.first { $0.alias == alias }?.name ?? alias))
+            }
+        }
         .sheet(isPresented: $showBets, onDismiss: {
             // Recoge altas/bajas/cambios de valor hechos en el catálogo para que ya aparezcan en este Setup.
             matchManager.setupDefaultBets()
@@ -348,6 +356,11 @@ struct SetupV2: View {
             VStack(alignment: .leading, spacing: 6) {
                 Text("Apuestas activas").capsStyleV2()
                 BetSwitchChipsV2(matchManager: matchManager, target: .individual(alias))
+                Button { editingBetAlias = alias } label: {
+                    Label("Editar valores de esta apuesta", systemImage: "slider.horizontal.3")
+                        .font(.v2Body).foregroundStyle(CSV2.green).frame(minHeight: CSV2.minTap, alignment: .leading)
+                }
+                .buttonStyle(.plain)
             }
         } else {
             Text("Guarda el Setup para editar sus apuestas activas.").font(.v2Label).foregroundStyle(CSV2.secondary)
