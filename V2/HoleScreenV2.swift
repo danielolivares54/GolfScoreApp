@@ -55,6 +55,7 @@ struct HoleScreenV2: View {
             )
         }
         .background(CSV2.background.ignoresSafeArea())
+        .dynamicTypeSize(...DynamicTypeSize.accessibility2)   // la fila −/score/+ de cinco jugadores deja de caber después
         .onChange(of: matchManager.startHole) { _, _ in currentHoleIndex = 0 }
         .sheet(isPresented: $showTarjeta) { TarjetaV2(matchManager: matchManager) }
         .sheet(isPresented: $showResultado) { ResultadoV2(matchManager: matchManager) }
@@ -97,7 +98,7 @@ struct HoleScreenV2: View {
 
     private func iconButton(_ symbol: String, label: String, tint: Color = CSV2.ink, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            Image(systemName: symbol).font(.system(size: 20)).foregroundStyle(tint)
+            Image(systemName: symbol).font(.system(.title3)).foregroundStyle(tint)
                 .frame(width: CSV2.minTap, height: CSV2.minTap)
                 .background(CSV2.surface, in: Circle())
                 .overlay(Circle().stroke(CSV2.line))
@@ -113,7 +114,7 @@ struct HoleScreenV2: View {
             return (CSV2.red, "Falta \(gap.missingScores.first ?? "?")")
         }
         if let gap = played.first(where: { !$0.missingPutts.isEmpty }) {
-            return (.orange, "Putts \(gap.missingPutts.first ?? "?")")
+            return (CSV2.warning, "Putts \(gap.missingPutts.first ?? "?")")
         }
         let lastOk = played.last(where: { $0.isComplete })
         return (CSV2.green, lastOk.map { "H\($0.hole) ok" } ?? "Sin datos")
@@ -140,7 +141,7 @@ struct HoleScreenV2: View {
         HStack(spacing: CSV2.s1) {
             arrow("chevron.left", enabled: currentHoleIndex > 0) { currentHoleIndex -= 1 }
             VStack(spacing: 6) {
-                Text("HOYO \(currentHole)").font(.v2Hole).foregroundStyle(.white)
+                Text("HOYO \(currentHole)").holeTitleV2().foregroundStyle(.white)
                 HStack(spacing: 8) {
                     ParTagV2(par: par, onGreen: true)
                     HcpTagV2(hcp: hcp, onGreen: true)
@@ -164,7 +165,7 @@ struct HoleScreenV2: View {
 
     private func arrow(_ symbol: String, enabled: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            Image(systemName: symbol).font(.system(size: 20, weight: .bold)).foregroundStyle(.white)
+            Image(systemName: symbol).font(.system(.title3, weight: .bold)).foregroundStyle(.white)
                 .frame(width: CSV2.minTap, height: CSV2.minTap)
                 .background(.white.opacity(0.18), in: RoundedRectangle(cornerRadius: 12))
         }
@@ -240,7 +241,9 @@ struct HoleScreenV2: View {
                 ScoreMarkV2(gross: score > 0 ? score : nil, par: par, size: 44,
                             strokeDots: receivesFromMe ? strokes : 0,
                             hasEvent: matchManager.isOyesEnabled && matchManager.oyesRanksByHole[currentHole]?[player.alias] == 1)
-                    .frame(width: 56)
+                    .frame(minWidth: 56)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel("\(player.name): \(score > 0 ? "\(score) golpes" : "sin anotar")")
                 StepButtonV2(symbol: "plus") {
                     let base = score > 0 ? score : par
                     applyEntry(strokes: base + 1, player: player)
@@ -273,7 +276,7 @@ struct HoleScreenV2: View {
             StepButtonV2(symbol: "minus") { applyEntry(putts: max(0, putts - 1), player: player) }
                 .accessibilityLabel("Un putt menos para \(player.name)")
             Text(putts > 0 ? "\(putts)" : "—").font(.v2Score).foregroundStyle(putts > 0 ? CSV2.ink : CSV2.secondary)
-                .frame(width: 56)
+                .frame(minWidth: 56)
             StepButtonV2(symbol: "plus") { applyEntry(putts: putts + 1, player: player) }
                 .accessibilityLabel("Un putt más para \(player.name)")
         }
@@ -288,7 +291,7 @@ struct HoleScreenV2: View {
                 Text("Oyes · puesto de cada jugador").capsStyleV2()
                 ForEach(matchManager.players, id: \.id) { player in
                     HStack(spacing: 6) {
-                        Text(player.alias).font(.v2Body).foregroundStyle(CSV2.ink).frame(width: 52, alignment: .leading)
+                        Text(player.alias).font(.v2Body).foregroundStyle(CSV2.ink).frame(minWidth: 52, alignment: .leading)
                         ForEach(1...count, id: \.self) { rank in oyeButton(rank: rank, player: player) }
                     }
                 }
@@ -375,7 +378,7 @@ struct HoleScreenV2: View {
             guard currentHoleIndex < playOrder.count - 1 else { return }
             currentHoleIndex += 1
         } label: {
-            Text("Hoyo \(currentHole) listo →").font(.system(size: 17, weight: .bold)).foregroundStyle(.white)
+            Text("Hoyo \(currentHole) listo →").font(.system(.body, weight: .bold)).foregroundStyle(.white)
                 .frame(maxWidth: .infinity, minHeight: 56)
                 .background(CSV2.green, in: RoundedRectangle(cornerRadius: 14))
         }

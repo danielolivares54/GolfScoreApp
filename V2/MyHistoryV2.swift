@@ -44,6 +44,7 @@ struct MyHistoryV2: View {
                 }
             }
         }
+        .dynamicTypeSize(...DynamicTypeSize.xxxLarge)   // columnas de ancho fijo: la tabla crece hasta XXXL
         .onAppear { rounds = sampleRounds ?? RoundResultFile.loadAll() }
     }
 
@@ -82,9 +83,9 @@ struct MyHistoryV2: View {
         HStack {
             Text(label).font(.v2Body).foregroundStyle(CSV2.secondary)
             Spacer()
-            Text(acc).font(.system(size: 18, weight: .bold).monospacedDigit()).foregroundStyle(color)
+            Text(acc).font(.system(.body, weight: .bold).monospacedDigit()).foregroundStyle(color)
                 .frame(width: 112, alignment: .trailing)
-            Text(last).font(.system(size: 18, weight: .bold).monospacedDigit()).foregroundStyle(color)
+            Text(last).font(.system(.body, weight: .bold).monospacedDigit()).foregroundStyle(color)
                 .frame(width: 84, alignment: .trailing)
         }
     }
@@ -107,7 +108,7 @@ struct MyHistoryV2: View {
         HStack {
             Text(label).font(.v2Body).foregroundStyle(CSV2.secondary)
             Spacer()
-            Text(value).font(.system(size: 20, weight: .bold).monospacedDigit()).foregroundStyle(color)
+            Text(value).font(.system(.title3, weight: .bold).monospacedDigit()).foregroundStyle(color)
         }
     }
 
@@ -169,13 +170,13 @@ struct MyHistoryV2: View {
             Spacer()
             if let avg = stats.average(forPar: par) {
                 Text(avg >= 0 ? "+\(String(format: "%.1f", avg))" : String(format: "%.1f", avg))
-                    .font(.system(size: 20, weight: .bold).monospacedDigit())
+                    .font(.system(.title3, weight: .bold).monospacedDigit())
                     .foregroundStyle(avg > 0.05 ? CSV2.red : avg < -0.05 ? CSV2.green : CSV2.ink)
                 if let dev = stats.stdDev(forPar: par) {
                     Text("± \(String(format: "%.1f", dev))").font(.v2Label).foregroundStyle(CSV2.secondary)
                 }
             } else {
-                Text("—").font(.system(size: 20, weight: .bold)).foregroundStyle(CSV2.secondary)
+                Text("—").font(.system(.title3, weight: .bold)).foregroundStyle(CSV2.secondary)
             }
         }
     }

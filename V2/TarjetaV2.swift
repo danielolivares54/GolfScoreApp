@@ -69,6 +69,7 @@ struct TarjetaV2: View {
                 }
             }
         }
+        .dynamicTypeSize(...DynamicTypeSize.xxxLarge)   // columnas de ancho fijo: la tabla crece hasta XXXL
         .sheet(item: $correction) { target in
             CorrectionSheetV2(target: target, matchManager: matchManager).presentationDetents([.large])
         }
@@ -167,9 +168,9 @@ struct TarjetaV2: View {
         // Sin contornos: el color del número dice el resultado; los dos puntos redondos son lo único extra.
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 14) {
-                legendItem("bajo par") { Text("3").font(.system(size: 15, weight: .heavy)).foregroundStyle(CSV2.green) }
-                legendItem("par") { Text("4").font(.system(size: 15, weight: .heavy)).foregroundStyle(CSV2.ink) }
-                legendItem("sobre par") { Text("5").font(.system(size: 15, weight: .heavy)).foregroundStyle(CSV2.red) }
+                legendItem("bajo par") { Text("3").font(.system(.subheadline, weight: .heavy)).foregroundStyle(CSV2.green) }
+                legendItem("par") { Text("4").font(.system(.subheadline, weight: .heavy)).foregroundStyle(CSV2.ink) }
+                legendItem("sobre par") { Text("5").font(.system(.subheadline, weight: .heavy)).foregroundStyle(CSV2.red) }
             }
             HStack(spacing: 14) {
                 legendItem("recibe stroke") { Circle().fill(CSV2.stroke).frame(width: 9, height: 9) }
@@ -210,7 +211,7 @@ struct TarjetaV2: View {
             Text("HCP").frame(width: ColumnT.hcp)
             ForEach(players, id: \.id) { p in
                 Text(p.alias).frame(maxWidth: .infinity)
-                    .opacity(ctx.participants.map { $0.contains(p.alias) } ?? true ? 1 : 0.3)
+                    .opacity(ctx.participants.map { $0.contains(p.alias) } ?? true ? 1 : 0.45)
             }
         }
         .capsStyleV2()
@@ -221,7 +222,8 @@ struct TarjetaV2: View {
         HStack(spacing: 0) {
             Button { goToHole(hole.hole) } label: {
                 Text("\(hole.hole)").font(.v2Body).foregroundStyle(CSV2.ink)
-                    .frame(width: ColumnT.hole, height: 52, alignment: .leading)
+                    .frame(width: ColumnT.hole, alignment: .leading)
+                    .frame(minHeight: 52)
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
@@ -238,12 +240,13 @@ struct TarjetaV2: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityElement(children: .ignore)
-                .accessibilityLabel(cellLabel(player: players[index].alias, hole: hole, cell: cell))
+                .accessibilityLabel(cellLabel(player: players[index].alias, hole: hole, cell: cell,
+                                              matchStrokes: ctx.participants == nil ? nil : (ctx.strokes[hole.hole]?[players[index].alias] ?? 0)))
                 .accessibilityHint("Abre la corrección de este hoyo")
             }
         }
         .padding(.horizontal, CSV2.s1 + 4)
-        .frame(height: 52)
+        .frame(minHeight: 52)
         .background(hole.hole == currentHole ? CSV2.green.opacity(0.14) : Color.clear)
     }
 
@@ -251,9 +254,9 @@ struct TarjetaV2: View {
     @ViewBuilder private func cellMark(hole: MatchManager.TarjetaHoleV2, cell: MatchManager.TarjetaCellV2, alias: String, ctx: MatchContext) -> some View {
         if showPutts {
             Text(cell.putts.map(String.init) ?? "—")
-                .font(.system(size: 32 * 0.58, weight: .heavy).monospacedDigit())
+                .font(.system(.callout, weight: .heavy).monospacedDigit())
                 .foregroundStyle(cell.putts == nil ? CSV2.secondary : CSV2.ink)
-                .frame(width: 32, height: 32)
+                .frame(minWidth: 32, minHeight: 32)
         } else if ctx.participants != nil {
             // Match elegido: solo cuentan los strokes de ESE match (también los míos); los demás jugadores se atenúan.
             let strokes = ctx.strokes[hole.hole]?[alias] ?? 0
@@ -265,7 +268,7 @@ struct TarjetaV2: View {
                             .overlay(RoundedRectangle(cornerRadius: CSV2.rCell).stroke(CSV2.stroke, lineWidth: 1.5))
                     }
                 }
-                .opacity(ctx.participants?.contains(alias) == true ? 1 : 0.3)
+                .opacity(ctx.participants?.contains(alias) == true ? 1 : 0.45)
         } else {
             ScoreMarkV2(gross: cell.gross, par: hole.par, size: 32,
                         strokeDots: cell.strokes, hasEvent: cell.hasEvent)
@@ -299,10 +302,10 @@ struct TarjetaV2: View {
                 Text(total.map(String.init) ?? "—").frame(maxWidth: .infinity)
             }
         }
-        .font(.system(size: 16, weight: .bold).monospacedDigit())
+        .font(.system(.callout, weight: .bold).monospacedDigit())
         .foregroundStyle(.white)
         .padding(.horizontal, CSV2.s1 + 4)
-        .frame(height: 52)
+        .frame(minHeight: 52)
         .background { Rectangle().fill(CSV2.ink) }
     }
 
@@ -322,19 +325,22 @@ struct TarjetaV2: View {
                 Text(total.map(String.init) ?? "—").frame(maxWidth: .infinity)
             }
         }
-        .font(.system(size: 14, weight: .semibold).monospacedDigit())
+        .font(.system(.subheadline, weight: .semibold).monospacedDigit())
         .foregroundStyle(.white.opacity(0.85))
         .padding(.horizontal, CSV2.s1 + 4)
-        .frame(height: 40)
+        .frame(minHeight: 40)
         .background { Rectangle().fill(CSV2.ink) }
         .overlay(alignment: .top) { Rectangle().fill(.white.opacity(0.18)).frame(height: 1) }
     }
 
-    private func cellLabel(player: String, hole: MatchManager.TarjetaHoleV2, cell: MatchManager.TarjetaCellV2) -> String {
+    private func cellLabel(player: String, hole: MatchManager.TarjetaHoleV2, cell: MatchManager.TarjetaCellV2, matchStrokes: Double?) -> String {
         var text = "\(player), hoyo \(hole.hole), "
         text += cell.gross.map { "\($0) golpes" } ?? "sin anotar"
         if let putts = cell.putts { text += ", \(putts) putts" }
-        if cell.strokes >= 1 { text += ", recibe stroke" } else if cell.strokes > 0 { text += ", recibe medio stroke" }
+        // Con un match elegido solo cuentan los strokes de ese match; si no, los del reparto general.
+        let strokes = matchStrokes ?? cell.strokes
+        let scope = matchStrokes == nil ? "" : " en este match"
+        if strokes >= 1 { text += ", recibe stroke" + scope } else if strokes > 0 { text += ", recibe medio stroke" + scope }
         if cell.hasEvent { text += ", con evento u oye" }
         return text
     }

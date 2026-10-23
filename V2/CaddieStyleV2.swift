@@ -24,7 +24,8 @@ enum CSV2 {
     static let stroke = Color(hexV2: 0x1F4E9C)       // ONLY strokes
     static let unitBg = Color(hexV2: 0xF3E2B3)       // ONLY events / oyes
     static let unitFg = Color(hexV2: 0x6E4600)
-    static let unitLine = Color(hexV2: 0xC9A24A)
+    static let unitLine = Color(hexV2: 0x9A6B00)     // gold line / dot: 4.7:1 on white (UI components need 3:1)
+    static let warning  = Color(hexV2: 0xB45309)     // missing data (putts, incomplete): 5:1 on white
 
     static let s1: CGFloat = 8, s2: CGFloat = 16, s3: CGFloat = 24
     static let rCell: CGFloat = 10, rCard: CGFloat = 16
@@ -34,12 +35,12 @@ enum CSV2 {
 // MARK: - Type (relaxed: system font, tabular digits)
 
 extension Font {
-    static let v2Hole   = Font.system(size: 42, weight: .heavy).monospacedDigit()
-    static let v2Score  = Font.system(size: 26, weight: .heavy).monospacedDigit()
-    static let v2Name   = Font.system(size: 18, weight: .bold)
-    static let v2Body   = Font.system(size: 16, weight: .semibold).monospacedDigit()
-    static let v2Label  = Font.system(size: 13, weight: .semibold).monospacedDigit()   // minimum size
-    static let v2Caps   = Font.system(size: 12, weight: .bold)                          // use with .textCase(.uppercase)
+    // Text styles (not fixed point sizes) so everything follows the user's Dynamic Type setting.
+    static let v2Score  = Font.system(.title2, weight: .heavy).monospacedDigit()
+    static let v2Name   = Font.system(.headline, weight: .bold)
+    static let v2Body   = Font.system(.callout, weight: .semibold).monospacedDigit()
+    static let v2Label  = Font.system(.footnote, weight: .semibold).monospacedDigit()   // smallest body text
+    static let v2Caps   = Font.system(.caption, weight: .bold)                          // use with .textCase(.uppercase)
 }
 
 // MARK: - Half-stroke formatting: 3.5 -> "3½", 0.5 -> "½", 3 -> "3"
@@ -85,6 +86,8 @@ struct ScoreMarkV2: View {
     // Sin contornos (círculos/cuadros dobles): el resultado vs par lo dice el COLOR del número y el único marcador
     // redondo extra es el de evento/oye (dorado). `outlined: true` dibuja la marca estándar de golf (solo comparación).
     var outlined = false
+    /// Escala con el tamaño de letra del sistema (la marca crece junto con el número).
+    @ScaledMetric(relativeTo: .body) private var scale: CGFloat = 1
 
     private var diff: Int { (gross ?? par) - par }
     private var color: Color {
@@ -94,9 +97,9 @@ struct ScoreMarkV2: View {
 
     var body: some View {
         Text(gross.map(String.init) ?? "—")
-            .font(.system(size: size * 0.58, weight: .heavy).monospacedDigit())
+            .font(.system(size: size * scale * 0.58, weight: .heavy).monospacedDigit())
             .foregroundStyle(color)
-            .frame(width: size, height: size)
+            .frame(width: size * scale, height: size * scale)
             .overlay { if outlined { outline } }
             .overlay(alignment: .topTrailing) {
                 if strokeDots > 0 {
@@ -195,12 +198,13 @@ struct MatchStatusV2: View {
     let net: Int
     let played: Int
     var size: CGFloat = 16
+    @ScaledMetric(relativeTo: .body) private var scale: CGFloat = 1
     var body: some View {
         let (t, c): (String, Color) =
             played == 0 ? ("—", CSV2.secondary) :
             net > 0 ? ("\(net)↑", CSV2.green) :
             net < 0 ? ("\(-net)↓", CSV2.red) : ("E", CSV2.secondary)
-        Text(t).font(.system(size: size, weight: .bold).monospacedDigit()).foregroundStyle(c)
+        Text(t).font(.system(size: size * scale, weight: .bold).monospacedDigit()).foregroundStyle(c)
     }
 }
 
@@ -213,10 +217,11 @@ struct MoneyTextV2: View {
     let amount: Int
     var size: CGFloat = 16
     var weight: Font.Weight = .semibold
+    @ScaledMetric(relativeTo: .body) private var scale: CGFloat = 1
     var body: some View {
         let t = moneyStringV2(amount)
         let c = amount > 0 ? CSV2.green : amount < 0 ? CSV2.red : CSV2.secondary
-        Text(t).font(.system(size: size, weight: weight).monospacedDigit()).foregroundStyle(c)
+        Text(t).font(.system(size: size * scale, weight: weight).monospacedDigit()).foregroundStyle(c)
     }
 }
 
@@ -227,7 +232,7 @@ struct StepButtonV2: View {
     let action: () -> Void
     var body: some View {
         Button(action: action) {
-            Image(systemName: symbol).font(.system(size: 20, weight: .bold)).foregroundStyle(CSV2.ink)
+            Image(systemName: symbol).font(.system(.title3, weight: .bold)).foregroundStyle(CSV2.ink)
                 .frame(width: CSV2.minTap, height: CSV2.minTap)
                 .background(CSV2.background, in: RoundedRectangle(cornerRadius: 12))
                 .overlay(RoundedRectangle(cornerRadius: 12).stroke(CSV2.line))
@@ -241,7 +246,7 @@ struct HalfButtonV2: View {
     let action: () -> Void
     var body: some View {
         Button(action: action) {
-            Text("½").font(.system(size: 18, weight: .bold))
+            Text("½").font(.system(.body, weight: .bold))
                 .foregroundStyle(isOn ? .white : CSV2.ink)
                 .frame(width: 44, height: CSV2.minTap)
                 .background(isOn ? CSV2.stroke : CSV2.background, in: RoundedRectangle(cornerRadius: 12))
@@ -257,7 +262,7 @@ struct PrimaryButtonV2: View {
     let action: () -> Void
     var body: some View {
         Button(action: action) {
-            Text(title).font(.system(size: 15, weight: .bold)).foregroundStyle(.white)
+            Text(title).font(.system(.subheadline, weight: .bold)).foregroundStyle(.white)
                 .padding(.horizontal, 16).frame(minHeight: 40)
                 .background(CSV2.green, in: RoundedRectangle(cornerRadius: 12))
         }
@@ -289,7 +294,7 @@ struct RoundBarV2: View {
                         Circle().stroke(CSV2.green.opacity(0.25), lineWidth: 6).frame(width: 72, height: 72)
                         RoundedRectangle(cornerRadius: 2).fill(.white).frame(width: 18, height: 18)
                     } else {
-                        Image(systemName: "mic.fill").font(.system(size: 26)).foregroundStyle(.white)
+                        Image(systemName: "mic.fill").font(.system(.title2)).foregroundStyle(.white)
                     }
                 }
             }
@@ -298,7 +303,8 @@ struct RoundBarV2: View {
             tab("Nota", "pencil", action: onNota)
             tab("Resultado", "chart.bar", on: active == .resultado, action: onResultado)
         }
-        .frame(height: 84)
+        .frame(minHeight: 84)
+        .dynamicTypeSize(...DynamicTypeSize.xxLarge)   // cinco pestañas: la barra no crece más
         .background(CSV2.surface)
         .overlay(alignment: .top) { Rectangle().fill(CSV2.line).frame(height: 1) }
     }
@@ -306,8 +312,8 @@ struct RoundBarV2: View {
     private func tab(_ title: String, _ icon: String, on: Bool = false, tint: Color = CSV2.ink, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             VStack(spacing: 4) {
-                Image(systemName: icon).font(.system(size: 20))
-                Text(title).font(.system(size: 12, weight: on ? .bold : .semibold))
+                Image(systemName: icon).font(.system(.title3))
+                Text(title).font(.system(.caption, weight: on ? .bold : .semibold))
             }
             .foregroundStyle(on ? CSV2.green : tint)
             .frame(maxWidth: .infinity, minHeight: 64)
@@ -364,7 +370,7 @@ struct BackButtonV2: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: 4) {
-                Image(systemName: "chevron.left").font(.system(size: 16, weight: .semibold))
+                Image(systemName: "chevron.left").font(.system(.callout, weight: .semibold))
                 Text(title).font(.v2Body)
             }
             .foregroundStyle(CSV2.ink)
@@ -372,6 +378,20 @@ struct BackButtonV2: View {
         }
         .buttonStyle(.plain)
     }
+}
+
+// MARK: - Hole number: big title that scales with Dynamic Type
+
+private struct HoleTitleStyleV2: ViewModifier {
+    @ScaledMetric(relativeTo: .largeTitle) private var size: CGFloat = 42
+    func body(content: Content) -> some View {
+        content.font(.system(size: size, weight: .heavy).monospacedDigit())
+    }
+}
+
+extension View {
+    /// The big hole number ("HOYO 14", the start hole stepper): 42 pt by default, scales with the text size.
+    func holeTitleV2() -> some View { modifier(HoleTitleStyleV2()) }
 }
 
 // MARK: - Card container

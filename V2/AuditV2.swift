@@ -49,6 +49,7 @@ struct AuditV2: View {
                 .padding(CSV2.s2)
             }
         }
+        .dynamicTypeSize(...DynamicTypeSize.xxxLarge)   // cinco columnas por hoyo: crece hasta XXXL
         .sheet(item: $target) { item in
             CorrectionSheetV2(target: item, matchManager: matchManager)
                 .presentationDetents([.large])
@@ -65,13 +66,13 @@ struct AuditV2: View {
 
     private func banner(_ incompleteCount: Int) -> some View {
         HStack(spacing: 10) {
-            Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
+            Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(CSV2.warning)
             Text("\(incompleteCount) hoyo\(incompleteCount == 1 ? "" : "s") con datos incompletos — toca una celda para corregir")
                 .font(.v2Label).foregroundStyle(CSV2.ink)
             Spacer(minLength: 0)
         }
         .padding(12)
-        .background(Color.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 12))
+        .background(CSV2.warning.opacity(0.12), in: RoundedRectangle(cornerRadius: 12))
     }
 
     @ViewBuilder private func chapter(_ title: String, _ holes: [HoleAuditStatus]) -> some View {
@@ -111,7 +112,7 @@ struct AuditV2: View {
         }
         .overlay(RoundedRectangle(cornerRadius: CSV2.rCard)
             .stroke(!status.missingScores.isEmpty ? CSV2.red.opacity(0.5)
-                    : !status.missingPutts.isEmpty ? Color.orange.opacity(0.5) : Color.clear, lineWidth: 1.5))
+                    : !status.missingPutts.isEmpty ? CSV2.warning.opacity(0.5) : Color.clear, lineWidth: 1.5))
     }
 
     private func playerCell(_ pd: (alias: String, score: Int, putts: Int, strokes: Double), par: Int) -> some View {
@@ -122,18 +123,18 @@ struct AuditV2: View {
             if hasScore {
                 ScoreMarkV2(gross: pd.score, par: par, size: 32, strokeDots: pd.strokes)
             } else {
-                Text("✕").font(.system(size: 22, weight: .heavy)).foregroundStyle(CSV2.red)
-                    .frame(width: 32, height: 32)
+                Text("✕").font(.system(.title2, weight: .heavy)).foregroundStyle(CSV2.red)
+                    .frame(minWidth: 32, minHeight: 32)
             }
             if hasScore && pd.strokes > 0.001 {
                 Text("→\(strokesTextV2(Double(pd.score) - pd.strokes))").font(.v2Label).foregroundStyle(CSV2.stroke)
             }
             Text(pd.putts > 0 ? "\(pd.putts)p" : (hasScore && tracked) ? "—p" : " ")
-                .font(.v2Label).foregroundStyle(pd.putts > 0 ? CSV2.secondary : .orange)
+                .font(.v2Label).foregroundStyle(pd.putts > 0 ? CSV2.secondary : CSV2.warning)
         }
         .frame(maxWidth: .infinity, minHeight: 64)
         .background((!hasScore ? CSV2.red.opacity(0.08)
-                     : (pd.putts == 0 && tracked) ? Color.orange.opacity(0.10) : Color.clear))
+                     : (pd.putts == 0 && tracked) ? CSV2.warning.opacity(0.10) : Color.clear))
         .contentShape(Rectangle())
     }
 
@@ -149,7 +150,7 @@ struct AuditV2: View {
         } else if !status.missingScores.isEmpty {
             Image(systemName: "xmark.circle.fill").foregroundStyle(CSV2.red)
         } else {
-            Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
+            Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(CSV2.warning)
         }
     }
 
@@ -285,8 +286,10 @@ struct CorrectionSheetV2: View {
         VStack(spacing: 8) {
             Text(label).capsStyleV2()
             StepButtonV2(symbol: "plus", action: plus).disabled(value >= range.upperBound)
-            Text("\(value)").font(.system(size: 44, weight: .heavy).monospacedDigit()).foregroundStyle(color)
+                .accessibilityLabel("Más \(label.lowercased())")
+            Text("\(value)").font(.system(.largeTitle, weight: .heavy).monospacedDigit()).foregroundStyle(color)
             StepButtonV2(symbol: "minus", action: minus).disabled(value <= range.lowerBound)
+                .accessibilityLabel("Menos \(label.lowercased())")
         }
         .frame(maxWidth: .infinity).padding(.vertical, CSV2.s2)
     }
@@ -372,7 +375,7 @@ struct CorrectionSheetV2: View {
                 player: target.alias, hole: target.hole, strokes: target.score, putts: target.putts))
             dismiss()
         } label: {
-            Text("Guardar corrección").font(.system(size: 17, weight: .bold)).foregroundStyle(.white)
+            Text("Guardar corrección").font(.system(.body, weight: .bold)).foregroundStyle(.white)
                 .frame(maxWidth: .infinity, minHeight: 56)
                 .background(CSV2.green, in: RoundedRectangle(cornerRadius: 14))
         }

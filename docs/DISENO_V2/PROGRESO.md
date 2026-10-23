@@ -136,3 +136,8 @@
 - Decisión de Daniel: el historial y las estadísticas solo se actualizan con matches CERRADOS (ya era así: leen `closed_rounds`; el match en curso no cuenta).
 - `MyHistoryV2`: histograma en % de hoyos — Acumulado = promedio de las rondas ± desviación estándar (necesita 2 o más rondas), Este match = % de la última ronda cerrada. Golpes y putts por nueve: promedio ± desviación y el valor del último match. Se quitó "Oyes ganados"; la tarjeta de dinero lleva Acumulado y Este match en Individual, Parejas y Total.
 - Fórmulas en `MyHistoryData` (`spread`, `percent`, `percentSpread`, `figureSpread`, `money`): 81 pruebas verdes (+5). La `MyHistoryView` de la v1 no se tocó (sigue con conteos).
+
+## Match completo, log de notas, tamaño de letra y accesibilidad (23-oct)
+- Decisión de Daniel: solo un match COMPLETO (los 18 hoyos de yo y del rival) actualiza el Directorio (strokes usados y próximos, tag, fecha, dinero acumulado) y los strokes del próximo juego. Una ronda cerrada incompleta se archiva igual en el historial (para no perder datos) y el aviso de cerrar ronda lo dice. `isMatchComplete`, `completeMatchCounts`, `closeRoundWarning`.
+- Log de notas: la hoja Nota lista todas las notas de la ronda; al cerrar se archivan en `RoundResultFile.notes` y el Historial las muestra en cada ronda. `roundNotes()`.
+- Tamaño de letra, contraste y VoiceOver corregidos (ver `REVISION_DISENO.md`). 85 pruebas verdes.

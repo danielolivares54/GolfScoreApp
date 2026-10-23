@@ -181,7 +181,7 @@ private struct NewUnitSheetV2: View {
                                                    mode: .manual, units: units, description: "Manual"))
                         dismiss()
                     } label: {
-                        Text("Guardar").font(.system(size: 15, weight: .bold)).foregroundStyle(.white)
+                        Text("Guardar").font(.system(.subheadline, weight: .bold)).foregroundStyle(.white)
                             .padding(.horizontal, 16).frame(minHeight: 40)
                             .background(CSV2.green, in: RoundedRectangle(cornerRadius: 12))
                     }

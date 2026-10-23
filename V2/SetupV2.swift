@@ -85,7 +85,7 @@ struct SetupV2: View {
                         stepIndex += 1
                     }
                 } label: {
-                    Text(isLast ? "Guardar" : "Siguiente").font(.system(size: 15, weight: .bold)).foregroundStyle(.white)
+                    Text(isLast ? "Guardar" : "Siguiente").font(.system(.subheadline, weight: .bold)).foregroundStyle(.white)
                         .padding(.horizontal, 16).frame(minHeight: 40)
                         .background(CSV2.green, in: RoundedRectangle(cornerRadius: 12))
                 }
@@ -143,7 +143,7 @@ struct SetupV2: View {
                                 Text(course.name).font(.v2Body).foregroundStyle(CSV2.ink)
                                 Spacer()
                                 if course.id == model.courseId {
-                                    Image(systemName: "checkmark").font(.system(size: 16, weight: .bold)).foregroundStyle(CSV2.green)
+                                    Image(systemName: "checkmark").font(.system(.callout, weight: .bold)).foregroundStyle(CSV2.green)
                                 }
                             }
                             .padding(.horizontal, CSV2.s2).frame(minHeight: 56)
@@ -165,7 +165,7 @@ struct SetupV2: View {
                         StepButtonV2(symbol: "minus") { model.startHole = max(1, model.startHole - 1) }
                             .accessibilityLabel("Un hoyo antes")
                         VStack(spacing: 2) {
-                            Text("\(model.startHole)").font(.v2Hole).foregroundStyle(CSV2.green)
+                            Text("\(model.startHole)").holeTitleV2().foregroundStyle(CSV2.green)
                             Text("de 18 hoyos").font(.v2Label).foregroundStyle(CSV2.secondary)
                         }
                         .frame(maxWidth: .infinity)
@@ -198,7 +198,7 @@ struct SetupV2: View {
     private func toolButton(_ title: String, _ symbol: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             VStack(spacing: 4) {
-                Image(systemName: symbol).font(.system(size: 20))
+                Image(systemName: symbol).font(.system(.title3))
                 Text(title).font(.v2Label)
             }
             .foregroundStyle(CSV2.green)
@@ -224,7 +224,7 @@ struct SetupV2: View {
                     model.addPlayer(newPlayerName, directoryMatch: pendingDirectoryMatch)
                     newPlayerName = ""; pendingDirectoryMatch = nil
                 } label: {
-                    Text("Agregar").font(.system(size: 15, weight: .bold)).foregroundStyle(.white)
+                    Text("Agregar").font(.system(.subheadline, weight: .bold)).foregroundStyle(.white)
                         .padding(.horizontal, 16).frame(minHeight: CSV2.minTap)
                         .background(canAdd ? CSV2.green : CSV2.secondary.opacity(0.4), in: RoundedRectangle(cornerRadius: 12))
                 }
@@ -277,7 +277,7 @@ struct SetupV2: View {
                                 }
                                 Spacer()
                                 Button { model.removePlayer(at: index) } label: {
-                                    Image(systemName: "trash").font(.system(size: 17)).foregroundStyle(CSV2.red)
+                                    Image(systemName: "trash").font(.system(.body)).foregroundStyle(CSV2.red)
                                         .frame(width: CSV2.minTap, height: CSV2.minTap)
                                 }
                                 .buttonStyle(.plain)
@@ -355,7 +355,7 @@ struct SetupV2: View {
         } label: {
             HStack(spacing: 6) {
                 Text(templateName(model.templateIdByOpponent[alias] ?? "")).font(.v2Body)
-                Image(systemName: "chevron.down").font(.system(size: 12, weight: .bold))
+                Image(systemName: "chevron.down").font(.system(.caption, weight: .bold))
             }
             .foregroundStyle(CSV2.green)
             .padding(.horizontal, 12).frame(minHeight: 44)
@@ -400,7 +400,7 @@ struct SetupV2: View {
                 HStack(spacing: 6) {
                     Text(current.map { "\($0.alias) \($0.name)" } ?? "Elegir").font(.v2Body)
                         .lineLimit(1).minimumScaleFactor(0.8)
-                    Image(systemName: "chevron.up.chevron.down").font(.system(size: 12, weight: .bold))
+                    Image(systemName: "chevron.up.chevron.down").font(.system(.caption, weight: .bold))
                 }
                 .foregroundStyle(CSV2.green)
                 .frame(minHeight: CSV2.minTap)

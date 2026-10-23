@@ -1,5 +1,7 @@
 # REVISION_DISENO — revisión de accesibilidad y diseño de la Vista v2 (23-oct)
 
+**ESTADO (23-oct, tarde): corregido — ver «Correcciones aplicadas» al final.** Lo de abajo es el hallazgo original.
+
 Qué se revisó: las pantallas de `V2/` y su sistema de estilo `V2/CaddieStyleV2.swift`. Es una revisión por código y por cálculo (no por uso en simulador con tamaños de letra grandes). Nada de esto se ha corregido todavía: son decisiones de diseño de Daniel.
 
 ## 1. Tamaño de letra dinámico (Dynamic Type) — NO CUMPLE
@@ -27,3 +29,9 @@ Falta:
 ## 4. Otras observaciones de diseño
 - Hay 4 variantes de "chip" de jugador, 20+ separadores y 25 etiquetas en mayúsculas con el mismo código repetido: candidatos a componentes de `CaddieStyleV2` (ya se extrajo `BackButtonV2`).
 - La barra de acciones de la captura (semáforo + 3 iconos + Vista v1) y las 5 pestañas inferiores están al límite del ancho en iPhone pequeño; con letra grande se necesitará un menú "más".
+
+## Correcciones aplicadas (23-oct)
+**Tamaño de letra.** Los 6 tokens ahora son estilos de texto del sistema (`v2Body`→callout, `v2Label`→footnote, `v2Caps`→caption, `v2Name`→headline, `v2Score`→title2), los ~46 usos sueltos de `.system(size:)` pasaron a estilos, y los textos con tamaño propio (`ScoreMarkV2`, `MoneyTextV2`, `MatchStatusV2`, el número de hoyo con `holeTitleV2()`) usan `@ScaledMetric`. Las alturas fijas con texto son `minHeight`. Límites por pantalla donde hay columnas de ancho fijo: Tarjeta, Resultado, Mi historial y Auditoría crecen hasta XXXL; la captura hasta Accesibilidad 2; la barra inferior hasta XXL. El resto crece sin límite (están en ScrollView). A tamaño por defecto el cambio visible es pequeño (el título de la tarjeta de usar 18→17 pt, las cifras grandes de 26→22 pt). NO se probó en simulador con letra grande: conviene mirarlo en el iPhone con Ajustes › Accesibilidad › Tamaño de letra.
+**Contraste.** `CSV2.warning` (#B45309, 5:1) sustituye al naranja del sistema; `CSV2.unitLine` (dorado de bordes y puntos) pasó a #9A6B00 (4.7:1); las columnas atenuadas de la Tarjeta suben de 0.3 a 0.45 de opacidad.
+**VoiceOver.** Etiquetas en los −/+ de la hoja de corrección ("Más score", "Menos putts"); el puntaje de la captura se lee "Daniel: 4 golpes" / "sin anotar"; las fichas de jugador (Evento, Nota, quién lleva los strokes) anuncian cuál está seleccionada (`AliasChipRowV2`); la Tarjeta con un match elegido anuncia "recibe stroke en este match".
+**Componentes repetidos.** `RowDividerV2`, `capsStyleV2()`, `AliasChipRowV2`, `BackButtonV2`, `moneyStringV2` (19 separadores y 19 etiquetas reemplazados).

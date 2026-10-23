@@ -79,7 +79,7 @@ struct MatchDetailV2: View {
     private func titleBlock(_ resumen: MatchResumen) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .firstTextBaseline) {
-                Text(row.title).font(.system(size: 32, weight: .bold)).foregroundStyle(CSV2.ink)
+                Text(row.title).font(.system(.title, weight: .bold)).foregroundStyle(CSV2.ink)
                 Spacer()
                 // "Tag $50": el valor de la apuesta de este match (v1: Tag).
                 Text("Tag $\(resumen.tag)").font(.v2Body).foregroundStyle(CSV2.secondary)
@@ -115,7 +115,7 @@ struct MatchDetailV2: View {
                 }
                 if let line = matchManager.strokesSummaryV2(for: target) {
                     Text(line)
-                        .font(.system(size: 15, weight: .semibold).monospacedDigit())
+                        .font(.system(.subheadline, weight: .semibold).monospacedDigit())
                         .foregroundStyle(CSV2.stroke)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -137,7 +137,7 @@ struct MatchDetailV2: View {
                 .foregroundStyle(CSV2.secondary)
 
                 Text(state.statusText)
-                    .font(.system(size: 17, weight: .semibold))
+                    .font(.system(.body, weight: .semibold))
                     .foregroundStyle(state.f9Tied ? CSV2.secondary : CSV2.ink)
                     .fixedSize(horizontal: false, vertical: true)
 
@@ -180,7 +180,7 @@ struct MatchDetailV2: View {
                             matchManager.setPairCarryRequest(laneId: laneId, requesterAlias: alias)
                         }
                     } label: {
-                        Text(alias).font(.system(size: 18, weight: .bold))
+                        Text(alias).font(.system(.body, weight: .bold))
                             .foregroundStyle(alias == selected ? .white : CSV2.ink)
                             .frame(maxWidth: .infinity, minHeight: 52)
                             .background { RoundedRectangle(cornerRadius: CSV2.rCell).fill(alias == selected ? CSV2.ink : CSV2.background) }
@@ -215,13 +215,13 @@ struct MatchDetailV2: View {
             } label: {
                 HStack(alignment: .center, spacing: 8) {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text(fila.nombre).font(.system(size: 20, weight: .bold)).foregroundStyle(CSV2.ink)
+                        Text(fila.nombre).font(.system(.title3, weight: .bold)).foregroundStyle(CSV2.ink)
                         chipsLine(fila.chips)
                     }
                     Spacer(minLength: 8)
                     MoneyTextV2(amount: fila.monto, size: 22, weight: .semibold)
                     Image(systemName: isOpen ? "chevron.up" : "chevron.down")
-                        .font(.system(size: 14, weight: .semibold)).foregroundStyle(CSV2.secondary)
+                        .font(.system(.subheadline, weight: .semibold)).foregroundStyle(CSV2.secondary)
                         .frame(width: 20)
                 }
                 .frame(minHeight: 56)
@@ -232,13 +232,13 @@ struct MatchDetailV2: View {
             if isOpen {
                 VStack(alignment: .leading, spacing: 6) {
                     ForEach(fila.detalle, id: \.self) { line in
-                        Text(line).font(.system(size: 15)).foregroundStyle(CSV2.secondary)
+                        Text(line).font(.system(.subheadline)).foregroundStyle(CSV2.secondary)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                     if let link = zoomLink(for: fila) {
                         Button(action: link.action) {
                             Label(link.title, systemImage: "arrow.up.left.and.arrow.down.right")
-                                .font(.system(size: 16, weight: .semibold)).foregroundStyle(CSV2.green)
+                                .font(.system(.callout, weight: .semibold)).foregroundStyle(CSV2.green)
                                 .frame(minHeight: CSV2.minTap, alignment: .leading)
                         }
                         .buttonStyle(.plain)
@@ -255,7 +255,7 @@ struct MatchDetailV2: View {
         HStack(spacing: 10) {
             ForEach(Array(chips.enumerated()), id: \.offset) { index, chip in
                 Text(chip.replacingOccurrences(of: "-", with: "−"))
-                    .font(.system(size: index == 0 ? 20 : 17, weight: index == 0 ? .heavy : .semibold).monospacedDigit())
+                    .font(.system(index == 0 ? .title3 : .body, weight: index == 0 ? .heavy : .semibold).monospacedDigit())
                     .foregroundStyle(chipColor(chip))
             }
         }
@@ -286,7 +286,7 @@ struct MatchDetailV2: View {
         return CardV2 {
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Total").font(.system(size: 20, weight: .bold)).foregroundStyle(CSV2.ink)
+                    Text("Total").font(.system(.title3, weight: .bold)).foregroundStyle(CSV2.ink)
                     Text(payer).font(.v2Label).foregroundStyle(CSV2.secondary)
                 }
                 Spacer()
@@ -312,9 +312,9 @@ struct MatchDetailV2: View {
     private func linkButton(_ title: String, systemImage: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             HStack {
-                Label(title, systemImage: systemImage).font(.system(size: 17, weight: .semibold))
+                Label(title, systemImage: systemImage).font(.system(.body, weight: .semibold))
                 Spacer()
-                Image(systemName: "chevron.right").font(.system(size: 14, weight: .semibold))
+                Image(systemName: "chevron.right").font(.system(.subheadline, weight: .semibold))
             }
             .foregroundStyle(CSV2.ink)
             .padding(.horizontal, CSV2.s2)
@@ -357,7 +357,7 @@ private struct RefreshTileV2: View {
     var body: some View {
         Button(action: action) {
             VStack(spacing: 4) {
-                Text(title).font(.system(size: 20, weight: .bold)).minimumScaleFactor(0.8).lineLimit(1)
+                Text(title).font(.system(.title3, weight: .bold)).minimumScaleFactor(0.8).lineLimit(1)
                 Text(state).font(.v2Label)
             }
             .foregroundStyle(isOn ? Color.white : CSV2.ink)

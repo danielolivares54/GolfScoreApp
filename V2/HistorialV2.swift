@@ -98,13 +98,13 @@ struct HistorialV2: View {
             Button { showPicker = true } label: {
                 HStack(spacing: 4) {
                     Text(selectedPlayerName).font(.v2Body).lineLimit(1)
-                    Image(systemName: "chevron.down").font(.system(size: 12, weight: .bold))
+                    Image(systemName: "chevron.down").font(.system(.caption, weight: .bold))
                 }
                 .foregroundStyle(CSV2.green).frame(minHeight: CSV2.minTap)
             }
             .buttonStyle(.plain)
             Button { showStats = true } label: {
-                Image(systemName: "chart.bar.fill").font(.system(size: 20)).foregroundStyle(CSV2.green)
+                Image(systemName: "chart.bar.fill").font(.system(.title3)).foregroundStyle(CSV2.green)
                     .frame(width: CSV2.minTap, height: CSV2.minTap)
             }
             .buttonStyle(.plain)
@@ -136,7 +136,7 @@ struct HistorialV2: View {
                                         Text(name).font(.v2Body).foregroundStyle(CSV2.ink)
                                         Spacer()
                                         if name == selectedPlayerName {
-                                            Image(systemName: "checkmark").font(.system(size: 16, weight: .bold)).foregroundStyle(CSV2.green)
+                                            Image(systemName: "checkmark").font(.system(.callout, weight: .bold)).foregroundStyle(CSV2.green)
                                         }
                                     }
                                     .padding(.horizontal, CSV2.s2).frame(minHeight: 56).contentShape(Rectangle())

@@ -46,6 +46,7 @@ struct ResultadoV2: View {
                 .padding(CSV2.s2)
             }
         }
+        .dynamicTypeSize(...DynamicTypeSize.xxxLarge)   // columnas de ancho fijo: la tabla crece hasta XXXL
         .fullScreenCover(item: $detailRow) { row in
             MatchDetailV2(matchManager: matchManager, row: row)
         }
@@ -233,7 +234,7 @@ private struct UnitsNetV2: View {
     var body: some View {
         let text = net > 0 ? "+\(net)" : net < 0 ? "−\(-net)" : "E"
         let color = net > 0 ? CSV2.green : net < 0 ? CSV2.red : CSV2.secondary
-        Text(text).font(.system(size: 16, weight: .bold).monospacedDigit()).foregroundStyle(color)
+        Text(text).font(.system(.callout, weight: .bold).monospacedDigit()).foregroundStyle(color)
     }
 }
 
