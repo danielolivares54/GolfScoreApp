@@ -680,7 +680,7 @@ struct ContrastAndBriefTests {
         let r = try #require(m.individualZoomRows(opponentAlias: "ROB", segmentOverride: "F9").first { $0.hole == 8 })
         let short = brief(m, .init(tipo: "hoyo", jugador: "Daniel", oponente: "Roberto", hoyo: 8))
         #expect(short.contains("Hoyo 8: \(r.yoGross) contra \(r.oppGross)"))
-        #expect(short.contains("Vuelta F9 ") && !short.contains("Presiones abiertas") && (short.contains("recibe") || short.contains("sin strokes")))
+        #expect(short.contains("Vuelta F9 ") && !short.contains("Presiones abiertas") && !short.contains("recibe"))
         let long = full(m, .init(tipo: "hoyo", jugador: "Daniel", oponente: "Roberto", hoyo: 8))
         #expect(long.contains("Presiones abiertas: antes") && long.count > short.count)
     }

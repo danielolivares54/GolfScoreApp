@@ -166,8 +166,8 @@ extension MatchManager {
             else if cellOverride(alias: other, hole: hole) == .lostHole { strokeText += ". \(hisName) se levantó" }
             let ba = beforeAfter(prev.map { ($0.0, $0.1) }, (r.vueltaAccum, r.openPressures), sign: sign, nine: nine)
             if holes.count <= 3 && !detail {
-                let briefStroke = myStroke > 0 ? "\(myName) recibe \(strokesWords(myStroke))" : hisStroke > 0 ? "\(hisName) recibe \(strokesWords(hisStroke))" : "sin strokes"
-                lines.append("Hoyo \(hole): \(myGross) contra \(hisGross), \(outcomeWords(r.result * sign, myName)), \(briefStroke). Vuelta \(nine) \(countWords(r.vueltaAccum * sign)).")
+                let briefStroke = myStroke > 0 ? ", ventaja de \(myName)" : hisStroke > 0 ? ", ventaja de \(hisName)" : ""
+                lines.append("Hoyo \(hole): \(myGross) contra \(hisGross), \(outcomeWords(r.result * sign, myName))\(briefStroke). Vuelta \(nine) \(countWords(r.vueltaAccum * sign)).")
             } else if holes.count <= 3 {
                 lines.append("Hoyo \(hole): \(myName) tiró \(myGross) y \(hisName) \(hisGross). \(strokeText). \(outcomeWords(r.result * sign, myName).prefix(1).uppercased() + outcomeWords(r.result * sign, myName).dropFirst()). \(ba)")
             } else {
@@ -209,8 +209,10 @@ extension MatchManager {
             let word = result > 0 ? "gana la pareja (\(result))" : result < 0 ? "pierde la pareja (\(-result))" : "empatan"
             let ba = beforeAfter(prev.map { ($0.0, $0.1) }, (r.vueltaAccum, r.openPressures), sign: sign, nine: nine)
             if holes.count <= 3 && !detail {
+                let advNames = (r.basePlayers + r.oppPlayers).filter { $0.laneStrokes > 0 }.map { spokenName($0.alias) }
+                let briefAdv = advNames.isEmpty ? "" : ", ventaja de " + spokenList(advNames)
                 let briefBalls = "\(myBalls.map(ball).joined(separator: " y ")) contra \(hisBalls.map(ball).joined(separator: " y "))"
-                lines.append("Hoyo \(hole): \(briefBalls), \(word), \(carriers.isEmpty ? "sin strokes" : spokenList(carriers)). Vuelta \(nine) \(countWords(r.vueltaAccum * sign)).")
+                lines.append("Hoyo \(hole): \(briefBalls), \(word)\(briefAdv). Vuelta \(nine) \(countWords(r.vueltaAccum * sign)).")
             } else if holes.count <= 3 {
                 lines.append("Hoyo \(hole): tiraron \(spokenList(myBalls.map(ball))) contra \(spokenList(hisBalls.map(ball))). \(stroke). \(word.prefix(1).uppercased() + word.dropFirst()). \(ba)")
             } else {
