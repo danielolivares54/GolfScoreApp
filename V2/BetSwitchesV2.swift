@@ -191,6 +191,7 @@ struct BetSwitchesSheetV2: View {
                     }
                     Text("Lo que apagues deja de contar al momento en ese match; si lo vuelves a prender, regresa todo. No cambia el catálogo.")
                         .font(.v2Label).foregroundStyle(CSV2.secondary)
+                    PairsNoticeCardV2(matchManager: matchManager)
                     if entries.isEmpty {
                         Text("Configura jugadores en Setup para ver las apuestas.").font(.v2Body).foregroundStyle(CSV2.secondary)
                     } else {

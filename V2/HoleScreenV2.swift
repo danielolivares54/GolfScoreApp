@@ -63,6 +63,7 @@ struct HoleScreenV2: View {
                     topBar
                     holeCard
                     statusStrip
+                    PairsNoticeCardV2(matchManager: matchManager, hole: currentHole)
                     holeEventsCard
                     playersCard
                     if par == 3 && matchManager.isOyesEnabled && !matchManager.players.isEmpty { oyesCard }

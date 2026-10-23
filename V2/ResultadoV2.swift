@@ -34,6 +34,7 @@ struct ResultadoV2: View {
             ScrollView {
                 VStack(spacing: CSV2.s2) {
                     header
+                    PairsNoticeCardV2(matchManager: matchManager)
                     totalCard(total: rows.reduce(0) { $0 + $1.money }, individuals: individualRows.count, pairs: pairRows.count)
                     if rows.isEmpty {
                         Text("Configura jugadores en Setup para ver resultados.")

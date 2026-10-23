@@ -551,3 +551,50 @@ struct VoiceLearningTests {
         #expect((ctx["ejemplos"] as? [[String: Any]])?.count == 1)
     }
 }
+
+// MARK: - Por qué las parejas no cuentan
+
+@MainActor
+struct PairsNoticeTests {
+    @Test func whenEverythingIsFineThereIsNoNotice() {
+        let m = DemoFixture.make()
+        #expect(m.pairsNoticeV2() == nil)
+        #expect(m.pairsNoticeV2(hole: 14) == nil)
+        #expect(!m.resultadoRowsV2().filter(\.isPair).isEmpty)
+    }
+
+    @Test func matchParejasOffInTheCatalogSaysSoAndOneTapTurnsItOn() {
+        let m = DemoFixture.make()
+        m.betCatalog = m.betCatalog.filter { $0.tag != "PAIR" }
+        #expect(m.pairsNoticeV2() == .offInCatalog)
+        #expect(m.resultadoRowsV2().filter(\.isPair).isEmpty)          // definidas y con strokes, pero no cuentan
+        #expect(m.pairsNoticeTextV2(.offInCatalog).contains("apagado en el catálogo"))
+        // El resumen hablado también lo avisa.
+        #expect(m.moneyReadbackV2().contains("Ojo: Match Parejas está apagado"))
+        #expect(m.countsReadbackV2().contains("Ojo: Match Parejas está apagado"))
+    }
+
+    @Test func noBaseTeamMeansNotDefined() {
+        let m = DemoFixture.make()
+        m.baseTeamAliases = []
+        m.lanes = []
+        #expect(m.pairsNoticeV2() == .notDefined)
+        #expect(m.pairsNoticeTextV2(.notDefined).contains("Defínela en el Setup"))
+    }
+
+    @Test func aMissingScoreOfTheFourSaysWho() {
+        let m = DemoFixture.make()
+        let involved = Set(m.lanes.flatMap { $0.base + $0.opp })
+        let who = involved.first { $0 != "DAN" }!
+        m.players[m.players.firstIndex { $0.alias == who }!].scores[14] = nil
+        guard case .missingScores(let aliases, let hole)? = m.pairsNoticeV2(hole: 14) else { Issue.record("sin aviso"); return }
+        #expect(aliases == [who] && hole == 14)
+        #expect(m.pairsNoticeTextV2(.missingScores(aliases: aliases, hole: hole)).contains("cuatro jugadores"))
+    }
+
+    @Test func fewerThanFourPlayersNeverNagAboutPairs() {
+        let m = DemoFixture.make()
+        m.setPlayers(names: ["Daniel", "Beto", "Chuy"], preserveScores: false)
+        #expect(m.pairsNoticeV2() == nil)
+    }
+}

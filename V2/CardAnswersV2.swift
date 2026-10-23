@@ -52,6 +52,7 @@ extension MatchManager {
         let individuals = rows.filter { !$0.isPair }.map(line)
         let pairs = rows.filter(\.isPair).map(line)
         var text = "Por conteo."
+        if let n = pairsNoticeV2() { text += " Ojo: " + pairsNoticeTextV2(n) }
         if !individuals.isEmpty { text += " Individuales: " + individuals.joined(separator: "; ") + "." }
         if !pairs.isEmpty { text += " Parejas: " + pairs.joined(separator: "; ") + "." }
         return text
@@ -66,6 +67,7 @@ extension MatchManager {
             return "\(name), \(moneyWords(row.money))"
         }
         var text = "Dinero. En total, \(moneyWords(resultadoTotalV2()))."
+        if let n = pairsNoticeV2() { text += " Ojo: " + pairsNoticeTextV2(n) }
         let individuals = rows.filter { !$0.isPair }, pairs = rows.filter(\.isPair)
         if !individuals.isEmpty {
             text += " Individuales, \(moneyWords(individuals.reduce(0) { $0 + $1.money })): " + individuals.map(line).joined(separator: "; ") + "."
@@ -98,7 +100,9 @@ extension MatchManager {
             if let b = pairHoleBlock(perspective: p, lane: lane, holes: holes) { blocks.append(b) }
         }
         guard !blocks.isEmpty else { return "No encontré ese match." }
-        return blocks.joined(separator: " ")
+        var text = blocks.joined(separator: " ")
+        if let n = pairsNoticeV2(hole: holes.count == 1 ? holes[0] : nil), opponent == nil { text += " Ojo: " + pairsNoticeTextV2(n) }
+        return text
     }
 
     private func outcomeWords(_ r: Int, _ name: String) -> String { r > 0 ? "gana \(name)" : r < 0 ? "pierde \(name)" : "empatan" }
