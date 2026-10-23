@@ -14,6 +14,7 @@
 //  en el simulador, no sobre un dispositivo con una ronda real en curso.
 //
 
+import Foundation
 import Testing
 @testable import Caddy_Score
 
@@ -186,7 +187,7 @@ struct CaseStudyDemo18Tests {
     // MARK: R13 — F9 en 0: B9 y Match se pagan con un solo precio combinado
 
     private func tiedF9Match() -> MatchManager {
-        let m = makeDemo()
+        let m = DemoFixture.make()
         m.clearCarryDependentState()
         m.setStrokesVsBase(alias: "ROB", value: 0)
         let order = m.playOrder()
@@ -222,5 +223,58 @@ struct CaseStudyDemo18Tests {
         let line = try #require(m.walletSnapshot().lines.first { $0.opponentAlias == alias && $0.scope == .individual })
         let v = m.betValues(forOpponent: alias)
         #expect(line.vueltaMoney == v.vueltaValue)            // solo la vuelta de B9 × su valor, sin precio combinado
+    }
+
+    @Test func tiedF9LeavesTheNextMatchStrokesAndSaysSoInTheDirectory() throws {
+        let m = tiedF9Match()
+        #expect(m.isF9ZeroCarry(opponentAlias: "ROB"))
+        let name = "test_directory_\(UUID().uuidString).json"
+        let store = PlayerDirectoryStore(fileName: name)
+        defer {
+            if let url = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first?.appendingPathComponent(name) {
+                try? FileManager.default.removeItem(at: url)
+            }
+        }
+        let next = m.applyInterMatchStrokeCarry(directory: store)
+        #expect(next["ROB"] == 0)                                  // el stroke con el que se jugó (0) no cambia
+        let rob = try #require(store.entries.first { $0.name == "Roberto" })
+        #expect(rob.strokesVsBase == 0 && rob.strokeAnt == 0)
+        #expect(rob.lastResult?.hasPrefix(MatchManager.f9ZeroNote) == true)
+    }
+
+    @Test func tiedF9ShowsCarryWithTheCombinedPriceInResults() throws {
+        let m = tiedF9Match()
+        let row = try #require(m.resultadoRowsV2().first { $0.title == "ROB" })
+        let v = m.betValues(forOpponent: "ROB")
+        #expect(row.f9CarryPrice == v.vueltaValue + v.presionValue + v.matchValue)
+        // Un F9 ganado o perdido no es Carry.
+        let other = try #require(DemoFixture.make().resultadoRowsV2().first { $0.title == "ROB" })
+        #expect(other.f9CarryPrice == nil)
+    }
+
+    @Test func tiedF9AlsoBundlesThePriceInPairs() throws {
+        let m = DemoFixture.make()
+        m.clearCarryDependentState()
+        for p in m.players where p.alias != m.yoAlias { m.setStrokesVsBase(alias: p.alias, value: 0) }
+        guard let lane = m.lanes.first(where: { Set($0.opp) == ["RIC", "ANS"] }) else { Issue.record("sin carril"); return }
+        m.setLaneStrokesForMatch(base: lane.base, opp: lane.opp, value: 0)
+        for (index, hole) in m.playOrder().enumerated() {
+            let par = m.getHole(hole)?.par ?? 4
+            for p in m.players {
+                let weak = ["RIC", "ANS"].contains(p.alias) && index >= 9      // B9: la pareja base gana todos los hoyos
+                m.applyHoleEntry(HoleEntryData(hole_number: hole, player_alias: p.alias, strokes: par + (weak ? 1 : 0),
+                                               putts: 0, units: nil, tags: nil))
+            }
+        }
+        // Las parejas se reconstruyen con ids nuevos al cambiar strokes: se vuelve a buscar el carril.
+        guard let lane = m.lanes.first(where: { Set($0.opp) == ["RIC", "ANS"] }) else { Issue.record("sin carril"); return }
+        #expect(m.pairF9Vuelta(laneId: lane.id) == 0)
+        let line = try #require(m.walletSnapshot().lines.first { $0.laneId == lane.id })
+        let price = m.vueltaValue + m.presionValue + m.matchValue
+        let b9P = m.pairB9Presion(laneId: lane.id).reduce(0) { $0 + ($1 > 0 ? 1 : $1 < 0 ? -1 : 0) }
+        #expect(line.matchMoney == 0)
+        #expect(line.vueltaMoney == (1 + b9P) * price)
+        let row = try #require(m.resultadoRowsV2().first { $0.id == "par-\(lane.id.uuidString)" })
+        #expect(row.f9CarryPrice == price)
     }
 }

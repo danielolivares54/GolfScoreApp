@@ -141,3 +141,7 @@
 - Decisión de Daniel: solo un match COMPLETO (los 18 hoyos de yo y del rival) actualiza el Directorio (strokes usados y próximos, tag, fecha, dinero acumulado) y los strokes del próximo juego. Una ronda cerrada incompleta se archiva igual en el historial (para no perder datos) y el aviso de cerrar ronda lo dice. `isMatchComplete`, `completeMatchCounts`, `closeRoundWarning`.
 - Log de notas: la hoja Nota lista todas las notas de la ronda; al cerrar se archivan en `RoundResultFile.notes` y el Historial las muestra en cada ronda. `roundNotes()`.
 - Tamaño de letra, contraste y VoiceOver corregidos (ver `REVISION_DISENO.md`). 85 pruebas verdes.
+
+## F9 en cero: precio combinado en parejas, "salió Carry" y strokes sin cambio (23-oct)
+- La regla R13 ahora también aplica a las parejas (antes solo individuales). Resultado muestra "Carry" en la columna F9 y "F9 en cero · salió Carry · $P por unidad" en la fila y en el detalle del match.
+- Con F9 en cero los strokes del próximo match NO cambian y el Directorio lo anota ("F9 Zero (salió Carry) · los strokes no cambian"). 90 pruebas verdes (+3).

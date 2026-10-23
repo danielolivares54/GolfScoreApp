@@ -60,6 +60,10 @@ struct PlayerDirectoryView: View {
                                         if let last = entry.lastGameAt {
                                             Text(lastGameLine(entry, date: last))
                                                 .font(.system(size: 11.5)).foregroundColor(.secondary)
+                                            if entry.lastResult?.hasPrefix(MatchManager.f9ZeroNote) == true {
+                                                Text(MatchManager.f9ZeroNote)
+                                                    .font(.system(size: 11.5, weight: .semibold)).foregroundColor(Color(red: 0.62, green: 0.42, blue: 0.0))
+                                            }
                                         }
                                     }
                                     Spacer()

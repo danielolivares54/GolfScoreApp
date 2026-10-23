@@ -132,7 +132,7 @@ struct ResultadoV2: View {
                             }
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        MatchStatusV2(net: row.f9Net, played: row.f9Played)
+                        f9Status(row)
                             .frame(width: ColumnV2.status, alignment: .trailing)
                         MatchStatusV2(net: row.b9Net, played: row.b9Played)
                             .frame(width: ColumnV2.status, alignment: .trailing)
@@ -172,10 +172,19 @@ struct ResultadoV2: View {
         .frame(minHeight: 64)
     }
 
+    /// Resultado del F9: con F9 en cero y las tres apuestas activas el F9 "salió Carry" (B9 y Match con el precio combinado).
+    @ViewBuilder private func f9Status(_ row: MatchManager.ResultadoRowV2) -> some View {
+        if row.f9CarryPrice != nil {
+            Text("Carry").font(.v2Label).bold().foregroundStyle(CSV2.unitFg)
+        } else {
+            MatchStatusV2(net: row.f9Net, played: row.f9Played)
+        }
+    }
+
     /// Lo que la v1 muestra bajo F9/B9, ahora con etiquetas y en una línea que se ajusta (no se corta):
     /// presiones de cada nueve y dinero del Carry (B9). Solo aparece si hay algo que mostrar.
     @ViewBuilder private func detailLine(_ row: MatchManager.ResultadoRowV2) -> some View {
-        if !row.f9Presiones.isEmpty || !row.b9Presiones.isEmpty || row.carryActive {
+        if !row.f9Presiones.isEmpty || !row.b9Presiones.isEmpty || row.carryActive || row.f9CarryPrice != nil {
             detailText(row)
                 .font(.v2Label)
                 .fixedSize(horizontal: false, vertical: true)
@@ -185,6 +194,10 @@ struct ResultadoV2: View {
 
     private func detailText(_ row: MatchManager.ResultadoRowV2) -> Text {
         var parts: [Text] = []
+        if let price = row.f9CarryPrice {
+            parts.append(Text("F9 en cero · salió Carry · ").foregroundStyle(CSV2.secondary)
+                         + Text("$\(price) por unidad").foregroundStyle(CSV2.unitFg))
+        }
         if !row.f9Presiones.isEmpty {
             parts.append(Text("F9 presiones ").foregroundStyle(CSV2.secondary)
                          + Text(signedList(row.f9Presiones)).foregroundStyle(CSV2.ink))

@@ -2699,12 +2699,26 @@ class MatchManager: ObservableObject {
             let uPts = switches.units ? unitsPts : 0
 
             let dpMultiplier = doublePressActive ? 2 : 1
-            let vMoney = switches.vuelta
-                ? signedUnit(f9V) * vueltaValue + signedUnit(b9V) * vueltaValue * dpMultiplier
-                : 0
-            let pMoney = switches.presion
-                ? f9P * presionValue + b9P * presionValue * dpMultiplier
-                : 0
+            // Misma regla que los individuales (R13): con el F9 en 0 y vuelta/presión/match activos, B9 y Match se pagan
+            // con UN precio combinado (vuelta + presión + match) por cada unidad ganada; la presión de F9 se cobra aparte.
+            let f9Tied = f9V == 0 && switches.vuelta && switches.presion && switches.match
+            let vMoney: Int
+            let pMoney: Int
+            let tiedMatchMoney: Int?
+            if f9Tied {
+                let bundledPrice = vueltaValue + presionValue + matchValue
+                vMoney = (signedUnit(b9V) + b9P) * bundledPrice
+                pMoney = f9P * presionValue
+                tiedMatchMoney = 0
+            } else {
+                vMoney = switches.vuelta
+                    ? signedUnit(f9V) * vueltaValue + signedUnit(b9V) * vueltaValue * dpMultiplier
+                    : 0
+                pMoney = switches.presion
+                    ? f9P * presionValue + b9P * presionValue * dpMultiplier
+                    : 0
+                tiedMatchMoney = nil
+            }
             // Carry de pareja: misma regla que individual (vuelta + una unidad por presión), con
             // el valor original de la pareja y sin Doble B9.
             let carryOn = switches.carry && carryActive
@@ -2713,12 +2727,12 @@ class MatchManager: ObservableObject {
             } ?? 0
             let cMoney = carryOn ? signedUnit(cPts) * vueltaValue + carryPres * presionValue : 0
             let aMoney = aPts * vueltaValue
-            let mMoney = roundComplete ? mPts * matchValue : 0
+            let mMoney = tiedMatchMoney ?? (roundComplete ? mPts * matchValue : 0)
             let uMoney = uPts * unitValue
             let total = vMoney + pMoney + cMoney + aMoney + mMoney + uMoney
-            let f9Money = (switches.vuelta ? signedUnit(f9V) * vueltaValue : 0)
+            let f9Money = f9Tied ? pMoney : (switches.vuelta ? signedUnit(f9V) * vueltaValue : 0)
                 + (switches.presion ? f9P * presionValue : 0)
-            let b9Money = (switches.vuelta ? signedUnit(b9V) * vueltaValue * dpMultiplier : 0)
+            let b9Money = f9Tied ? vMoney : (switches.vuelta ? signedUnit(b9V) * vueltaValue * dpMultiplier : 0)
                 + (switches.presion ? b9P * presionValue * dpMultiplier : 0)
             lines.append(
                 WalletLine(
@@ -3889,6 +3903,12 @@ extension MatchManager {
             }
             // Si la plantilla de este rival no pide ajuste entre rondas, el match se registra igual pero sin mover strokes.
             if !carryEnabled { delta = 0 }
+            // F9 en cero (R13): salió Carry con el precio combinado. Esa es la regla de apuesta de este jugador y los
+            // strokes del próximo match NO cambian; el Directorio lo deja escrito.
+            if isF9ZeroCarry(opponentAlias: opp) {
+                delta = 0
+                summary = Self.f9ZeroNote + " · " + base
+            }
 
             let used = player.strokesVsBase
             let next = used + delta
@@ -4316,6 +4336,15 @@ extension MatchManager {
     /// ¿Están anotados los 18 hoyos de yo y de ese rival? Solo entonces el match cuenta para el Directorio y los strokes del próximo.
     func isMatchComplete(opponentAlias: String) -> Bool {
         (1...18).allSatisfy { getScore(hole: $0, player: yoAlias) > 0 && getScore(hole: $0, player: opponentAlias) > 0 }
+    }
+
+    /// Nota que queda en el Directorio cuando un match terminó con F9 en cero (salió Carry con el precio combinado).
+    static let f9ZeroNote = "F9 Zero (salió Carry) · los strokes no cambian"
+
+    /// ¿Este match individual salió con F9 en cero y las tres apuestas (vuelta, presión, match) activas? (regla R13)
+    func isF9ZeroCarry(opponentAlias: String) -> Bool {
+        let switches = betSwitchesForIndividual(opponentAlias: opponentAlias)
+        return individualF9Vuelta(opponentAlias: opponentAlias) == 0 && switches.vuelta && switches.presion && switches.match
     }
 
     /// Cuántos matches individuales de la ronda están completos y cuántos hay.

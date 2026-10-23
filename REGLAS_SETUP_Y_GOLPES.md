@@ -46,32 +46,15 @@ After pressing Guardar, these must reflect the saved setup, without reopening th
 - One save of the full setup is written at the end of Setup, including a course-only change.
 - `match_meta.json` is only used to seed a **new** match, when nothing was restored from the saved config.
 
-### R13. Money when the F9 vuelta is 0 (tie)
-Applies to the individual matches (`MatchManager.walletSnapshot`). It needs Vuelta, Presión and Match all switched on for that rival; otherwise the normal calculation is used.
-- Carry, Ajuste 50 and Doble B9 are not available (there is no F9 winner to ask them from).
+### R13. Money and strokes when the F9 vuelta is 0 (tie: "F9 Zero", "salió Carry")
+Applies to the individual matches and to the pair matches (`MatchManager.walletSnapshot`). It needs Vuelta, Presión and Match all switched on for that match; otherwise the normal calculation is used.
+- Carry, Ajuste 50 and Doble B9 are not available (there is no F9 winner to ask them from): the F9 tie **is** the Carry.
 - The F9 presión is paid as usual: F9 presiones × presión value.
-- Vuelta B9, the B9 presiones and the Match are settled together with **one combined price**: vuelta value + presión value + match value of the rival's template. That price is paid once per unit won: the B9 vuelta counts 1 and every B9 presión counts 1 more. The Match is not paid separately.
+- Vuelta B9, the B9 presiones and the Match are settled together with **one combined price**: vuelta value + presión value + match value of the template (pairs: the pair bet values). That price is paid once per unit won: the B9 vuelta counts 1 and every B9 presión counts 1 more. The Match is not paid separately.
 - Anything else (units, etc.) is added as usual.
 - Example: bets 100 / 100 / 100 (vuelta / presión / match) → combined price 300. B9 ends 5-3-1 (vuelta + 2 presiones = 3 units) → 3 × 300 = 900, plus the F9 presión and the rest. With 50 / 50 / 100 the combined price would be 200, so the same 3 units pay 600.
-- Pairs do not have this rule yet: a tied F9 in a pair match is settled with the normal calculation.
-
----
-
-## 2. Changes made
-
-| # | Change | File(s) | Rule |
-|---|---|---|---|
-| 1 | New stroke distribution that follows the order of play | `MatchManager.swift` (`distributedStrokes`, new static version) | R3 |
-| 2 | Scorecard dots use the shared rule | `ScorecardView.swift` | R3 |
-| 3 | Hole table dots use the shared rule | `ContentView.swift` | R3 |
-| 4 | Round history uses the shared rule with each round's saved start hole | `RoundHistoryView.swift` | R3 |
-| 5 | Carry reset moved into one helper, plus a signature of the stroke setup | `MatchManager.swift` (`clearCarryDependentState`, `strokeSetupSignature`) | R5 |
-| 6 | Setup save compares before/after and resets carry state if it moved | `GuidedSetupView.swift` (`applySetup`) | R5 |
-| 7 | One save and one refresh at the end of Setup | `GuidedSetupView.swift`, `MatchManager.swift` (`finishSetupApply`) | R4, R7 |
-| 8 | Pair bet switches kept when pair lanes are rebuilt | `MatchManager.swift` (`rebuildLanesFromBase`) | R4 |
-| 9 | Bet instances rebuilt for 2-player base teams | `MatchManager.swift` (`rebuildLanesFromBase`) | R4 |
-| 10 | Saved config restored before `match_meta.json` | `ContentView.swift` (`setupOnAppear`) | R1, R7 |
-| 11 | Course and start hole apply on **Siguiente** of step 1, with an on-screen warning | `GuidedSetupView.swift` (`applyCampo`, `campoStep` text) | R1, R4, R5 |
+- **Results screen:** the F9 column says "Carry" (instead of E) once the 9 holes are played, and the match shows "F9 en cero · salió Carry · $300 por unidad" (`ResultadoRowV2.f9CarryPrice`).
+- **Strokes for the next match:** with F9 Zero the strokes do **not** change, whoever wins B9. That is the bet rule of that player. When the match is closed the Directory records it as "F9 Zero (salió Carry) · los strokes no cambian" (`MatchManager.f9ZeroNote`) and keeps the strokes of the match as the strokes of the next one. With any other F9 result the strokes follow the usual rule (±1 for the match winner, or the Ajuste 50 formula).
 
 ### Change 1 — Stroke distribution follows the order of play
 - **What changed:** `distributedStrokes` used only the course's fixed SI. It now uses the start hole too (R3). The logic is a static function so the live match and the history share it.

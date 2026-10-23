@@ -40,6 +40,8 @@ extension MatchManager {
         /// Unidades netas (eventos + oyes), igual que la columna UNID de la v1.
         let unitsNet: Int
         let money: Int
+        /// F9 en cero con las tres apuestas activas: "salió Carry" y este es el precio combinado por unidad (vuelta + presión + match).
+        let f9CarryPrice: Int?
         /// Con qué se apuesta este match: plantilla (el "tag", p. ej. TPCH) y sus valores — "TPCH · vuelta $50 · presión $50 …".
         let betText: String?
 
@@ -93,6 +95,8 @@ extension MatchManager {
                 carryMoney: line?.carryMoney ?? 0,
                 unitsNet: line?.unitsPoints ?? 0,
                 money: line?.totalMoney ?? 0,
+                f9CarryPrice: f9Rows.count >= 9 && isF9ZeroCarry(opponentAlias: opp.alias)
+                    ? bet.vueltaValue + bet.presionValue + bet.matchValue : nil,
                 betText: betSummaryV2(templateId: bet.templateId, values: bet)
             ))
         }
@@ -104,6 +108,7 @@ extension MatchManager {
             let mySide = mine ? lane.base : lane.opp
             let rivalSide = mine ? lane.opp : lane.base
             let partners = mySide.filter { $0 != yoAlias }
+            let pairSwitches = betSwitchesForPair(laneId: lane.id)
             let f9Rows = pairZoomRows(laneId: lane.id, segmentOverride: "F9")
             let b9Rows = pairZoomRows(laneId: lane.id, segmentOverride: "B9")
             rows.append(ResultadoRowV2(
@@ -122,6 +127,8 @@ extension MatchManager {
                 carryMoney: line?.carryMoney ?? 0,
                 unitsNet: line?.unitsPoints ?? 0,
                 money: line?.totalMoney ?? 0,
+                f9CarryPrice: f9Rows.count >= 9 && pairF9Vuelta(laneId: lane.id) == 0 && pairSwitches.vuelta
+                    && pairSwitches.presion && pairSwitches.match ? vueltaValue + presionValue + matchValue : nil,
                 betText: betSummaryV2(templateId: activeTemplateId,
                                       values: OpponentBetValues(templateId: activeTemplateId, vueltaValue: vueltaValue,
                                                                 presionValue: presionValue, matchValue: matchValue,

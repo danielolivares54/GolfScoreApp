@@ -88,6 +88,10 @@ struct MatchDetailV2: View {
                 Text(rivals).font(.v2Body).foregroundStyle(CSV2.secondary)
             }
             if let bet = row.betText { Text(bet).font(.v2Body).foregroundStyle(CSV2.ink) }
+            if let price = row.f9CarryPrice {
+                Text("F9 en cero · salió Carry · B9 y Match se pagan a $\(price) por unidad (vuelta + presión + match)")
+                    .font(.v2Label).foregroundStyle(CSV2.unitFg)
+            }
             Text(conditions(resumen)).font(.v2Label).foregroundStyle(CSV2.secondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
