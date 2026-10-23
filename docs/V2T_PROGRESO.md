@@ -52,3 +52,6 @@
 ## Contrastar la tarjeta por jugador y vuelta; respuestas breves (23-oct)
 - **Contrastar** (`ContrastV2.swift`): hoja con la tarjeta de UN jugador por F9 / B9 / 18, hoyo por hoyo (golpes, putts, quién le da stroke, ✕ si se levantó), total de la vuelta, leer toda la vuelta o un hoyo en voz alta y corregir cada hoyo (misma hoja de corrección de la Tarjeta). Se abre con el ícono de la cabecera de Tarjeta y con el botón "Contrastar tarjeta" de la hoja de voz. Hablando: "del F9 dame los golpes y strokes de Rob", "los golpes de Daniel del hoyo 3 al 7" (tipo `tarjeta`).
 - **Respuestas breves por defecto:** toda lectura es un resumen (conteo, dinero total, una línea por match/vuelta); el botón **Más detalle** o decir "con detalle / hoyo por hoyo / explícame" da el detalle completo (`detail` en `answer`, `detalle` en la consulta del LLM).
+
+## Corregir desde lo que se revisa (23-oct)
+- Bajo cada lectura del apuntador sale **Corregir**: abre la tarjeta del jugador y la vuelta de lo que se preguntó con el hoyo resaltado (`ContrastSheetV2`), o el hoyo de todos los jugadores (`HoleCorrectionSheetV2`) cuando no se dijo de quién; cada lápiz abre la hoja de corrección (score, putts, oyes, unidades). Dinero, presiones, strokes y explicaciones no tienen botón (no se corrigen ahí). Rutas en `VoiceHolePipeline.correctionRoute`.

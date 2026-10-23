@@ -579,6 +579,50 @@ enum VoiceHolePipeline {
                                    opponent: opponent, to: to, detail: detail || (q.detalle ?? false))
     }
 
+    // MARK: Corregir desde lo que se acaba de leer
+
+    /// Dónde se corrige lo que se acaba de revisar: la tarjeta de ese jugador y vuelta (con el hoyo resaltado) o el hoyo de todos.
+    enum CorrectionRoute: Hashable, Identifiable {
+        case player(alias: String, segment: String, focusHole: Int?)
+        case hole(Int)
+        var id: String {
+            switch self {
+            case .player(let a, let s, let h): return "p-\(a)-\(s)-\(h ?? 0)"
+            case .hole(let h): return "h-\(h)"
+            }
+        }
+    }
+
+    /// La lectura de un hoyo ("qué llevo", "qué falta") se corrige en ese hoyo; los resultados y el dinero no se corrigen aquí.
+    static func correctionRoute(for intent: ReadbackIntentV2, hole: Int) -> CorrectionRoute? {
+        intent == .round ? nil : .hole(hole)
+    }
+
+    /// Una pregunta sobre scores, putts, hoyos, oyes, unidades o notas lleva a la tarjeta del jugador o al hoyo; el resto (dinero,
+    /// presiones, strokes, explicaciones) no tiene nada que corregir.
+    static func correctionRoute(for q: ReadbackQueryV2, match: MatchManager, currentHole: Int, slang: VoiceSlangStore = .shared) -> CorrectionRoute? {
+        var alias: String?
+        if let who = q.jugador?.trimmingCharacters(in: .whitespacesAndNewlines), !who.isEmpty {
+            let r = resolveSpoken(who, match: match, slang: slang)
+            guard r.known else { return nil }
+            alias = r.alias
+        }
+        func nine(_ h: Int) -> String { match.segmentForHole(h) }
+        let hole = q.hoyo.flatMap { (1...18).contains($0) ? $0 : nil }
+        switch q.tipo.lowercased() {
+        case "score", "golpes", "putts", "oyes", "unidades", "notas":
+            if let alias { return .player(alias: alias, segment: nine(hole ?? currentHole), focusHole: hole) }
+            return .hole(hole ?? currentHole)
+        case "hoyo", "resultado_hoyo", "resultado", "total":
+            return .player(alias: alias ?? match.yoAlias, segment: nine(hole ?? currentHole), focusHole: hole)
+        case "tarjeta", "golpes_nueve", "contrastar":
+            let seg = q.segmento?.uppercased()
+            return .player(alias: alias ?? match.yoAlias, segment: hole.map(nine) ?? (seg == "B9" ? "B9" : seg == "F9" ? "F9" : nine(currentHole)),
+                           focusHole: hole)
+        default: return nil
+        }
+    }
+
     // MARK: Reporte (qué entendí, qué falta)
 
     static func report(_ draft: VoiceHoleDraft, match: MatchManager) -> VoiceHoleReport {

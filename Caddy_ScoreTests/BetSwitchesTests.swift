@@ -705,3 +705,47 @@ struct ContrastAndBriefTests {
         #expect(VoiceHolePipeline.answer(q, match: m, currentHole: 14, slang: slang()).contains("Hoyo 1, par 4"))
     }
 }
+
+// MARK: - Corregir desde lo que se acaba de revisar
+
+@MainActor
+struct CorrectionRouteTests {
+    private func slang() -> VoiceSlangStore { VoiceSlangStore(defaults: UserDefaults(suiteName: "route-\(UUID().uuidString)")!) }
+    private func route(_ q: ReadbackQueryV2, _ m: MatchManager, current: Int = 14) -> VoiceHolePipeline.CorrectionRoute? {
+        VoiceHolePipeline.correctionRoute(for: q, match: m, currentHole: current, slang: slang())
+    }
+
+    @Test func readingAHoleIsCorrectedInThatHole() {
+        #expect(VoiceHolePipeline.correctionRoute(for: .hole, hole: 14) == .hole(14))
+        #expect(VoiceHolePipeline.correctionRoute(for: .missing, hole: 7) == .hole(7))
+        #expect(VoiceHolePipeline.correctionRoute(for: .round, hole: 14) == nil)    // el dinero no se corrige aquí
+    }
+
+    @Test func aPlayersQuestionOpensThatPlayersCardOnTheRightNine() {
+        let m = DemoFixture.make()
+        // Hoyo 5 de Roberto → su F9 con el hoyo 5 resaltado.
+        #expect(route(.init(tipo: "score", jugador: "Roberto", hoyo: 5), m) == .player(alias: "ROB", segment: "F9", focusHole: 5))
+        // Hoyo 14 → B9.
+        #expect(route(.init(tipo: "putts", jugador: "Daniel", hoyo: 14), m) == .player(alias: "DAN", segment: "B9", focusHole: 14))
+        // "Cómo quedó el hoyo 8": la tarjeta de yo (USER_NAME) con el 8 resaltado.
+        #expect(route(.init(tipo: "hoyo", jugador: "yo", oponente: "Roberto", hoyo: 8), m) == .player(alias: "DAN", segment: "F9", focusHole: 8))
+        // "Dame la tarjeta de Rob del B9".
+        #expect(route(.init(tipo: "tarjeta", jugador: "Roberto", segmento: "B9"), m) == .player(alias: "ROB", segment: "B9", focusHole: nil))
+        #expect(route(.init(tipo: "total", jugador: "Fernando"), m) == .player(alias: "FER", segment: "B9", focusHole: nil))
+    }
+
+    @Test func aQuestionWithoutAPlayerOpensTheHoleOfEveryone() {
+        let m = DemoFixture.make()
+        #expect(route(.init(tipo: "score", hoyo: 3), m) == .hole(3))
+        #expect(route(.init(tipo: "oyes", hoyo: 14), m) == .hole(14))
+        #expect(route(.init(tipo: "unidades"), m) == .hole(14))     // sin hoyo: el que se juega
+    }
+
+    @Test func moneyAndDerivedAnswersHaveNothingToCorrect() {
+        let m = DemoFixture.make()
+        for tipo in ["dinero", "conteo", "explicar", "presiones", "strokes", "nueve", "vuelta", "match", "otro"] {
+            #expect(route(.init(tipo: tipo), m) == nil)
+        }
+        #expect(route(.init(tipo: "score", jugador: "Pelón", hoyo: 3), m) == nil)    // jugador que no existe
+    }
+}

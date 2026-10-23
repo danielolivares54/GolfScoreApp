@@ -25,6 +25,7 @@ struct VoiceSheetV2: View {
     private enum LastRequest: Equatable { case intent(ReadbackIntentV2), query(ReadbackQueryV2) }
     @State private var lastRequest: LastRequest?
     @State private var lastWasDetailed = false
+    @State private var correctionRoute: VoiceHolePipeline.CorrectionRoute?
 
     private enum Phase: Equatable { case idle, recording, processing, failed(String) }
     @State private var phase: Phase = .idle
@@ -57,6 +58,14 @@ struct VoiceSheetV2: View {
         }
         .dynamicTypeSize(...DynamicTypeSize.accessibility2)
         .sheet(isPresented: $showContrast) { ContrastSheetV2(matchManager: matchManager) }
+        .sheet(item: $correctionRoute) { route in
+            switch route {
+            case .player(let alias, let segment, let focus):
+                ContrastSheetV2(matchManager: matchManager, alias: alias, segment: segment, focusHole: focus)
+            case .hole(let h):
+                HoleCorrectionSheetV2(matchManager: matchManager, hole: h)
+            }
+        }
     }
 
     /// Qué hoyo se está grabando: el de la pantalla, hasta que el dictado diga otro.
@@ -179,6 +188,11 @@ struct VoiceSheetV2: View {
                         Label("Más detalle", systemImage: "text.append").font(.v2Body.weight(.semibold)).foregroundStyle(CSV2.green).frame(minHeight: CSV2.minTap)
                     }.buttonStyle(.plain)
                 }
+                if let route = currentRoute {
+                    Button { correctionRoute = route } label: {
+                        Label("Corregir", systemImage: "pencil").font(.v2Body.weight(.semibold)).foregroundStyle(CSV2.ink).frame(minHeight: CSV2.minTap)
+                    }.buttonStyle(.plain)
+                }
                 if speech.isSpeaking {
                     Button { speech.stop() } label: {
                         Label("Detener", systemImage: "stop.fill").font(.v2Body).foregroundStyle(CSV2.warning).frame(minHeight: CSV2.minTap)
@@ -197,6 +211,16 @@ struct VoiceSheetV2: View {
         lastRequest = .intent(intent); lastWasDetailed = detail
         readbackText = text
         speech.speak(text)
+    }
+
+    /// Dónde se corrige lo último que se leyó (nil si no hay nada que corregir: dinero, presiones, strokes…).
+    private var currentRoute: VoiceHolePipeline.CorrectionRoute? {
+        let current = draft.hole ?? hole
+        switch lastRequest {
+        case .intent(let intent)?: return VoiceHolePipeline.correctionRoute(for: intent, hole: current)
+        case .query(let q)?: return VoiceHolePipeline.correctionRoute(for: q, match: matchManager, currentHole: current)
+        case nil: return nil
+        }
     }
 
     /// Repite lo último con el detalle.

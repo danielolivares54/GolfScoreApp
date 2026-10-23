@@ -136,13 +136,17 @@ struct ContrastSheetV2: View {
     @ObservedObject var matchManager: MatchManager
     @Environment(\.dismiss) private var dismiss
     @State private var alias: String
-    @State private var segment = "F9"
+    @State private var segment: String
+    /// Hoyo que se estaba revisando (viene de una lectura): su fila se resalta y la lista se desplaza a él.
+    let focusHole: Int?
     @State private var correction: CorrectionTargetV2?
     @State private var speech = SpeechReadbackV2()
 
-    init(matchManager: MatchManager, alias: String? = nil) {
+    init(matchManager: MatchManager, alias: String? = nil, segment: String? = nil, focusHole: Int? = nil) {
         self.matchManager = matchManager
+        self.focusHole = focusHole
         _alias = State(initialValue: alias ?? matchManager.yoAlias)
+        _segment = State(initialValue: segment?.uppercased() == "ALL" ? "ALL" : (segment?.uppercased() == "B9" ? "B9" : "F9"))
     }
 
     private var holes: [Int] { matchManager.holesForNineV2(segment == "ALL" ? nil : segment) }
@@ -180,16 +184,20 @@ struct ContrastSheetV2: View {
                 }
                 .padding(CSV2.s2)
 
-                ScrollView {
-                    VStack(spacing: 0) {
-                        ForEach(lines, id: \.hole) { line in
-                            row(line)
-                            RowDividerV2()
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        VStack(spacing: 0) {
+                            ForEach(lines, id: \.hole) { line in
+                                row(line).id(line.hole)
+                                    .background(line.hole == focusHole ? CSV2.green.opacity(0.14) : Color.clear)
+                                RowDividerV2()
+                            }
+                            totalsRow(totals)
                         }
-                        totalsRow(totals)
+                        .background(CSV2.surface, in: RoundedRectangle(cornerRadius: CSV2.rCard))
+                        .padding(.horizontal, CSV2.s2).padding(.bottom, CSV2.s3)
                     }
-                    .background(CSV2.surface, in: RoundedRectangle(cornerRadius: CSV2.rCard))
-                    .padding(.horizontal, CSV2.s2).padding(.bottom, CSV2.s3)
+                    .onAppear { if let focusHole { proxy.scrollTo(focusHole, anchor: .center) } }
                 }
             }
         }
@@ -246,6 +254,61 @@ struct ContrastSheetV2: View {
         let name = matchManager.players.first { $0.alias == alias }?.name ?? alias
         correction = CorrectionTargetV2(hole: line.hole, par: line.par, alias: alias, playerName: name,
                                         score: line.gross ?? line.par, putts: line.putts ?? 2)
+    }
+}
+
+/// Corregir UN hoyo de todos los jugadores: scores, putts, oyes y unidades (cada lápiz abre la hoja de corrección).
+struct HoleCorrectionSheetV2: View {
+    @ObservedObject var matchManager: MatchManager
+    let hole: Int
+    @Environment(\.dismiss) private var dismiss
+    @State private var correction: CorrectionTargetV2?
+
+    var body: some View {
+        let par = matchManager.getHole(hole)?.par ?? 4
+        ZStack {
+            CSV2.background.ignoresSafeArea()
+            VStack(alignment: .leading, spacing: CSV2.s2) {
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Corregir hoyo \(hole)").font(.v2Name).foregroundStyle(CSV2.ink)
+                        Text("par \(par)").font(.v2Label).foregroundStyle(CSV2.secondary)
+                    }
+                    Spacer()
+                    Button("Listo") { dismiss() }.font(.v2Body).foregroundStyle(CSV2.green).frame(minHeight: CSV2.minTap)
+                }
+                VStack(spacing: 0) {
+                    ForEach(matchManager.players) { player in
+                        let g = matchManager.getScore(hole: hole, player: player.alias)
+                        let p = matchManager.getPutts(hole: hole, player: player.alias)
+                        HStack(spacing: 10) {
+                            Text(player.alias).font(.v2Name).foregroundStyle(CSV2.ink).frame(width: 64, alignment: .leading)
+                            ScoreMarkV2(gross: g > 0 ? g : nil, par: par, size: 36,
+                                        lostHole: matchManager.cellOverride(alias: player.alias, hole: hole) == .lostHole)
+                            Text(p > 0 ? "\(p) putts" : (g > 0 ? "sin putts" : "sin anotar")).font(.v2Body)
+                                .foregroundStyle(g == 0 || p == 0 ? CSV2.warning : CSV2.ink)
+                            Spacer()
+                            Button {
+                                correction = CorrectionTargetV2(hole: hole, par: par, alias: player.alias, playerName: player.name,
+                                                                score: g > 0 ? g : par, putts: p > 0 ? p : 2)
+                            } label: {
+                                Image(systemName: "pencil").frame(width: CSV2.minTap, height: CSV2.minTap).foregroundStyle(CSV2.ink)
+                            }
+                            .buttonStyle(.plain).accessibilityLabel("Corregir a \(player.name) en el hoyo \(hole)")
+                        }
+                        .padding(.horizontal, CSV2.s2).padding(.vertical, 4)
+                        RowDividerV2()
+                    }
+                }
+                .background(CSV2.surface, in: RoundedRectangle(cornerRadius: CSV2.rCard))
+                Spacer(minLength: 0)
+            }
+            .padding(CSV2.s2)
+        }
+        .dynamicTypeSize(...DynamicTypeSize.accessibility2)
+        .sheet(item: $correction) { target in
+            CorrectionSheetV2(target: target, matchManager: matchManager).presentationDetents([.large])
+        }
     }
 }
 
