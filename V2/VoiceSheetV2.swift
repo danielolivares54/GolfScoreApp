@@ -17,6 +17,9 @@ struct VoiceSheetV2: View {
     let onApplied: (Int, VoiceUndoToken) -> Void
     @Environment(\.dismiss) private var dismiss
     @StateObject private var recorder = VoiceRecorder()
+    @State private var speech = SpeechReadbackV2()
+    /// Lo que el apuntador acaba de leer (también se ve en pantalla).
+    @State private var readbackText: String?
 
     private enum Phase: Equatable { case idle, recording, processing, failed(String) }
     @State private var phase: Phase = .idle
@@ -35,10 +38,11 @@ struct VoiceSheetV2: View {
                     HStack {
                         Text("Dictar el hoyo").font(.v2Name).foregroundStyle(CSV2.ink)
                         Spacer()
-                        Button("Cerrar") { recorder.cancelIfNeeded(); dismiss() }
+                        Button("Cerrar") { recorder.cancelIfNeeded(); speech.stop(); dismiss() }
                             .font(.v2Body).foregroundStyle(CSV2.secondary).frame(minHeight: CSV2.minTap)
                     }
                     holeBanner
+                    if let readbackText { readbackCard(readbackText) }
                     if !draft.isEmpty { reviewCard }
                     controls
                 }
@@ -74,6 +78,7 @@ struct VoiceSheetV2: View {
                      : "Dicta solo lo que falta o lo que quieras corregir; se suma a lo ya entendido.")
                     .font(.v2Label).foregroundStyle(CSV2.secondary).multilineTextAlignment(.center)
                 micButton(symbol: "mic.circle.fill", color: CSV2.green, label: draft.isEmpty ? "Empezar a grabar" : "Dictar lo que falta") { start() }
+                readbackButtons
             }.frame(maxWidth: .infinity)
         case .recording:
             VStack(spacing: CSV2.s2) {
@@ -101,6 +106,51 @@ struct VoiceSheetV2: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel(label)
+    }
+
+    // MARK: El apuntador lee lo que ya está anotado
+
+    private var readbackButtons: some View {
+        VStack(spacing: 6) {
+            Text("O pídele que te lea lo anotado (también puedes decir \"qué llevo\", \"cómo vamos\" o \"qué falta\")")
+                .font(.v2Label).foregroundStyle(CSV2.secondary).multilineTextAlignment(.center)
+            FlowChipsV2 {
+                readbackChip("Leer el hoyo", "speaker.wave.2") { readAloud(.hole) }
+                readbackChip("Qué falta", "questionmark.circle") { readAloud(.missing) }
+                readbackChip("Cómo vamos", "dollarsign.circle") { readAloud(.round) }
+            }
+        }
+    }
+
+    private func readbackChip(_ title: String, _ symbol: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Label(title, systemImage: symbol).font(.v2Label.weight(.semibold)).foregroundStyle(CSV2.green)
+                .padding(.horizontal, 12).frame(minHeight: 44)
+                .overlay(Capsule().stroke(CSV2.green.opacity(0.5)))
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func readbackCard(_ text: String) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Lo anotado").capsStyleV2()
+            Text(text).font(.v2Body).foregroundStyle(CSV2.ink)
+            if speech.isSpeaking {
+                Button { speech.stop() } label: {
+                    Label("Detener", systemImage: "stop.fill").font(.v2Body).foregroundStyle(CSV2.warning).frame(minHeight: CSV2.minTap)
+                }.buttonStyle(.plain)
+            }
+        }
+        .padding(CSV2.s2).frame(maxWidth: .infinity, alignment: .leading)
+        .background(CSV2.surface, in: RoundedRectangle(cornerRadius: CSV2.rCard))
+        .overlay(RoundedRectangle(cornerRadius: CSV2.rCard).strokeBorder(CSV2.line))
+        .accessibilityElement(children: .combine)
+    }
+
+    private func readAloud(_ intent: ReadbackIntentV2) {
+        let text = matchManager.readbackV2(intent, hole: draft.hole ?? hole)
+        readbackText = text
+        speech.speak(text)
     }
 
     // MARK: Tarjeta: cómo se vería + qué falta
@@ -216,6 +266,7 @@ struct VoiceSheetV2: View {
     // MARK: Grabar → transcribir → entender
 
     private func start() {
+        speech.stop()
         guard AppConfig.hasOpenAIKey else {
             phase = .failed("Falta la clave de OpenAI. Pon tu archivo caddie.env en la carpeta de la app (Archivos > Caddie Score). Ejemplo: caddie.env.example")
             return
@@ -234,6 +285,12 @@ struct VoiceSheetV2: View {
         Task {
             do {
                 let text = try await OpenAIService.shared.transcribeAudio(url: url)
+                // "Qué llevo" / "cómo vamos" / "qué falta": no es un dato del hoyo, es una petición de lectura.
+                if let intent = ReadbackIntentV2.detect(text) {
+                    readAloud(intent)
+                    phase = .idle
+                    return
+                }
                 // La grabación se guarda aunque no se entienda: también sirve para aprender.
                 recordIds.append(VoiceRecordStore.shared.record(audio: url, transcript: text,
                                                                 roundId: matchManager.roundId, hole: draft.hole))

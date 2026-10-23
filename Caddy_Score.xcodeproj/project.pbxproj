@@ -15,6 +15,8 @@
 		F805768B308BFC5500AE2B4F /* BetSwitchesV2.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8057689308BFC5500AE2B4F /* BetSwitchesV2.swift */; };
 		F805768D308C02D000AE2B4F /* BetEditV2.swift in Sources */ = {isa = PBXBuildFile; fileRef = F805768C308C02D000AE2B4F /* BetEditV2.swift */; };
 		F805768E308C02D000AE2B4F /* BetEditV2.swift in Sources */ = {isa = PBXBuildFile; fileRef = F805768C308C02D000AE2B4F /* BetEditV2.swift */; };
+		F8057690308C04D100AE2B4F /* CardReadbackV2.swift in Sources */ = {isa = PBXBuildFile; fileRef = F805768F308C04D100AE2B4F /* CardReadbackV2.swift */; };
+		F8057691308C04D100AE2B4F /* CardReadbackV2.swift in Sources */ = {isa = PBXBuildFile; fileRef = F805768F308C04D100AE2B4F /* CardReadbackV2.swift */; };
 		F808CADB30895E9F00CAB58C /* ContentViewV2.swift in Sources */ = {isa = PBXBuildFile; fileRef = F808CAD930895E9F00CAB58C /* ContentViewV2.swift */; };
 		F808CADC30895E9F00CAB58C /* CaddieStyleV2.swift in Sources */ = {isa = PBXBuildFile; fileRef = F808CAD830895E9F00CAB58C /* CaddieStyleV2.swift */; };
 		F808CADD30895E9F00CAB58C /* ContentViewV2.swift in Sources */ = {isa = PBXBuildFile; fileRef = F808CAD930895E9F00CAB58C /* ContentViewV2.swift */; };
@@ -81,6 +83,7 @@
 		F8057684308BF01B00AE2B4F /* VoiceHolePipelineV2.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceHolePipelineV2.swift; sourceTree = "<group>"; };
 		F8057689308BFC5500AE2B4F /* BetSwitchesV2.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BetSwitchesV2.swift; sourceTree = "<group>"; };
 		F805768C308C02D000AE2B4F /* BetEditV2.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BetEditV2.swift; sourceTree = "<group>"; };
+		F805768F308C04D100AE2B4F /* CardReadbackV2.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CardReadbackV2.swift; sourceTree = "<group>"; };
 		F808CACA308953AD00CAB58C /* Caddy_ScoreTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = Caddy_ScoreTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		F808CAD830895E9F00CAB58C /* CaddieStyleV2.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaddieStyleV2.swift; sourceTree = "<group>"; };
 		F808CAD930895E9F00CAB58C /* ContentViewV2.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentViewV2.swift; sourceTree = "<group>"; };
@@ -204,6 +207,7 @@
 				F8057684308BF01B00AE2B4F /* VoiceHolePipelineV2.swift */,
 				F8057689308BFC5500AE2B4F /* BetSwitchesV2.swift */,
 				F805768C308C02D000AE2B4F /* BetEditV2.swift */,
+				F805768F308C04D100AE2B4F /* CardReadbackV2.swift */,
 			);
 			path = V2;
 			sourceTree = "<group>";
@@ -380,6 +384,7 @@
 				F808CB013089863600CAB58C /* NoteSheetV2.swift in Sources */,
 				F808CAE43089647F00CAB58C /* MatchManager+V2.swift in Sources */,
 				F805768E308C02D000AE2B4F /* BetEditV2.swift in Sources */,
+				F8057691308C04D100AE2B4F /* CardReadbackV2.swift in Sources */,
 				F808CAF33089716600CAB58C /* MatchDetailDataV2.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -401,6 +406,7 @@
 				F8A1001E2F43000100A1B2C3 /* Caddy_Score/VoiceRecorder.swift in Sources */,
 				F808CB113089932400CAB58C /* MyHistoryV2.swift in Sources */,
 				F808CAE33089647F00CAB58C /* MatchManager+V2.swift in Sources */,
+				F8057690308C04D100AE2B4F /* CardReadbackV2.swift in Sources */,
 				F808CB093089905B00CAB58C /* SetupV2.swift in Sources */,
 				F808CAFA308981E700CAB58C /* HoleScreenV2.swift in Sources */,
 				F8057683308BED7100AE2B4F /* VoiceSheetV2.swift in Sources */,

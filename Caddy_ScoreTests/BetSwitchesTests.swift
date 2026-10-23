@@ -185,3 +185,62 @@ struct BetEditTests {
         #expect(robRow(m)?.betText == nil || robRow(m)?.betText?.contains("sin Unidades") == true)
     }
 }
+
+// MARK: - El apuntador lee lo anotado
+
+@MainActor
+struct CardReadbackTests {
+    @Test func spokenRequestsAreRecognized() {
+        #expect(ReadbackIntentV2.detect("¿Qué llevo?") == .hole)
+        #expect(ReadbackIntentV2.detect("léeme el hoyo") == .hole)
+        #expect(ReadbackIntentV2.detect("Cómo vamos") == .round)
+        #expect(ReadbackIntentV2.detect("cuánto llevo en la ronda") == .round)
+        #expect(ReadbackIntentV2.detect("qué falta") == .missing)
+        #expect(ReadbackIntentV2.detect("yo tres, rob cuatro") == nil)   // un dato del hoyo no es una petición
+        #expect(ReadbackIntentV2.detect("hoyo 5 daniel cuatro") == nil)
+    }
+
+    @Test func readsAFullHoleWithNamesPuttsOyesUnitsAndNotes() {
+        let m = DemoFixture.make()
+        let hole = 14   // par 3 con oyes en el caso de estudio
+        m.upsertUnitEvent(hole: hole, alias: "DAN", code: "HO", units: 1)
+        m.upsertUnitEvent(hole: hole, alias: "ROB", code: "NOTA", units: 0, note: "bola al agua")
+        let text = m.holeReadbackV2(hole).text
+        #expect(text.hasPrefix("Hoyo 14, par 3."))
+        for name in ["Daniel", "Fernando", "Roberto", "Ricardo", "Anselmo"] { #expect(text.contains(name)) }
+        #expect(text.contains("Oyes:"))
+        #expect(text.contains("Daniel: hole out."))
+        #expect(text.contains("Nota de Roberto: bola al agua."))
+    }
+
+    @Test func saysWhatIsMissing() {
+        let m = DemoFixture.make()
+        for alias in ["FER", "ANS"] { m.players[m.players.firstIndex { $0.alias == alias }!].scores[14] = nil }
+        let r = m.holeReadbackV2(14)
+        #expect(r.text.contains("Falta el score de Fernando y Anselmo"))
+        #expect(r.missing.first == "el score de Fernando y Anselmo")
+        #expect(m.readbackV2(.missing, hole: 14).hasPrefix("En el hoyo 14 falta el score de Fernando y Anselmo"))
+    }
+
+    @Test func anEmptyHoleSaysSo() {
+        let m = DemoFixture.make()
+        for i in m.players.indices { m.players[i].scores[14] = nil }
+        #expect(m.holeReadbackV2(14).text == "El hoyo 14 todavía no tiene nada anotado.")
+    }
+
+    @Test func aPickedUpHoleIsReadAsLost() {
+        let m = DemoFixture.make()
+        m.setCellOverride(alias: "ROB", hole: 3, override: .lostHole)
+        #expect(m.holeReadbackV2(3).text.contains("Roberto") && m.holeReadbackV2(3).text.contains("se levantó, hoyo perdido"))
+    }
+
+    @Test func readsTheRoundWithTheMoneyOfEveryMatch() {
+        let m = DemoFixture.make()
+        let text = m.roundReadbackV2()
+        #expect(text.hasPrefix("Llevas 18 hoyos completos."))
+        #expect(text.contains("Contra Roberto"))
+        #expect(text.contains("En total,"))
+        let robMoney = m.resultadoRowsV2().first { $0.title == "ROB" }!.money
+        #expect(text.contains(robMoney >= 0 ? "ganando \(robMoney) pesos" : "perdiendo \(-robMoney) pesos") || robMoney == 0)
+    }
+}
