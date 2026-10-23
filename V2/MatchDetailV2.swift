@@ -24,6 +24,7 @@ struct MatchDetailV2: View {
     @State private var zoomSegment: String?
     @State private var showCarryCard = false
     @State private var unitLogSegment: String?
+    @State private var showBetEdit = false
 
     private var target: UnitLogTarget { row.target }
 
@@ -59,6 +60,7 @@ struct MatchDetailV2: View {
             MatchZoomView(matchManager: matchManager, target: target, initialSegment: zoomSegment ?? "F9")
         }
         .sheet(isPresented: $showCarryCard) { carryCardSheet }
+        .sheet(isPresented: $showBetEdit) { BetEditSheetV2(matchManager: matchManager, target: target, title: row.title + (row.rivalsText.map { " vs " + $0 } ?? "")) }
         .sheet(isPresented: Binding(get: { unitLogSegment != nil }, set: { if !$0 { unitLogSegment = nil } })) {
             NavigationStack {
                 UnitLogDetailView(title: matchManager.unitLogTitleV2(target),
@@ -81,8 +83,18 @@ struct MatchDetailV2: View {
             HStack(alignment: .firstTextBaseline) {
                 Text(row.title).font(.system(.title, weight: .bold)).foregroundStyle(CSV2.ink)
                 Spacer()
-                // "Tag $50": el valor de la apuesta de este match (v1: Tag).
-                Text("Tag $\(resumen.tag)").font(.v2Body).foregroundStyle(CSV2.secondary)
+                // El tag con su nombre (TPCH), no "$50"; al tocarlo se edita la apuesta de este match.
+                Button { showBetEdit = true } label: {
+                    HStack(spacing: 6) {
+                        Text(matchManager.betTagLabelV2(for: target)).font(.v2Body.weight(.semibold))
+                        Image(systemName: "pencil").font(.system(.caption, weight: .bold))
+                    }
+                    .foregroundStyle(CSV2.green)
+                    .padding(.horizontal, 12).frame(minHeight: 44)
+                    .overlay(RoundedRectangle(cornerRadius: 10).stroke(CSV2.green.opacity(0.4)))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Tag \(matchManager.betTagLabelV2(for: target)). Editar la apuesta")
             }
             if let rivals = row.rivalsText {
                 Text(rivals).font(.v2Body).foregroundStyle(CSV2.secondary)
@@ -242,6 +254,12 @@ struct MatchDetailV2: View {
                         Text(line).font(.system(.subheadline)).foregroundStyle(CSV2.secondary)
                             .fixedSize(horizontal: false, vertical: true)
                     }
+                    Button { showBetEdit = true } label: {
+                        Label("Editar valor y qué cuenta", systemImage: "slider.horizontal.3")
+                            .font(.system(.callout, weight: .semibold)).foregroundStyle(CSV2.green)
+                            .frame(minHeight: CSV2.minTap, alignment: .leading)
+                    }
+                    .buttonStyle(.plain)
                     if let link = zoomLink(for: fila) {
                         Button(action: link.action) {
                             Label(link.title, systemImage: "arrow.up.left.and.arrow.down.right")

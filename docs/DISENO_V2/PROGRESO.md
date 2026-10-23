@@ -150,3 +150,8 @@
 - Cada match (rival o pareja) enseña su tag con lo que está encendido —Vuelta, Presión, Carry, Ajuste 50, Match, **Oyes**, Unidades— y se apaga o prende con un toque (`BetSwitchesV2.swift`). Nuevo interruptor `oyes` por match en `MatchBetSwitches` ("yo no apuesto oyes con Rob"); no toca el catálogo y no cambia nada al prenderlo de nuevo.
 - Dónde: ficha "Apuestas" en la pantalla del hoyo (resumen "todas activas" / "sin Oyes en 2") → hoja con todos los matches y el interruptor "Oyes en todos"; Setup (por rival); detalle del match. Resultados dice "· sin Oyes" en el tag del match.
 - Los interruptores ahora se guardan (`bet_config.json`, campos nuevos opcionales: los archivos viejos siguen leyéndose). Un interruptor no puede prender lo que el catálogo tiene apagado.
+
+## Reporte del match: el tag con su nombre y la apuesta editable (23-oct)
+- En el detalle del match el tag sale con su **nombre** (TPCH, "TPCH · editado"), ya no "Tag $50", y al tocarlo se abre **Editar apuesta** (`BetEditV2.swift`): cambiar el tag del match, el valor de Vuelta, Presión, Match y Unidad (en pesos, con − / + de 5 en 5 o escribiendo) y prender/apagar Vuelta, Presión, Match, Unidades, Carry, Ajuste 50 y Oyes. También se llega desde "Editar valor y qué cuenta" en cada concepto de la tabla.
+- Individual: los valores son de ese rival. Pareja: son los de las parejas (iguales para todas); al editarlos, los rivales que usaban esos valores por defecto conservan los suyos.
+- La unidad sigue a la vuelta (vuelta ÷ 2) mientras no se haya editado sola.

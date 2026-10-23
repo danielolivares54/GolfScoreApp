@@ -105,3 +105,83 @@ struct BetSwitchesTests {
         #expect(!m.catalogBlocksV2("Vuelta", pair: false))
     }
 }
+
+// MARK: - Editar el tag y los valores de un match
+
+@MainActor
+struct BetEditTests {
+    private func robRow(_ m: MatchManager) -> MatchManager.ResultadoRowV2? { m.resultadoRowsV2().first { $0.title == "ROB" } }
+
+    @Test func theReportShowsTheTagNameAndSaysWhenItWasEdited() throws {
+        let m = DemoFixture.make()
+        let template = try #require(BetTemplateStore.shared.entries.first)
+        m.setTemplateV2(template, for: .individual("ROB"))
+        #expect(m.betTagLabelV2(for: .individual("ROB")) == template.name)
+        #expect(!m.betIsEditedV2(for: .individual("ROB")))
+
+        var v = m.betValuesV2(for: .individual("ROB"))
+        v.presionValue += 5
+        m.setBetValuesV2(v, for: .individual("ROB"))
+        #expect(m.betTagLabelV2(for: .individual("ROB")) == "\(template.name) · editado")
+        #expect(robRow(m)?.betText?.contains("presión $\(v.presionValue)") == true)
+    }
+
+    @Test func editingTheValuesChangesTheMoneyOfThatMatchOnly() throws {
+        let m = DemoFixture.make()
+        let template = try #require(BetTemplateStore.shared.entries.first)
+        m.setTemplateV2(template, for: .individual("ROB"))
+        m.setTemplateV2(template, for: .individual("RIC"))
+        let robBefore = try #require(robRow(m)).money
+        let ricBefore = try #require(m.resultadoRowsV2().first { $0.title == "RIC" }).money
+
+        var v = m.betValuesV2(for: .individual("ROB"))
+        v.vueltaValue *= 2; v.presionValue *= 2; v.matchValue *= 2; v.unitValue *= 2
+        m.setBetValuesV2(v, for: .individual("ROB"))
+        #expect(try #require(robRow(m)).money == robBefore * 2 || robBefore == 0)
+        #expect(try #require(m.resultadoRowsV2().first { $0.title == "RIC" }).money == ricBefore)
+    }
+
+    @Test func theUnitFollowsTheVueltaUntilYouEditItOnItsOwn() {
+        let m = DemoFixture.make()
+        var v = m.betValuesV2(for: .individual("ROB"))
+        v.vueltaValue = 100; v.unitValue = 50
+        m.setBetValuesV2(v, for: .individual("ROB"))
+        m.setVueltaV2(200, for: .individual("ROB"))
+        #expect(m.betValuesV2(for: .individual("ROB")).unitValue == 100)   // iban ligadas: se mueven juntas
+
+        var own = m.betValuesV2(for: .individual("ROB"))
+        own.unitValue = 30   // la unidad se editó sola
+        m.setBetValuesV2(own, for: .individual("ROB"))
+        m.setVueltaV2(400, for: .individual("ROB"))
+        #expect(m.betValuesV2(for: .individual("ROB")).unitValue == 30)    // ya no la mueve
+    }
+
+    @Test func valuesNeverGoBelowZero() {
+        let m = DemoFixture.make()
+        var v = m.betValuesV2(for: .individual("ROB"))
+        v.matchValue = -10; v.unitValue = -1
+        m.setBetValuesV2(v, for: .individual("ROB"))
+        let after = m.betValuesV2(for: .individual("ROB"))
+        #expect(after.matchValue == 0 && after.unitValue == 0)
+    }
+
+    @Test func pairValuesAreTheSameForEveryPairAndDoNotTouchTheIndividuals() {
+        let m = DemoFixture.make()
+        let robBefore = robRow(m)?.money
+        let pairBefore = m.resultadoRowsV2().filter(\.isPair).map(\.money)
+        var v = m.betValuesV2(for: .pair(m.lanes[0].id))
+        v.vueltaValue += 50; v.presionValue += 50; v.matchValue += 50
+        m.setBetValuesV2(v, for: .pair(m.lanes[0].id))
+        #expect(m.betValuesV2(for: .pair(m.lanes[1].id)) == m.betValuesV2(for: .pair(m.lanes[0].id)))
+        #expect(robRow(m)?.money == robBefore)   // el rival tiene su propia apuesta
+        #expect(m.resultadoRowsV2().filter(\.isPair).map(\.money) != pairBefore)
+    }
+
+    @Test func turningUnitsOffFromTheEditorStopsCountingThem() {
+        let m = DemoFixture.make()
+        var sw = m.betSwitchesV2(for: .individual("ROB"))
+        sw.units = false
+        m.setBetSwitchesV2(sw, for: .individual("ROB"))
+        #expect(robRow(m)?.betText == nil || robRow(m)?.betText?.contains("sin Unidades") == true)
+    }
+}
