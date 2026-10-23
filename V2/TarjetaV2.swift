@@ -15,7 +15,7 @@ struct TarjetaV2: View {
     @Environment(\.dismiss) private var dismiss
     /// 0 = primer nueve jugado (F9), 1 = segundo (B9). Con salida en 10: F9 = 10–18, B9 = 1–9.
     @State private var nineIndex = 0
-    /// Apagado = golpes; encendido = putts en las mismas celdas y total de putts por nueve (decisión de Daniel).
+    /// Apagado = golpes; encendido = putts en las mismas celdas y total de putts por nueve.
     @State private var showPutts: Bool
     /// Hoyo actual COMPARTIDO con la v1/HoleScreenV2: la fila de ese hoyo va en verde y tocar una celda lo cambia.
     @AppStorage(AppKeys.currentHoleIndex) private var currentHoleIndex = 0

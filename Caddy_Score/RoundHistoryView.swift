@@ -228,7 +228,7 @@ struct RoundHistoryView: View {
                             .font(.system(size: 13, weight: .bold, design: .monospaced))
                             .foregroundColor(.cInk)
                     }
-                    // Solo el resultado del match en palabras (antes: "Vuelta +0 · Match +0", con ceros que no decían nada).
+                    // Solo el resultado del match en palabras.
                     Text(line.matchPoints > 0 ? "Match ganado" : line.matchPoints < 0 ? "Match perdido" : "Match empatado")
                         .font(.system(size: 11)).foregroundColor(resultColor(line.matchPoints))
                 }
@@ -298,8 +298,7 @@ struct RoundHistoryView: View {
 
 // MARK: - Datos de "Mi Historial" (compartidos por MyHistoryView y la Vista v2)
 //
-// Las cifras salen de las rondas cerradas (closed_rounds/*.json). Se movieron tal cual desde MyHistoryView
-// para que la v2 use EXACTAMENTE las mismas fórmulas.
+// Las cifras salen de las rondas cerradas (closed_rounds/*.json). MyHistoryView y MyHistoryV2 usan estas mismas fórmulas.
 
 enum MyHistoryData {
     enum HoleResult { case win, tie, loss }

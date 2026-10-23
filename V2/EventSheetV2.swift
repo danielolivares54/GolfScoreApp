@@ -9,7 +9,7 @@
 import SwiftUI
 
 extension MatchManager {
-    /// 3 Putt y Hole Out no llevan botón en la hoja Unidades (decisión de Daniel, 21-oct): el 3 Putt se marca solo
+    /// 3 Putt y Hole Out no llevan botón en la hoja Unidades: el 3 Putt se marca solo
     /// al anotar los putts y siguen existiendo en el catálogo.
     static let unitsWithoutButtonV2: Set<String> = ["3P", "4P", "HO"]
 

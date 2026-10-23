@@ -3815,7 +3815,7 @@ extension MatchManager {
 }
 
 
-// MARK: - Cerrar ronda (movido tal cual desde ContentView para compartirlo con la Vista v2)
+// MARK: - Cerrar ronda (compartido por la Vista v1 y la v2)
 
 extension MatchManager {
     /// Único punto que borra datos de la ronda: ajusta strokes entre rondas, guarda el resultado a disco
@@ -3957,7 +3957,7 @@ extension MatchManager {
     }
 }
 
-// MARK: - Carga inicial del match (movida desde ContentView: la Vista v2 también puede ser la primera en abrirse)
+// MARK: - Carga inicial del match (la Vista v2 también puede ser la primera en abrirse)
 
 extension MatchManager {
     func loadInitialMatchState() {
@@ -3991,7 +3991,7 @@ extension MatchManager {
 }
 
 
-// MARK: - Guardado del Setup (movido tal cual desde GuidedSetupView para compartirlo con la Vista v2)
+// MARK: - Guardado del Setup (compartido por el Setup de la v1 y SetupV2)
 
 extension MatchManager {
     /// Todo lo que el Setup (4 pasos) deja escrito antes de guardar.

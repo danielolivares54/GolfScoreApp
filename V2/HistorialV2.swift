@@ -3,9 +3,9 @@
 //  Caddie Score — Vista v2, Paso 9: historial de rondas cerradas
 //
 //  Mismos datos que RoundHistoryView (closed_rounds/*.json): fecha, campo, hoyo de salida, total, y por rival el
-//  dinero, F9/B9, resultado del match y los strokes de esa ronda. Decisión de Daniel (21-oct): sin la insignia
-//  "VIGENTE" ni el cuadro beige "Strokes esa ronda"; esa información pasa a una línea azul
-//  ("DAN recibe 8 → próximo: recibe 7") que solo aparece en la ronda más reciente contra cada rival.
+//  dinero, F9/B9, resultado del match y los strokes de esa ronda. Los strokes van en una línea azul
+//  ("DAN recibe 8 → próximo: recibe 7"); la parte de "próximo" solo aparece en la ronda más reciente contra cada rival.
+//  Individuales y parejas van en grupos separados, cada uno con su subtotal.
 //
 
 import SwiftUI
