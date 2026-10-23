@@ -9,7 +9,7 @@
 
 import SwiftUI
 
-private struct CorrectionTargetV2: Identifiable {
+struct CorrectionTargetV2: Identifiable {
     let id = UUID()
     let hole: Int
     let par: Int
@@ -243,7 +243,7 @@ struct AuditV2: View {
 
 // MARK: - Hoja de corrección
 
-private struct CorrectionSheetV2: View {
+struct CorrectionSheetV2: View {
     @State var target: CorrectionTargetV2
     @ObservedObject var matchManager: MatchManager
     @Environment(\.dismiss) private var dismiss

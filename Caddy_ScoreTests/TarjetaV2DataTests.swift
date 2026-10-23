@@ -150,4 +150,33 @@ struct TarjetaV2DataTests {
         let cell = m.tarjetaNinesV2()[0].holes[0].cells[4]
         #expect(cell.putts == nil)
     }
+
+    // MARK: Strokes por hoyo de cada match
+
+    @Test func individualMatchStrokesGoToTheReceiver() {
+        let m = DemoFixture.make()
+        let byHole = m.matchStrokesByHoleV2(.individual("ROB"))
+        // ROB da 8 a DAN: 8 hoyos con strokes, todos para DAN y ninguno para ROB.
+        #expect(byHole.count == 8)
+        #expect(byHole.values.allSatisfy { Set($0.keys) == [m.yoAlias] })
+        #expect(byHole.values.reduce(0.0) { $0 + ($1[m.yoAlias] ?? 0) } == 8)
+        #expect(m.matchParticipantsV2(.individual("ROB")) == [m.yoAlias, "ROB"])
+    }
+
+    @Test func aMatchWithoutStrokesHasNoHighlights() {
+        let m = DemoFixture.make()
+        #expect(m.matchStrokesByHoleV2(.individual("RIC")).isEmpty)
+    }
+
+    @Test func pairMatchStrokesGoToTheCarrier() {
+        let m = DemoFixture.make()
+        // La pareja RIC–ANS lleva 12 strokes (los lleva ANS): un solo jugador los recibe.
+        guard let lane = m.lanes.first(where: { Set($0.opp) == ["RIC", "ANS"] }) else { Issue.record("sin carril"); return }
+        let byHole = m.matchStrokesByHoleV2(.pair(lane.id))
+        let receivers = Set(byHole.values.flatMap { $0.keys })
+        #expect(receivers.count == 1)
+        let total = byHole.values.reduce(0.0) { $0 + ($1.values.reduce(0, +)) }
+        // Los 12 del Setup, más el stroke extra que suma el Carry de B9 cuando está activo.
+        #expect(total >= lane.strokes)
+    }
 }

@@ -245,3 +245,56 @@ extension MatchManager {
         return runs.map { $0.0 == $0.1 ? "\($0.0)" : "\($0.0)–\($0.1)" }.joined(separator: ", ")
     }
 }
+
+
+// MARK: - Strokes por hoyo de cada match (para resaltarlos en la Tarjeta v2)
+
+extension MatchManager {
+
+    /// Hoyo → (alias → strokes que recibe ESE jugador en ESE match). Individual: quien recibe del otro (también yo);
+    /// pareja: el jugador que lleva los strokes. Los hoyos ya jugados salen de las mismas filas del detalle del match
+    /// (con los ajustes de Carry / Ajuste 50); los demás, del reparto base por orden de juego.
+    func matchStrokesByHoleV2(_ target: UnitLogTarget) -> [Int: [String: Double]] {
+        var result: [Int: [String: Double]] = [:]
+        switch target {
+        case .individual(let opp):
+            guard let rival = players.first(where: { $0.alias == opp }) else { return [:] }
+            let receiver = rival.strokesVsBase > 0 ? opp : yoAlias
+            if rival.strokesVsBase != 0 {
+                for hole in 1...18 {
+                    let v = distributedStrokes(total: abs(rival.strokesVsBase), hole: hole)
+                    if v > 0 { result[hole] = [receiver: v] }
+                }
+            }
+            let played = individualZoomRows(opponentAlias: opp, segmentOverride: "F9")
+                + individualZoomRows(opponentAlias: opp, segmentOverride: "B9")
+            for row in played {
+                var entry: [String: Double] = [:]
+                if row.yoStrokes > 0 { entry[yoAlias] = row.yoStrokes }
+                if row.oppStrokes > 0 { entry[opp] = row.oppStrokes }
+                result[row.hole] = entry.isEmpty ? nil : entry
+            }
+        case .pair(let laneId):
+            guard let lane = lanes.first(where: { $0.id == laneId }) else { return [:] }
+            for hole in 1...18 {
+                var entry: [String: Double] = [:]
+                for alias in lane.base + lane.opp {
+                    let v = pairStrokeForPlayer(laneId: laneId, alias: alias, hole: hole)
+                    if v > 0 { entry[alias] = v }
+                }
+                if !entry.isEmpty { result[hole] = entry }
+            }
+        }
+        return result
+    }
+
+    /// Jugadores que participan en un match (sus columnas se destacan en la Tarjeta).
+    func matchParticipantsV2(_ target: UnitLogTarget) -> Set<String> {
+        switch target {
+        case .individual(let opp): return [yoAlias, opp]
+        case .pair(let laneId):
+            guard let lane = lanes.first(where: { $0.id == laneId }) else { return [] }
+            return Set(lane.base + lane.opp)
+        }
+    }
+}

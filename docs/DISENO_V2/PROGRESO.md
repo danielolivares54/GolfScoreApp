@@ -119,3 +119,8 @@
 - Pedido de Daniel: ver con qué se apuesta. `ResultadoV2` y el encabezado de `MatchDetailV2` ahora muestran la plantilla (el "tag", p. ej. TPCH) y sus valores: "TPCH · vuelta $50 · presión $50 · match $50 · unidad $25" (por rival; en parejas, la plantilla de parejas). Dato: `ResultadoRowV2.betText`.
 - Reglas confirmadas por Daniel: un match empatado SÍ se guarda en el historial, pero no cambia los strokes del próximo juego (hoy `applyInterMatchStrokeCarry` ya no mueve strokes con empate; falta que el Directorio registre igualmente la fecha y el resultado).
 - Observación: al abrir el Setup, un rival sin plantilla recibe la primera plantilla del catálogo y guardar le pone sus valores (igual que en la v1); la prueba `loadedModelSavesWithoutChangingTheMatch` se aisló de eso.
+
+## Tarjeta: editar celdas y strokes por match (23-oct)
+- Pedido de Daniel: editar desde la Tarjeta. Tocar una celda abre la hoja de corrección de la Auditoría (`CorrectionSheetV2`: score, putts, puesto de Oye, unidades; mismo guardado que v1). Tocar el número de hoyo va a la captura de ese hoyo.
+- Pedido de Daniel: resaltar los strokes por hoyo de cada match. Fila de fichas "Todos · ROB · FER · … · vs RIC – ANS": al elegir un match, solo se destacan sus dos lados (los demás se atenúan), los hoyos donde se recibe stroke llevan un recuadro azul con el punto (también en mi columna cuando YO recibo) y una línea azul dice "DAN recibe 8 · hoyos …". Datos: `matchStrokesByHoleV2` / `matchParticipantsV2` (los hoyos jugados salen de las mismas filas del detalle del match, con Carry / Ajuste 50; el resto, del reparto base).
+- 71 pruebas verdes (+3). Captura: P3_14_Tarjeta_match_ROB.png.

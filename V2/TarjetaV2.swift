@@ -19,10 +19,15 @@ struct TarjetaV2: View {
     @State private var showPutts: Bool
     /// Hoyo actual COMPARTIDO con la v1/HoleScreenV2: la fila de ese hoyo va en verde y tocar una celda lo cambia.
     @AppStorage("currentHoleIndex") private var currentHoleIndex = 0
+    /// Match elegido para resaltar sus strokes por hoyo (nil = "Todos": los puntos de cada jugador como siempre).
+    @State private var selectedMatchId: String?
+    /// Celda tocada: se abre la hoja de corrección (la misma de la Auditoría) para editar score, putts, oye y unidades.
+    @State private var correction: CorrectionTargetV2?
 
-    init(matchManager: MatchManager, startWithPutts: Bool = false) {
+    init(matchManager: MatchManager, startWithPutts: Bool = false, initialMatchId: String? = nil) {
         self.matchManager = matchManager
         _showPutts = State(initialValue: startWithPutts)
+        _selectedMatchId = State(initialValue: initialMatchId)
     }
 
     private var players: [PlayerModel] { matchManager.players }
@@ -43,7 +48,10 @@ struct TarjetaV2: View {
                         }
                         .pickerStyle(.segmented)
                         playersLine
-                        if !showPutts { legend }
+                        if !showPutts {
+                            matchBar
+                            if selectedRow != nil { matchSummary } else { legend }
+                        }
                     }
                 }
                 .padding(.horizontal, CSV2.s2).padding(.bottom, CSV2.s1)
@@ -59,6 +67,61 @@ struct TarjetaV2: View {
                     }
                 }
             }
+        }
+        .sheet(item: $correction) { target in
+            CorrectionSheetV2(target: target, matchManager: matchManager).presentationDetents([.large])
+        }
+    }
+
+    // MARK: Match elegido (resalta los strokes de ese match hoyo por hoyo)
+
+    private var rows: [MatchManager.ResultadoRowV2] { matchManager.resultadoRowsV2() }
+    private var selectedRow: MatchManager.ResultadoRowV2? {
+        showPutts ? nil : rows.first { $0.id == selectedMatchId }
+    }
+    private var matchStrokes: [Int: [String: Double]] {
+        selectedRow.map { matchManager.matchStrokesByHoleV2($0.target) } ?? [:]
+    }
+    private var participants: Set<String>? {
+        selectedRow.map { matchManager.matchParticipantsV2($0.target) }
+    }
+
+    private var matchBar: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                matchChip("Todos", id: nil)
+                ForEach(rows) { row in
+                    matchChip(row.isPair ? "vs \(row.rivalsText ?? row.title)" : row.title, id: row.id)
+                }
+            }
+        }
+    }
+
+    private func matchChip(_ title: String, id: String?) -> some View {
+        let on = selectedMatchId == id
+        return Button { selectedMatchId = id } label: {
+            Text(title).font(.v2Label).foregroundStyle(on ? .white : CSV2.ink)
+                .padding(.horizontal, 14).frame(minHeight: 40)
+                .background(on ? CSV2.stroke : CSV2.surface, in: Capsule())
+                .overlay(Capsule().stroke(on ? CSV2.stroke : CSV2.line))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Match \(title)\(on ? ", seleccionado" : "")")
+    }
+
+    /// "DAN recibe 8 · hoyos 17, 4, 11…" — o "sin strokes" si ese match no tiene.
+    @ViewBuilder private var matchSummary: some View {
+        if let row = selectedRow {
+            Group {
+                if let receiver = row.strokesReceiver, row.strokesAmount > 0 {
+                    StrokeTextV2(receiver: receiver, amount: row.strokesAmount,
+                                 detail: matchManager.strokeHolesText(total: row.strokesAmount, startHole: matchManager.startHole))
+                } else {
+                    Text("Este match no tiene strokes").font(.v2Label).foregroundStyle(CSV2.secondary)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .fixedSize(horizontal: false, vertical: true)
         }
     }
 
@@ -148,6 +211,7 @@ struct TarjetaV2: View {
             Text("HCP").frame(width: ColumnT.hcp)
             ForEach(players, id: \.id) { p in
                 Text(p.alias).frame(maxWidth: .infinity)
+                    .opacity(participants.map { $0.contains(p.alias) } ?? true ? 1 : 0.3)
             }
         }
         .font(.v2Caps).textCase(.uppercase).foregroundStyle(CSV2.secondary)
@@ -156,21 +220,27 @@ struct TarjetaV2: View {
 
     private func holeRow(_ hole: MatchManager.TarjetaHoleV2) -> some View {
         HStack(spacing: 0) {
-            Text("\(hole.hole)").font(.v2Body).foregroundStyle(CSV2.ink)
-                .frame(width: ColumnT.hole, alignment: .leading)
+            Button { goToHole(hole.hole) } label: {
+                Text("\(hole.hole)").font(.v2Body).foregroundStyle(CSV2.ink)
+                    .frame(width: ColumnT.hole, height: 52, alignment: .leading)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Hoyo \(hole.hole)")
+            .accessibilityHint("Va a la captura de este hoyo")
             Text("\(hole.par)").font(.v2Body).foregroundStyle(CSV2.ink)
                 .frame(width: ColumnT.par)
             HcpCellV2(hcp: hole.hcp).frame(width: ColumnT.hcp)
             ForEach(Array(hole.cells.enumerated()), id: \.offset) { index, cell in
-                Button { goToHole(hole.hole) } label: {
-                    cellMark(hole: hole, cell: cell)
+                Button { openCorrection(hole: hole, index: index, cell: cell) } label: {
+                    cellMark(hole: hole, cell: cell, alias: players[index].alias)
                         .frame(maxWidth: .infinity, minHeight: 52)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel(cellLabel(player: players[index].alias, hole: hole, cell: cell))
-                .accessibilityHint("Va al hoyo \(hole.hole)")
+                .accessibilityHint("Abre la corrección de este hoyo")
             }
         }
         .padding(.horizontal, CSV2.s1 + 4)
@@ -179,16 +249,34 @@ struct TarjetaV2: View {
     }
 
     /// Golpes con su marca de golf, o los putts como número simple (sin color de par: no hay par de putts).
-    @ViewBuilder private func cellMark(hole: MatchManager.TarjetaHoleV2, cell: MatchManager.TarjetaCellV2) -> some View {
+    @ViewBuilder private func cellMark(hole: MatchManager.TarjetaHoleV2, cell: MatchManager.TarjetaCellV2, alias: String) -> some View {
         if showPutts {
             Text(cell.putts.map(String.init) ?? "—")
                 .font(.system(size: 32 * 0.58, weight: .heavy).monospacedDigit())
                 .foregroundStyle(cell.putts == nil ? CSV2.secondary : CSV2.ink)
                 .frame(width: 32, height: 32)
+        } else if participants != nil {
+            // Match elegido: solo cuentan los strokes de ESE match (también los míos); los demás jugadores se atenúan.
+            let strokes = matchStrokes[hole.hole]?[alias] ?? 0
+            ScoreMarkV2(gross: cell.gross, par: hole.par, size: 32, strokeDots: strokes, hasEvent: cell.hasEvent)
+                .padding(6)
+                .background {
+                    if strokes > 0 {
+                        RoundedRectangle(cornerRadius: CSV2.rCell).fill(CSV2.stroke.opacity(0.16))
+                            .overlay(RoundedRectangle(cornerRadius: CSV2.rCell).stroke(CSV2.stroke, lineWidth: 1.5))
+                    }
+                }
+                .opacity(participants?.contains(alias) == true ? 1 : 0.3)
         } else {
             ScoreMarkV2(gross: cell.gross, par: hole.par, size: 32,
                         strokeDots: cell.strokes, hasEvent: cell.hasEvent)
         }
+    }
+
+    private func openCorrection(hole: MatchManager.TarjetaHoleV2, index: Int, cell: MatchManager.TarjetaCellV2) {
+        let player = players[index]
+        correction = CorrectionTargetV2(hole: hole.hole, par: hole.par, alias: player.alias, playerName: player.name,
+                                        score: cell.gross ?? hole.par, putts: cell.putts ?? 2)
     }
 
     private var currentHole: Int {
@@ -270,6 +358,13 @@ private struct HcpCellV2: View {
 }
 
 #if DEBUG
+#Preview("TarjetaV2 · match vs ROB resaltado") {
+    UserDefaults.standard.set(4, forKey: "currentHoleIndex")
+    let manager = MatchManager()
+    manager.loadDemo18()
+    return TarjetaV2(matchManager: manager, initialMatchId: "ind-ROB")
+}
+
 #Preview("TarjetaV2 · putts, hoyo actual 5") {
     UserDefaults.standard.set(4, forKey: "currentHoleIndex")
     let manager = MatchManager()

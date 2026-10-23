@@ -71,7 +71,7 @@ v1 shows / does — all must exist in v2:
 - [x] Hole, par, HCP, gross per player, stroke dots, unit/oye dot, nine totals, Total 18
 - [x] **Putts** — v1 shows putts "(n)" and putt totals; `TarjetaV2` has none → add a **"Putts" toggle** (Daniel, 21-oct)
 - [x] Current hole row highlight (needs shared current hole)
-- [x] Tap a cell → go to that hole (dictation wired later with v2t) — was: dictate that player (v1 does this from `holeDetailCard`)
+- [x] Tap a cell → opens the correction sheet (score, putts, oye, units); tap the hole number → go to that hole (voice later with v2t) (v1 does this from `holeDetailCard`)
 
 ### 5. `EventSheetV2` / `NoteSheetV2` ⬜
 - [ ] Same catalog as v1 (`betCatalog` manual individual units, not OYES — see `MatchDetailV2.manualUnitBets`)
