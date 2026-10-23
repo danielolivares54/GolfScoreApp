@@ -95,4 +95,49 @@ struct MyHistoryDataTests {
         #expect(stats.receiveTotal == 2)
         #expect(stats.giveTotal == 0)
     }
+
+    // MARK: Promedio, desviación estándar y porcentajes
+
+    @Test func spreadNeedsTwoRoundsForTheDeviation() {
+        #expect(MyHistoryData.spread([]) == nil)
+        #expect(MyHistoryData.spread([4]) == MyHistoryData.Spread(mean: 4, std: nil))
+        let two = MyHistoryData.spread([2, 4])
+        #expect(two?.mean == 3)
+        #expect(two?.std == 1)           // población: sqrt(((2-3)² + (4-3)²) / 2)
+    }
+
+    @Test func percentOfHolesPerRound() throws {
+        let f = try #require(MyHistoryData.figures(for: makeRound()))
+        #expect(f.counts.total == 18)
+        #expect(MyHistoryData.percent(f.counts, \.par) == 50)
+        #expect(MyHistoryData.percent(f.counts, \.bogey) == 50)
+        #expect(MyHistoryData.percent(f.counts, \.birdie) == 0)
+    }
+
+    @Test func percentSpreadAcrossRounds() {
+        // Una ronda con 9 pares y 9 bogeys (50 % / 50 %) y otra de solo bogeys (0 % pares): promedio 25 %, desviación 25.
+        let flat = makeRound()
+        let allBogey = RoundResultFile(
+            roundId: "b", date: flat.date, courseId: flat.courseId, courseName: flat.courseName, startHole: 1,
+            players: [RoundResultPlayer(alias: "DAN", name: "Daniel", strokesVsBase: 0,
+                                        scores: Dictionary(uniqueKeysWithValues: CourseCatalog.default.holes.map { ("\($0.number)", $0.par + 1) }),
+                                        putts: [:])],
+            lines: [], totalMoney: 0, closedAt: Date(), oyesWinsByAlias: nil)
+        let spread = MyHistoryData.percentSpread(rounds: [flat, allBogey], \.par)
+        #expect(spread?.mean == 25)
+        #expect(spread?.std == 25)
+        #expect(MyHistoryData.percentSpread(rounds: [flat], \.par)?.std == nil)
+    }
+
+    @Test func figureSpreadAveragesStrokesPerNine() {
+        let spread = MyHistoryData.figureSpread(rounds: [makeRound(), makeRound(startHole: 10)], \.strokesF9)
+        // F9 = 36 en la primera ronda y 45 en la que sale del 10: promedio 40.5.
+        #expect(spread?.mean == 40.5)
+        #expect(spread?.std == 4.5)
+    }
+
+    @Test func moneyOfOneRoundSplitsIndividualAndPairs() {
+        let money = MyHistoryData.money(for: makeRound())
+        #expect(money.individual == 300 && money.parejas == -100 && money.total == 200)
+    }
 }

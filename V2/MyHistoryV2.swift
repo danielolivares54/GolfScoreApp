@@ -1,6 +1,6 @@
 //
 //  MyHistoryV2.swift
-//  Caddie Score — Vista v2, Paso 9: mis estadísticas (Acumulado / Este match)
+//  Caddie Score — Vista v2, Paso 9: mis estadísticas (Acumulado = promedio ± desviación · Este match = porcentajes)
 //
 //  Mismas cifras que MyHistoryView: salen de MyHistoryData (las fórmulas se movieron tal cual para compartirlas).
 //  Datos: histograma de resultados, golpes (medal, bruto) y putts por nueve, promedio vs par por tipo de hoyo,
@@ -38,7 +38,7 @@ struct MyHistoryV2: View {
                             strokesPuttsCard
                             parTypeCard(stats)
                             strokeImpactCard(stats)
-                            oyesMoneyCard(stats)
+                            moneyCard(stats)
                         }
                     }
                     .padding(CSV2.s2)
@@ -77,11 +77,11 @@ struct MyHistoryV2: View {
         Text(text).font(.v2Caps).textCase(.uppercase).foregroundStyle(CSV2.secondary)
     }
 
-    private func columnHeader(_ accumulated: String) -> some View {
+    private func columnHeader(_ accumulated: String, last: String = "Este match") -> some View {
         HStack {
             Spacer()
-            Text(accumulated).frame(width: 84, alignment: .trailing)
-            Text("Este match").frame(width: 84, alignment: .trailing)
+            Text(accumulated).frame(width: 112, alignment: .trailing)
+            Text(last).frame(width: 84, alignment: .trailing)
         }
         .font(.v2Caps).textCase(.uppercase).foregroundStyle(CSV2.secondary)
     }
@@ -90,11 +90,25 @@ struct MyHistoryV2: View {
         HStack {
             Text(label).font(.v2Body).foregroundStyle(CSV2.secondary)
             Spacer()
-            Text(acc).font(.system(size: 20, weight: .bold).monospacedDigit()).foregroundStyle(color)
-                .frame(width: 84, alignment: .trailing)
-            Text(last).font(.system(size: 20, weight: .bold).monospacedDigit()).foregroundStyle(color)
+            Text(acc).font(.system(size: 18, weight: .bold).monospacedDigit()).foregroundStyle(color)
+                .frame(width: 112, alignment: .trailing)
+            Text(last).font(.system(size: 18, weight: .bold).monospacedDigit()).foregroundStyle(color)
                 .frame(width: 84, alignment: .trailing)
         }
+    }
+
+    /// "18% ± 6" (la desviación solo con 2 o más rondas) / "—".
+    private func percentText(_ spread: MyHistoryData.Spread?) -> String {
+        guard let spread else { return "—" }
+        let mean = "\(Int(spread.mean.rounded()))%"
+        return spread.std.map { "\(mean) ± \(Int($0.rounded()))" } ?? mean
+    }
+
+    /// "40.5 ± 2.1" para golpes y putts.
+    private func averageText(_ spread: MyHistoryData.Spread?) -> String {
+        guard let spread else { return "—" }
+        let mean = String(format: "%.1f", spread.mean)
+        return spread.std.map { "\(mean) ± \(String(format: "%.1f", $0))" } ?? mean
     }
 
     private func valueRow(_ label: String, _ value: String, color: Color = CSV2.ink) -> some View {
@@ -105,46 +119,48 @@ struct MyHistoryV2: View {
         }
     }
 
-    // MARK: Histograma de resultados
+    // MARK: Histograma de resultados (% de hoyos)
 
-    private func countRow(_ label: String, _ keyPath: KeyPath<MyHistoryData.ScoreCounts, Int>, _ stats: MyHistoryData.Stats,
-                          color: Color) -> some View {
-        twoColRow(label, acc: "\(stats.counts[keyPath: keyPath])",
-                  last: lastFigures.map { "\($0.counts[keyPath: keyPath])" } ?? "—", color: color)
+    private func countRow(_ label: String, _ keyPath: KeyPath<MyHistoryData.ScoreCounts, Int>, color: Color) -> some View {
+        let acc = MyHistoryData.percentSpread(rounds: rounds, keyPath)
+        let last = lastFigures.flatMap { MyHistoryData.percent($0.counts, keyPath) }
+        return twoColRow(label, acc: percentText(acc), last: last.map { "\(Int($0.rounded()))%" } ?? "—", color: color)
     }
 
     private func histogramCard(_ stats: MyHistoryData.Stats) -> some View {
         card {
-            columnHeader("Acumulado")
-            countRow("Águila o mejor", \.eagleOrBetter, stats, color: CSV2.green)
-            countRow("Birdie", \.birdie, stats, color: CSV2.green)
-            countRow("Par", \.par, stats, color: CSV2.ink)
-            countRow("Bogey", \.bogey, stats, color: CSV2.red)
-            countRow("Doble bogey (+2)", \.double, stats, color: CSV2.red)
-            countRow("Triple bogey (+3)", \.triple, stats, color: CSV2.red)
-            countRow("+4 o más", \.quadOrMore, stats, color: CSV2.red)
+            caption("% de hoyos por resultado")
+            columnHeader("Prom. ± σ")
+            countRow("Águila o mejor", \.eagleOrBetter, color: CSV2.green)
+            countRow("Birdie", \.birdie, color: CSV2.green)
+            countRow("Par", \.par, color: CSV2.ink)
+            countRow("Bogey", \.bogey, color: CSV2.red)
+            countRow("Doble (+2)", \.double, color: CSV2.red)
+            countRow("Triple (+3)", \.triple, color: CSV2.red)
+            countRow("+4 o más", \.quadOrMore, color: CSV2.red)
+            Text("Acumulado: promedio de tus rondas cerradas ± desviación estándar (con 2 o más rondas). Este match: la última ronda cerrada.")
+                .font(.v2Label).foregroundStyle(CSV2.secondary)
         }
     }
 
     // MARK: Golpes y putts (promedio por ronda y último match)
 
     private func averageRow(_ label: String, _ keyPath: KeyPath<MyHistoryData.RoundFigures, Int?>) -> some View {
-        let values = allFigures.compactMap { $0[keyPath: keyPath] }
-        let avg = values.isEmpty ? "—" : String(format: "%.1f", Double(values.reduce(0, +)) / Double(values.count))
+        let acc = MyHistoryData.figureSpread(rounds: rounds, keyPath)
         let last = lastFigures?[keyPath: keyPath].map { "\($0)" } ?? "—"
-        return twoColRow(label, acc: avg, last: last)
+        return twoColRow(label, acc: averageText(acc), last: last)
     }
 
     private var strokesPuttsCard: some View {
         card {
             caption("Golpes (medal, bruto)")
-            columnHeader("Prom.")
+            columnHeader("Prom. ± σ")
             averageRow("F9", \.strokesF9)
             averageRow("B9", \.strokesB9)
             averageRow("Total 18", \.strokesTotal)
             Rectangle().fill(CSV2.rowLine).frame(height: 1)
             caption("Putts")
-            columnHeader("Prom.")
+            columnHeader("Prom. ± σ")
             averageRow("F9", \.puttsF9)
             averageRow("B9", \.puttsB9)
             averageRow("Total 18", \.puttsTotal)
@@ -208,13 +224,27 @@ struct MyHistoryV2: View {
         }
     }
 
-    private func oyesMoneyCard(_ stats: MyHistoryData.Stats) -> some View {
-        card {
-            valueRow("Oyes ganados", "\(stats.oyesWins)", color: CSV2.unitFg)
-            Rectangle().fill(CSV2.rowLine).frame(height: 1)
-            moneyRow("Individual", stats.moneyIndividual)
-            moneyRow("Parejas", stats.moneyParejas)
-            moneyRow("Total acumulado", stats.moneyTotal, big: true)
+    private func moneyCard(_ stats: MyHistoryData.Stats) -> some View {
+        let last = rounds.first.map { MyHistoryData.money(for: $0) }
+        return card {
+            caption("Dinero acumulado")
+            columnHeader("Acumulado")
+            moneyRow("Individual", stats.moneyIndividual, last: last?.individual)
+            moneyRow("Parejas", stats.moneyParejas, last: last?.parejas)
+            moneyRow("Total", stats.moneyTotal, last: last?.total, big: true)
+        }
+    }
+
+    private func moneyRow(_ label: String, _ acc: Int, last: Int?, big: Bool = false) -> some View {
+        HStack {
+            Text(label).font(.v2Body).foregroundStyle(CSV2.secondary)
+            Spacer()
+            MoneyTextV2(amount: acc, size: big ? 22 : 18, weight: .semibold).frame(width: 112, alignment: .trailing)
+            Group {
+                if let last { MoneyTextV2(amount: last, size: big ? 22 : 18, weight: .semibold) }
+                else { Text("—").font(.v2Body).foregroundStyle(CSV2.secondary) }
+            }
+            .frame(width: 84, alignment: .trailing)
         }
     }
 }

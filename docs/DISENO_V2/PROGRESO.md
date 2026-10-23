@@ -131,3 +131,8 @@
 - Los strokes del roster vivo pasan a los del próximo match DESPUÉS de archivar la ronda (el archivo guarda con los que se jugó); se limpian Carry / Ajuste 50 / Doble B9; y se genera un roundId nuevo (antes, cerrar dos rondas en la misma sesión sobrescribía el archivo de la primera).
 - El Directorio (v1) muestra "Último juego 20 oct · strokes −8 → −7 · acumulado +$425". `PlayerDirectoryStore(fileName:)` permite pruebas sin tocar el directorio real. 76 pruebas verdes (+5).
 - Pendiente: estadísticas con promedio y desviación estándar (acumulado) y porcentajes (este match); dinero acumulado en lugar de oyes ganados/perdidos.
+
+## Estadísticas: promedio, desviación y porcentajes (23-oct)
+- Decisión de Daniel: el historial y las estadísticas solo se actualizan con matches CERRADOS (ya era así: leen `closed_rounds`; el match en curso no cuenta).
+- `MyHistoryV2`: histograma en % de hoyos — Acumulado = promedio de las rondas ± desviación estándar (necesita 2 o más rondas), Este match = % de la última ronda cerrada. Golpes y putts por nueve: promedio ± desviación y el valor del último match. Se quitó "Oyes ganados"; la tarjeta de dinero lleva Acumulado y Este match en Individual, Parejas y Total.
+- Fórmulas en `MyHistoryData` (`spread`, `percent`, `percentSpread`, `figureSpread`, `money`): 81 pruebas verdes (+5). La `MyHistoryView` de la v1 no se tocó (sigue con conteos).

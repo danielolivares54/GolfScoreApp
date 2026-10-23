@@ -308,6 +308,7 @@ enum MyHistoryData {
     // y +4 o más para ver cuánto pesa cada tipo de desastre.
     struct ScoreCounts {
         var eagleOrBetter = 0, birdie = 0, par = 0, bogey = 0, double = 0, triple = 0, quadOrMore = 0
+        var total: Int { eagleOrBetter + birdie + par + bogey + double + triple + quadOrMore }
 
         mutating func add(diff: Int) {
             switch diff {
@@ -457,6 +458,52 @@ enum MyHistoryData {
         if yoGross < oppGross - 0.001 { return .win }
         if yoGross > oppGross + 0.001 { return .loss }
         return .tie
+    }
+}
+
+// MARK: - Promedio, desviación estándar y porcentajes (estadísticas de la v2)
+//
+// Acumulado = promedio de las rondas cerradas ± desviación estándar (poblacional, igual que "vs. par por tipo de hoyo");
+// la desviación necesita al menos 2 rondas. "Este match" = la última ronda cerrada. Solo cuentan rondas CERRADAS.
+
+extension MyHistoryData {
+    struct Spread: Equatable {
+        let mean: Double
+        let std: Double?     // nil con una sola ronda
+    }
+
+    static func spread(_ values: [Double]) -> Spread? {
+        guard !values.isEmpty else { return nil }
+        let mean = values.reduce(0, +) / Double(values.count)
+        guard values.count > 1 else { return Spread(mean: mean, std: nil) }
+        let variance = values.reduce(0.0) { $0 + pow($1 - mean, 2) } / Double(values.count)
+        return Spread(mean: mean, std: variance.squareRoot())
+    }
+
+    /// % de los hoyos de UNA ronda que fueron de ese resultado (nil si la ronda no tiene hoyos).
+    static func percent(_ counts: ScoreCounts, _ keyPath: KeyPath<ScoreCounts, Int>) -> Double? {
+        guard counts.total > 0 else { return nil }
+        return Double(counts[keyPath: keyPath]) / Double(counts.total) * 100
+    }
+
+    /// Promedio y desviación (en %) de ese resultado a lo largo de las rondas.
+    static func percentSpread(rounds: [RoundResultFile], _ keyPath: KeyPath<ScoreCounts, Int>) -> Spread? {
+        spread(rounds.compactMap { figures(for: $0) }.compactMap { percent($0.counts, keyPath) })
+    }
+
+    /// Promedio y desviación de golpes o putts por nueve / 18 (solo rondas con ese nueve completo).
+    static func figureSpread(rounds: [RoundResultFile], _ keyPath: KeyPath<RoundFigures, Int?>) -> Spread? {
+        spread(rounds.compactMap { figures(for: $0) }.compactMap { $0[keyPath: keyPath] }.map(Double.init))
+    }
+
+    /// Dinero de UNA ronda cerrada: individual, parejas y total.
+    static func money(for round: RoundResultFile) -> (individual: Int, parejas: Int, total: Int) {
+        var individual = 0, parejas = 0
+        for line in round.lines {
+            if line.scope == "individual" { individual += line.totalMoney }
+            else if line.scope == "parejas" { parejas += line.totalMoney }
+        }
+        return (individual, parejas, individual + parejas)
     }
 }
 

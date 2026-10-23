@@ -312,11 +312,11 @@ enum HistorySamplesV2 {
                             carryPoints: 0, carryActive: false, matchPoints: match, unitsPoints: 0, vueltaMoney: 0,
                             presionMoney: 0, carryMoney: 0, matchMoney: 0, unitsMoney: 0, totalMoney: money)
         }
-        func round(_ id: String, _ date: String, start: Int, rob: Double, fer: Double, closed: TimeInterval) -> RoundResultFile {
+        func round(_ id: String, _ date: String, start: Int, rob: Double, fer: Double, closed: TimeInterval, extra: Int = 1) -> RoundResultFile {
             RoundResultFile(
                 roundId: id, date: date, courseId: course.id, courseName: course.name, startHole: start,
                 players: [
-                    RoundResultPlayer(alias: "DAN", name: "Daniel", strokesVsBase: 0, scores: scores(extra: 1), putts: putts()),
+                    RoundResultPlayer(alias: "DAN", name: "Daniel", strokesVsBase: 0, scores: scores(extra: extra), putts: putts()),
                     RoundResultPlayer(alias: "ROB", name: "Roberto", strokesVsBase: rob, scores: scores(extra: 0), putts: [:]),
                     RoundResultPlayer(alias: "FER", name: "Fernando", strokesVsBase: fer, scores: scores(extra: 1), putts: [:]),
                 ],
@@ -324,7 +324,7 @@ enum HistorySamplesV2 {
                 totalMoney: 475, closedAt: Date(timeIntervalSinceNow: closed), oyesWinsByAlias: ["DAN": 2])
         }
         return [round("a", "20 oct", start: 10, rob: -8, fer: 3, closed: -86_400),
-                round("b", "13 oct", start: 1, rob: -9, fer: 0, closed: -7 * 86_400)]
+                round("b", "13 oct", start: 1, rob: -9, fer: 0, closed: -7 * 86_400, extra: 2)]
     }
 }
 
