@@ -22,7 +22,19 @@ import Foundation
 // MARK: - Lo que devuelve el LLM
 
 struct VoiceHoleExtraction: Codable, Equatable {
-    struct Score: Codable, Equatable { var jugador: String; var gross: Int?; var putts: Int?; var relativo: String? = nil }
+    struct Score: Codable, Equatable {
+        var jugador: String; var gross: Int?; var putts: Int?; var relativo: String? = nil
+        /// "se levantó" / "perdió el hoyo": la app le pone un score que pierde el hoyo.
+        var levanto: Bool? = nil
+    }
+    /// "Del hoyo 5 al 8 Daniel tiró par, bogey, doble bogey y dos putts por hoyo".
+    struct Run: Codable, Equatable {
+        struct Result: Codable, Equatable { var gross: Int? = nil; var relativo: String? = nil; var levanto: Bool? = nil }
+        var jugador: String; var desde: Int; var hasta: Int
+        var resultados: [Result] = []
+        var putts: Int? = nil
+        var levanto: Bool? = nil
+    }
     struct Oyes: Codable, Equatable { var jugador: String; var rank: Int }
     struct Unit: Codable, Equatable { var jugador: String; var codigo: String; var cantidad: Int? }
     struct Note: Codable, Equatable { var jugador: String; var texto: String }
@@ -32,9 +44,10 @@ struct VoiceHoleExtraction: Codable, Equatable {
     var oyes: [Oyes] = []
     var unidades: [Unit] = []
     var notas: [Note] = []
+    var corridas: [Run] = []
 
-    init(hoyo: Int? = nil, scores: [Score] = [], oyes: [Oyes] = [], unidades: [Unit] = [], notas: [Note] = []) {
-        self.hoyo = hoyo; self.scores = scores; self.oyes = oyes; self.unidades = unidades; self.notas = notas
+    init(hoyo: Int? = nil, scores: [Score] = [], oyes: [Oyes] = [], unidades: [Unit] = [], notas: [Note] = [], corridas: [Run] = []) {
+        self.hoyo = hoyo; self.scores = scores; self.oyes = oyes; self.unidades = unidades; self.notas = notas; self.corridas = corridas
     }
 
     // El LLM a veces omite una lista vacía: se toma como [].
@@ -45,6 +58,7 @@ struct VoiceHoleExtraction: Codable, Equatable {
         oyes = try c.decodeIfPresent([Oyes].self, forKey: .oyes) ?? []
         unidades = try c.decodeIfPresent([Unit].self, forKey: .unidades) ?? []
         notas = try c.decodeIfPresent([Note].self, forKey: .notas) ?? []
+        corridas = try c.decodeIfPresent([Run].self, forKey: .corridas) ?? []
     }
 }
 
@@ -54,18 +68,21 @@ struct VoiceHoleDraft: Equatable {
     struct Cell: Equatable { var gross: Int?; var putts: Int? }
     struct Unit: Hashable { var alias: String; var code: String; var units: Int }
     struct Note: Hashable { var alias: String; var text: String }
+    struct Edit: Hashable { var alias: String; var hole: Int; var gross: Int?; var putts: Int?; var pickup: Bool }
 
     var hole: Int?
     var cells: [String: Cell] = [:]
     var oyes: [String: Int] = [:]
     var units: [Unit] = []
     var notes: [Note] = []
+    /// Cambios en uno o varios hoyos (una corrida "del 5 al 8", o un "se levantó"). Los golpes ya vienen resueltos con el par del hoyo.
+    var edits: [Edit] = []
     /// Dudas por alias (jugador desconocido, nombre aproximado, golpes raros…) o por texto ("unidad:xyz").
     var doubts: [String: String] = [:]
     /// Todo lo dictado para este hoyo, en orden (para mostrarlo y para guardarlo con la grabación).
     var transcripts: [String] = []
 
-    var isEmpty: Bool { cells.isEmpty && oyes.isEmpty && units.isEmpty && notes.isEmpty }
+    var isEmpty: Bool { cells.isEmpty && oyes.isEmpty && units.isEmpty && notes.isEmpty && edits.isEmpty }
 }
 
 /// Lo que se entendió y lo que falta, listo para mostrar en la tarjeta o leer en voz alta.
@@ -102,12 +119,14 @@ enum VoiceHoleError: Error, Equatable {
     }
 }
 
-/// Foto del hoyo antes de anotar: Deshacer la restaura completa (scores, oyes, unidades y notas).
+/// Foto antes de anotar: Deshacer restaura el hoyo principal completo (scores, oyes, unidades y notas) y las celdas de otros hoyos.
 struct VoiceUndoToken {
     let hole: Int
     let scores: [String: (gross: Int, putts: Int?)?]
     let oyes: [String: Int]?
     let unitEvents: [UnitEvent]?
+    /// Scores de los otros hoyos tocados por una corrida o un "se levantó".
+    var otherHoles: [Int: [String: (gross: Int, putts: Int?)?]] = [:]
 }
 
 // MARK: - Apodos que se aprenden
@@ -271,6 +290,7 @@ enum VoiceHolePipeline {
         out.transcripts.append(transcript)
         let spoken = slang.normalize(transcript)
         out.doubts.removeValue(forKey: "?")          // se vuelven a calcular con lo nuevo
+        out.doubts = out.doubts.filter { !$0.key.hasPrefix("corrida:") }
         out.doubts.removeValue(forKey: "oyes-par")
 
         // Hoyo: el del LLM cuenta si lo dijeron (con dígito o con letra) o si es el mismo que ya teníamos.
@@ -320,6 +340,45 @@ enum VoiceHolePipeline {
             markDoubts(&out, alias: who.alias, known: who.known, fuzzy: who.fuzzy)
         }
 
+        // "Se levantó" / "perdió el hoyo" en el hoyo que se dicta.
+        for sc in extraction.scores where sc.levanto == true {
+            let name = sc.jugador.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !name.isEmpty, let hole = out.hole else {
+                if sc.levanto == true, sc.jugador.trimmingCharacters(in: .whitespaces).isEmpty { out.doubts["?"] = "Falta el jugador: ¿quién se levantó?" }
+                continue
+            }
+            let who = resolveSpoken(name, match: match, slang: slang)
+            setEdit(&out, .init(alias: who.alias, hole: hole, gross: nil, putts: nil, pickup: true))
+            markDoubts(&out, alias: who.alias, known: who.known, fuzzy: who.fuzzy)
+        }
+
+        // Corridas: "del hoyo 5 al 8 Daniel tiró par, bogey, doble bogey y dos putts por hoyo".
+        for run in extraction.corridas {
+            let name = run.jugador.trimmingCharacters(in: .whitespacesAndNewlines)
+            let holes = holeRange(run.desde, run.hasta)
+            let label = "corrida:\(name.uppercased()):\(run.desde)-\(run.hasta)"
+            guard !holes.isEmpty else { out.doubts[label] = "No entendí los hoyos \(run.desde) al \(run.hasta)"; continue }
+            guard !name.isEmpty else { out.doubts["?"] = "Falta el jugador de los hoyos \(run.desde) al \(run.hasta)"; continue }
+            let who = resolveSpoken(name, match: match, slang: slang)
+            markDoubts(&out, alias: who.alias, known: who.known, fuzzy: who.fuzzy)
+            // Un resultado por hoyo, o uno solo para todos; cualquier otra cuenta se pregunta, no se adivina.
+            var results = run.resultados
+            if results.isEmpty { results = [.init(levanto: run.levanto)] }
+            if results.count == 1 { results = Array(repeating: results[0], count: holes.count) }
+            guard results.count == holes.count else {
+                out.doubts[label] = "Dijiste \(run.resultados.count) resultados para \(holes.count) hoyos (\(run.desde) al \(run.hasta)) de \(who.alias): ¿cuáles son?"
+                continue
+            }
+            for (hole, r) in zip(holes, results) {
+                let holePar = match.getHole(hole)?.par
+                var gross = r.gross
+                if gross == nil, let p = holePar, let d = relativeDelta(r.relativo) { gross = p + d }
+                let pickup = r.levanto == true
+                if gross == nil && run.putts == nil && !pickup { continue }
+                setEdit(&out, .init(alias: who.alias, hole: hole, gross: pickup ? nil : gross, putts: run.putts, pickup: pickup))
+            }
+        }
+
         // Oyes: solo en par 3, y solo si hablaron de oyes (el LLM a veces lo inventa con "hole out").
         let talkedAboutOyes = ["oye", "primero", "segundo", "tercero", "cerca"].contains { spoken.contains($0) }
         if talkedAboutOyes, !extraction.oyes.isEmpty {
@@ -362,6 +421,20 @@ enum VoiceHolePipeline {
             out.notes.append(.init(alias: who.alias, text: text))
             markDoubts(&out, alias: who.alias, known: who.known, fuzzy: who.fuzzy)
         }
+        return out
+    }
+
+    private static func setEdit(_ d: inout VoiceHoleDraft, _ e: VoiceHoleDraft.Edit) {
+        d.edits.removeAll { $0.alias == e.alias && $0.hole == e.hole }
+        d.edits.append(e)
+    }
+
+    /// Hoyos de "del 5 al 8" (con vuelta: del 16 al 3 = 16, 17, 18, 1, 2, 3). Vacío si no son hoyos.
+    private static func holeRange(_ from: Int, _ to: Int) -> [Int] {
+        guard (1...18).contains(from), (1...18).contains(to) else { return [] }
+        var out = [from]
+        var h = from
+        while h != to { h = h % 18 + 1; out.append(h) }
         return out
     }
 
@@ -444,8 +517,33 @@ enum VoiceHolePipeline {
         for u in draft.units { understood.append("\(u.alias) \(unitName(u.code, match: match))" + (u.units > 1 ? " ×\(u.units)" : "")) }
         for n in draft.notes { understood.append("nota de \(n.alias)") }
 
+        // Cambios en otros hoyos (corridas y "se levantó").
+        let lines = editLines(draft, match: match)
+        understood += lines.understood
+        missing += lines.missing
         return VoiceHoleReport(understood: understood, missing: missing,
                                doubts: draft.doubts.keys.sorted().compactMap { draft.doubts[$0] })
+    }
+
+    /// Líneas de los cambios en uno o varios hoyos: lo entendido y lo que no se puede calcular todavía.
+    static func editLines(_ draft: VoiceHoleDraft, match: MatchManager) -> (understood: [String], missing: [String]) {
+        var understood: [String] = [], missing: [String] = []
+        for alias in Set(draft.edits.map(\.alias)).sorted() {
+            let mine = draft.edits.filter { $0.alias == alias }.sorted { $0.hole < $1.hole }
+            let plain = mine.filter { !$0.pickup }
+            if !plain.isEmpty {
+                let body = plain.map { e in "h\(e.hole) " + (e.gross.map(String.init) ?? "—") + (e.putts.map { " (\($0)p)" } ?? "") }
+                understood.append("\(alias) " + body.joined(separator: ", "))
+            }
+            for e in mine where e.pickup {
+                if let g = pickupGross(draft: draft, match: match, alias: alias, hole: e.hole) {
+                    understood.append("\(alias) se levantó en el \(e.hole) (se le pone \(g))")
+                } else {
+                    missing.append("scores de los demás en el hoyo \(e.hole) para calcular el \"se levantó\" de \(alias)")
+                }
+            }
+        }
+        return (understood, missing)
     }
 
     static func unitName(_ code: String, match: MatchManager) -> String {
@@ -479,12 +577,50 @@ enum VoiceHolePipeline {
         return d
     }
 
+    // MARK: Se levantó / perdió el hoyo
+
+    /// Golpes que se le ponen a quien se levanta: uno más que el neto más alto de los demás, para que pierda el hoyo
+    /// en cada match en que participa (contra yo, con los strokes de ese match). nil si no hay con quién compararlo.
+    static func pickupGross(draft: VoiceHoleDraft, match: MatchManager, alias: String, hole: Int) -> Int? {
+        func gross(_ a: String) -> Int? {
+            if hole == draft.hole, let g = draft.cells[a]?.gross { return g }
+            if let e = draft.edits.first(where: { $0.alias == a && $0.hole == hole && !$0.pickup }), let g = e.gross { return g }
+            if draft.edits.contains(where: { $0.alias == a && $0.hole == hole && $0.pickup }) { return nil }
+            let g = match.getScore(hole: hole, player: a)
+            return g > 0 ? g : nil
+        }
+        let me = match.yoAlias
+        var needed: Double?
+        func raise(_ v: Double) { needed = max(needed ?? v, v) }
+        if alias == me {
+            for opp in match.players.map(\.alias) where opp != me {
+                guard let g = gross(opp) else { continue }
+                let st = match.individualMatchupStrokes(yoAlias: me, oppAlias: opp, hole: hole, carryAlias: nil)
+                raise(Double(g) - st.opp + st.yo)
+            }
+        } else {
+            if let g = gross(me) {
+                let st = match.individualMatchupStrokes(yoAlias: me, oppAlias: alias, hole: hole, carryAlias: nil)
+                raise(Double(g) - st.yo + st.opp)
+            }
+            for other in match.players.map(\.alias) where other != me && other != alias {
+                if let g = gross(other) { raise(Double(g)) }
+            }
+        }
+        guard let n = needed else { return nil }
+        return Int(n.rounded(.down)) + 1
+    }
+
     // MARK: Anotar y deshacer
 
     /// ¿Se puede anotar? Hay hoyo, nada dudoso y al menos un dato. (Lo que falta se avisa pero no bloquea.)
     static func canApply(_ draft: VoiceHoleDraft, match: MatchManager) -> Bool {
         draft.hole != nil && !draft.isEmpty && draft.doubts.isEmpty
             && draft.cells.keys.allSatisfy { alias in match.players.contains { $0.alias == alias } }
+            && draft.edits.allSatisfy { e in
+                match.players.contains { $0.alias == e.alias }
+                    && (!e.pickup || pickupGross(draft: draft, match: match, alias: e.alias, hole: e.hole) != nil)
+            }
     }
 
     @discardableResult
@@ -492,7 +628,7 @@ enum VoiceHolePipeline {
         guard let hole = draft.hole, canApply(draft, match: match) else { return nil }
         var before: [String: (gross: Int, putts: Int?)?] = [:]
         for p in match.players { before[p.alias] = p.scores[hole] }
-        let token = VoiceUndoToken(hole: hole, scores: before, oyes: match.oyesRanksByHole[hole],
+        var token = VoiceUndoToken(hole: hole, scores: before, oyes: match.oyesRanksByHole[hole],
                                    unitEvents: match.unitEventsByHole[hole])
 
         for (alias, cell) in draft.cells {
@@ -502,10 +638,30 @@ enum VoiceHolePipeline {
                                                putts: putts, units: nil, tags: nil))
             _ = ScoreManager.shared.saveScore(record: GolfScoreRecord(player: alias, hole: hole, strokes: gross, putts: putts))
         }
+        // Otros hoyos: foto, luego los golpes/putts de las corridas y al final los "se levantó" (necesitan los demás scores).
+        for h in Set(draft.edits.map(\.hole)) where h != hole {
+            token.otherHoles[h] = Dictionary(uniqueKeysWithValues: match.players.map { ($0.alias, $0.scores[h]) })
+        }
+        for e in draft.edits where !e.pickup {
+            let current = match.getScore(hole: e.hole, player: e.alias)
+            guard let g = e.gross ?? (current > 0 ? current : nil) else { continue }
+            let p = e.putts ?? match.getPutts(hole: e.hole, player: e.alias)
+            writeScore(match, alias: e.alias, hole: e.hole, gross: g, putts: p)
+        }
+        for e in draft.edits where e.pickup {
+            if let g = pickupGross(draft: draft, match: match, alias: e.alias, hole: e.hole) {
+                writeScore(match, alias: e.alias, hole: e.hole, gross: g, putts: match.getPutts(hole: e.hole, player: e.alias))
+            }
+        }
         if !draft.oyes.isEmpty { match.setOyesRanks(hole: hole, ranksByAlias: draft.oyes) }
         for u in draft.units { match.upsertUnitEvent(hole: hole, alias: u.alias, code: u.code, units: u.units) }
         for n in draft.notes { match.upsertUnitEvent(hole: hole, alias: n.alias, code: "NOTA", units: 0, note: n.text) }
         return token
+    }
+
+    private static func writeScore(_ match: MatchManager, alias: String, hole: Int, gross: Int, putts: Int) {
+        match.applyHoleEntry(HoleEntryData(hole_number: hole, player_alias: alias, strokes: gross, putts: putts, units: nil, tags: nil))
+        _ = ScoreManager.shared.saveScore(record: GolfScoreRecord(player: alias, hole: hole, strokes: gross, putts: putts))
     }
 
     static func undo(_ token: VoiceUndoToken, match: MatchManager) {
@@ -519,6 +675,19 @@ enum VoiceHolePipeline {
             } else {
                 match.players[i].scores[token.hole] = nil
                 ScoreManager.shared.removeScore(player: alias, hole: token.hole)
+            }
+        }
+        for (h, snapshot) in token.otherHoles {
+            for i in match.players.indices {
+                let alias = match.players[i].alias
+                guard let previous = snapshot[alias] else { continue }
+                if let previous {
+                    match.players[i].scores[h] = previous
+                    _ = ScoreManager.shared.saveScore(record: GolfScoreRecord(player: alias, hole: h, strokes: previous.gross, putts: previous.putts ?? 0))
+                } else {
+                    match.players[i].scores[h] = nil
+                    ScoreManager.shared.removeScore(player: alias, hole: h)
+                }
             }
         }
         match.oyesRanksByHole[token.hole] = token.oyes

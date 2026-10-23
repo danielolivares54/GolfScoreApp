@@ -269,6 +269,142 @@ private enum VoicePipelineSpec {
     static func apply(_ d: VoiceHoleDraft, _ m: MatchManager) -> VoiceUndoToken? { VoiceHolePipeline.apply(d, match: m) }
 }
 
+// MARK: - Corridas de hoyos y "se levantó / perdió el hoyo"
+
+@MainActor
+struct RunsAndPickupsTests {
+    private func slang() -> VoiceSlangStore { VoiceSlangStore(defaults: UserDefaults(suiteName: "runs-\(UUID().uuidString)")!) }
+    private func run(_ m: MatchManager, _ text: String, hole: Int = 6, draft: VoiceHoleDraft = VoiceHoleDraft(),
+                     _ e: VoiceHoleExtraction) async throws -> VoiceHoleDraft {
+        try await VoiceHolePipeline.propose(transcript: text, match: m, draft: draft, defaultHole: hole, slang: slang(), extractor: { _, _ in e })
+    }
+    private func rel(_ r: String) -> VoiceHoleExtraction.Run.Result { .init(relativo: r) }
+    private func edits(_ d: VoiceHoleDraft, _ alias: String) -> [Int: Int?] {
+        Dictionary(uniqueKeysWithValues: d.edits.filter { $0.alias == alias && !$0.pickup }.map { ($0.hole, $0.gross) })
+    }
+
+    @Test func aRunOfHolesUsesThePerHolePar() async throws {   // pares del curso: h5=3, h6=5, h7=4, h8=4
+        let m = DemoFixture.make()
+        let e = VoiceHoleExtraction(corridas: [.init(jugador: "Roberto", desde: 5, hasta: 8,
+            resultados: [rel("par"), rel("bogey"), rel("doble_bogey"), rel("par")], putts: 2)])
+        let d = try await run(m, "del hoyo 5 al 8 Roberto par bogey doble bogey par y dos putts por hoyo", e)
+        #expect(edits(d, "ROB") == [5: 3, 6: 6, 7: 6, 8: 4])
+        #expect(d.edits.allSatisfy { $0.putts == 2 })
+        #expect(d.doubts.isEmpty)
+        #expect(VoiceHolePipeline.canApply(d, match: m))
+    }
+
+    @Test func aRunWithTheWrongCountAsksInsteadOfGuessing() async throws {
+        let m = DemoFixture.make()
+        let three = VoiceHoleExtraction(corridas: [.init(jugador: "ROB", desde: 5, hasta: 8,
+            resultados: [rel("par"), rel("bogey"), rel("doble_bogey")], putts: 2)])
+        var d = try await run(m, "del 5 al 8 Roberto par bogey doble bogey", three)
+        #expect(d.edits.isEmpty)
+        #expect(d.doubts.values.contains { $0.contains("3 resultados para 4 hoyos") })
+        #expect(!VoiceHolePipeline.canApply(d, match: m))
+        // Se vuelve a dictar completo y la duda se resuelve.
+        let four = VoiceHoleExtraction(corridas: [.init(jugador: "ROB", desde: 5, hasta: 8,
+            resultados: [rel("par"), rel("bogey"), rel("doble_bogey"), rel("bogey")])])
+        d = try await run(m, "del 5 al 8 Roberto par bogey doble bogey bogey", draft: d, four)
+        #expect(d.doubts.isEmpty)
+        #expect(d.edits.count == 4)
+    }
+
+    @Test func aSingleResultAppliesToEveryHoleOfTheRange() async throws {
+        let m = DemoFixture.make()
+        let d = try await run(m, "del 5 al 7 Roberto bogey", .init(corridas: [.init(jugador: "ROB", desde: 5, hasta: 7, resultados: [rel("bogey")])]))
+        #expect(edits(d, "ROB") == [5: 4, 6: 6, 7: 5])
+    }
+
+    @Test func aRangeThatWrapsAroundTheCourse() async throws {
+        let m = DemoFixture.make()
+        let d = try await run(m, "del 17 al 2 Roberto par", .init(corridas: [.init(jugador: "ROB", desde: 17, hasta: 2, resultados: [rel("par")])]))
+        #expect(Set(edits(d, "ROB").keys) == [17, 18, 1, 2])
+    }
+
+    @Test func puttsOnlyKeepTheScoresAlreadyThere() async throws {
+        let m = DemoFixture.make()
+        let before = (5...8).map { m.getScore(hole: $0, player: "ROB") }
+        let d = try await run(m, "del 5 al 8 Roberto dos putts por hoyo", .init(corridas: [.init(jugador: "ROB", desde: 5, hasta: 8, putts: 2)]))
+        #expect(d.edits.count == 4 && d.edits.allSatisfy { $0.gross == nil && $0.putts == 2 })
+        _ = VoiceHolePipeline.apply(d, match: m)
+        #expect((5...8).map { m.getScore(hole: $0, player: "ROB") } == before)
+        #expect((5...8).allSatisfy { m.getPutts(hole: $0, player: "ROB") == 2 })
+    }
+
+    @Test func applyingARunWritesTheCardAndUndoRestoresEveryHole() async throws {
+        let m = DemoFixture.make()
+        let before = (5...8).map { m.getScore(hole: $0, player: "ROB") }
+        let d = try await run(m, "x", .init(corridas: [.init(jugador: "ROB", desde: 5, hasta: 8,
+            resultados: [rel("par"), rel("bogey"), rel("doble_bogey"), rel("par")], putts: 2)]))
+        let token = try #require(VoiceHolePipeline.apply(d, match: m))
+        #expect((5...8).map { m.getScore(hole: $0, player: "ROB") } == [3, 6, 6, 4])
+        // La tarjeta v2 lee lo mismo: columna de Roberto (orden DAN, FER, ROB, RIC, ANS) en el hoyo 6.
+        let card = m.tarjetaNinesV2().flatMap(\.holes).first { $0.hole == 6 }
+        #expect(card?.cells[2].gross == 6 && card?.cells[2].putts == 2)
+        VoiceHolePipeline.undo(token, match: m)
+        #expect((5...8).map { m.getScore(hole: $0, player: "ROB") } == before)
+    }
+
+    // "Se levantó": un golpe más que el neto más alto de los demás, con los strokes de cada match.
+
+    @Test func aRivalWhoPicksUpLosesTheHoleToYo() async throws {
+        let m = DemoFixture.make()
+        let hole = 3
+        let d = try await run(m, "Roberto se levantó", hole: hole, .init(hoyo: hole, scores: [.init(jugador: "ROB", gross: nil, putts: nil, levanto: true)]))
+        let g = try #require(VoiceHolePipeline.pickupGross(draft: d, match: m, alias: "ROB", hole: hole))
+        _ = VoiceHolePipeline.apply(d, match: m)
+        #expect(m.getScore(hole: hole, player: "ROB") == g)
+        let st = m.individualMatchupStrokes(yoAlias: "DAN", oppAlias: "ROB", hole: hole, carryAlias: nil)
+        let danNet = Double(m.getScore(hole: hole, player: "DAN")) - st.yo
+        let robNet = Double(g) - st.opp
+        #expect(robNet > danNet)                       // pierde el hoyo contra yo
+        #expect(Double(g - 1) - st.opp <= danNet + 0.001)   // y no se le pone de más
+        // Y peor que lo que hicieron los otros rivales.
+        for other in ["FER", "RIC", "ANS"] { #expect(g > m.getScore(hole: hole, player: other)) }
+    }
+
+    @Test func yoWhoPicksUpLosesToEveryRival() async throws {
+        let m = DemoFixture.make()
+        let hole = 3
+        let d = try await run(m, "yo me levanté", hole: hole, .init(hoyo: hole, scores: [.init(jugador: "yo", gross: nil, putts: nil, levanto: true)]))
+        _ = VoiceHolePipeline.apply(d, match: m)
+        let danGross = m.getScore(hole: hole, player: "DAN")
+        for opp in ["FER", "ROB", "RIC", "ANS"] {
+            let st = m.individualMatchupStrokes(yoAlias: "DAN", oppAlias: opp, hole: hole, carryAlias: nil)
+            let danNet = Double(danGross) - st.yo
+            let oppNet = Double(m.getScore(hole: hole, player: opp)) - st.opp
+            #expect(danNet > oppNet)
+        }
+    }
+
+    @Test func aPickupInARunNeedsTheOtherScoresAndAsksWhenTheyAreMissing() async throws {
+        let m = DemoFixture.make()
+        for i in m.players.indices { m.players[i].scores[14] = nil }
+        let d = try await run(m, "Roberto se levantó", hole: 14, .init(hoyo: 14, scores: [.init(jugador: "ROB", gross: nil, putts: nil, levanto: true)]))
+        let report = VoiceHolePipeline.report(d, match: m)
+        #expect(report.missing.contains { $0.contains("se levantó") })
+        #expect(!VoiceHolePipeline.canApply(d, match: m))
+        // Con los demás scores en el mismo dictado ya se puede calcular.
+        let both = try await run(m, "yo cuatro y Roberto se levantó", hole: 14, draft: d,
+                                 .init(scores: [.init(jugador: "DAN", gross: 4, putts: nil)]))
+        #expect(VoiceHolePipeline.canApply(both, match: m))
+    }
+
+    @Test func pickingUpAcrossARunOfHoles() async throws {
+        let m = DemoFixture.make()
+        let d = try await run(m, "del 5 al 6 Roberto perdió el hoyo", .init(corridas: [.init(jugador: "ROB", desde: 5, hasta: 6, levanto: true)]))
+        #expect(d.edits.filter(\.pickup).map(\.hole).sorted() == [5, 6])
+        let token = try #require(VoiceHolePipeline.apply(d, match: m))
+        for hole in [5, 6] {
+            let st = m.individualMatchupStrokes(yoAlias: "DAN", oppAlias: "ROB", hole: hole, carryAlias: nil)
+            #expect(Double(m.getScore(hole: hole, player: "ROB")) - st.opp > Double(m.getScore(hole: hole, player: "DAN")) - st.yo)
+        }
+        VoiceHolePipeline.undo(token, match: m)
+        #expect(m.getScore(hole: 5, player: "ROB") > 0)
+    }
+}
+
 // MARK: - "Yo" y los nombres salen del Setup
 
 @MainActor

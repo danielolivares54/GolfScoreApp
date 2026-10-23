@@ -14,3 +14,9 @@
 - Setup por voz (nombres, strokes) — versión posterior.
 - **Apuntador**: notificaciones de lo que la tarjeta ya tiene grabado y de lo que falta.
 - Capa WatchConnectivity en el iPhone (contrato en `docs/WATCH_VOZ_CONTRATO.md`; ahí el contrato dice 1 dictada por hoyo, `propose`/`report` ya devuelven lo que el reloj necesita pintar) y target watchOS (se crea desde la UI de Xcode).
+
+## Corridas de hoyos y "se levantó / perdió el hoyo" (23-oct)
+- **Corrida**: "del hoyo 5 al 8 Roberto par, bogey, doble bogey, par y dos putts por hoyo" → un cambio por hoyo con el par de cada hoyo (par 3 + 0, par 5 + 1…). Un solo resultado se aplica a todos los hoyos; solo putts conserva los golpes que ya estaban. Si el número de resultados no coincide con el de hoyos, **pregunta** (no adivina). Admite vuelta (del 17 al 2).
+- **Se levantó / perdió el hoyo** (por ahora en match): se le pone **un golpe más que el neto más alto de los demás**, con los strokes de cada match, para que pierda el hoyo: si es un rival, pierde contra yo y queda peor que los otros rivales; si soy yo, pierdo contra todos. Si faltan los scores de los demás, lo dice y no anota.
+- Todo cuenta como un solo dictado: Deshacer restaura todos los hoyos tocados.
+- Pendiente: parejas (hoy se calcula contra yo y los rivales individuales), y que el mismo "se levantó" respete el mejor-bola de la pareja.

@@ -112,6 +112,7 @@ struct VoiceSheetV2: View {
                 ForEach(matchManager.players.map(\.alias) + unknownAliases, id: \.self) { alias in playerRow(alias) }
             }
             if !draft.units.isEmpty || !draft.notes.isEmpty { extras }
+            if !draft.edits.isEmpty { otherHoles }
             messageBox
             actionButtons
             if let last = draft.transcripts.last {
@@ -160,6 +161,17 @@ struct VoiceSheetV2: View {
             Label("¿Quién es \"\(wrong.capitalized)\"?", systemImage: "person.fill.questionmark")
                 .font(.v2Label).foregroundStyle(CSV2.warning).frame(minHeight: CSV2.minTap, alignment: .leading)
         }
+    }
+
+    /// Cambios en otros hoyos (corridas y "se levantó"), tal como se van a anotar.
+    private var otherHoles: some View {
+        let lines = VoiceHolePipeline.editLines(draft, match: matchManager)
+        return VStack(alignment: .leading, spacing: 4) {
+            Text("Otros hoyos").capsStyleV2()
+            ForEach(lines.understood, id: \.self) { Text($0).font(.v2Body).foregroundStyle(CSV2.ink) }
+            ForEach(lines.missing, id: \.self) { Text($0).font(.v2Label).foregroundStyle(CSV2.warning) }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var extras: some View {
