@@ -393,7 +393,7 @@ struct VoiceSheetV2: View {
             do {
                 let text = try await OpenAIService.shared.transcribeAudio(url: url, prompt: VoiceHolePipeline.transcriptionPrompt(match: matchManager))
                 // "Qué llevo" / "cómo vamos" / "qué falta": no es un dato del hoyo, es una petición de lectura.
-                if let intent = ReadbackIntentV2.detect(text) {
+                if let intent = ReadbackIntentV2.detect(text, names: matchManager.players.flatMap { [$0.alias, $0.name.split(separator: " ").first.map(String.init) ?? $0.name] }) {
                     readAloud(intent, detail: ReadbackIntentV2.asksForDetail(text))
                     phase = .idle
                     return

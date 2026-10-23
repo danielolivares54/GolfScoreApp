@@ -25,12 +25,18 @@ enum ReadbackIntentV2: Equatable {
     }
 
     /// ¿Lo dicho es una petición de lectura? (se resuelve en el teléfono, sin LLM)
-    static func detect(_ transcript: String) -> ReadbackIntentV2? {
+    static func detect(_ transcript: String, names: [String] = []) -> ReadbackIntentV2? {
         let t = transcript.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .init(identifier: "es_MX"))
             .lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
         func has(_ phrases: [String]) -> Bool { phrases.contains { t.contains($0) } }
         if has(["que falta", "que me falta", "que nos falta", "falta algo"]) { return .missing }
-        if has(["como vamos", "como voy", "como andamos", "cuanto llevo", "cuanto vamos", "como va la ronda", "resultado de la ronda"]) { return .round }
+        if has(["como vamos", "como voy", "como andamos", "cuanto llevo", "cuanto vamos", "como va la ronda", "resultado de la ronda"]) {
+            // "cómo voy contra Ricardo": con un jugador nombrado es una pregunta de estatus, no el resumen general (la clasifica el LLM).
+            let fold: (String) -> String = { $0.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .init(identifier: "es_MX")).lowercased() }
+            let words = Set(t.split { !$0.isLetter }.map(String.init))
+            if names.contains(where: { words.contains(fold($0)) }) { return nil }
+            return .round
+        }
         if has(["que llevo", "que tengo anotado", "que hay anotado", "que llevamos", "leeme", "lee el hoyo", "lee lo que", "dime lo que llevo"]) { return .hole }
         return nil
     }
@@ -259,6 +265,8 @@ extension MatchManager {
             }.joined(separator: ". ") + "."
         case "tarjeta", "golpes_nueve", "contrastar":
             return playerCardAnswerV2(alias: alias, segment: segment, from: hole, to: to, currentHole: currentHole, detail: detail)
+        case "estatus", "status", "como_voy":
+            return statusReadbackV2(alias: alias, opponent: opponent)
         case "hoyo", "resultado_hoyo", "resultado":
             return holeResultsReadbackV2(alias: alias, opponent: opponent, from: hole, to: to, currentHole: currentHole, detail: detail)
         case "vuelta", "presion", "presión", "match":

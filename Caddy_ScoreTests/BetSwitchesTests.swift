@@ -680,7 +680,7 @@ struct ContrastAndBriefTests {
         let r = try #require(m.individualZoomRows(opponentAlias: "ROB", segmentOverride: "F9").first { $0.hole == 8 })
         let short = brief(m, .init(tipo: "hoyo", jugador: "Daniel", oponente: "Roberto", hoyo: 8))
         #expect(short.contains("Hoyo 8: \(r.yoGross) contra \(r.oppGross)"))
-        #expect(short.contains("Vuelta F9 ahora") && !short.contains("Presiones abiertas") && !short.contains("recibe"))
+        #expect(short.contains("Vuelta F9 ") && !short.contains("Presiones abiertas") && (short.contains("recibe") || short.contains("sin strokes")))
         let long = full(m, .init(tipo: "hoyo", jugador: "Daniel", oponente: "Roberto", hoyo: 8))
         #expect(long.contains("Presiones abiertas: antes") && long.count > short.count)
     }
@@ -747,5 +747,21 @@ struct CorrectionRouteTests {
             #expect(route(.init(tipo: tipo), m) == nil)
         }
         #expect(route(.init(tipo: "score", jugador: "Pelón", hoyo: 3), m) == nil)    // jugador que no existe
+    }
+}
+
+@MainActor
+@Suite struct StatusAnswerTests {
+    @Test func comoVoyConNombreNoEsElResumenGeneral() {
+        #expect(ReadbackIntentV2.detect("¿Cómo voy contra Ricardo?", names: ["RIC", "Ricardo"]) == nil)
+        #expect(ReadbackIntentV2.detect("Cómo vamos", names: ["RIC", "Ricardo"]) == .round)
+    }
+
+    @Test func statusIsTheLastHoleOfEachMatchInOneLine() {
+        let m = DemoFixture.make()
+        let text = VoiceHolePipeline.answer(.init(tipo: "estatus", jugador: "yo", oponente: "Roberto"), match: m, currentHole: 14,
+                                            slang: VoiceSlangStore(defaults: UserDefaults(suiteName: "status-\(UUID().uuidString)")!))
+        #expect(text.hasPrefix("Daniel contra Roberto.") && text.contains(" contra ") && text.contains("Vuelta "))
+        #expect(!text.contains("Presiones abiertas"))
     }
 }
