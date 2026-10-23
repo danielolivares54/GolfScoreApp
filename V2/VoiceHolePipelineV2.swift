@@ -219,12 +219,23 @@ enum VoiceHolePipeline {
         return list
     }
 
+    /// Nombre del usuario (USER_NAME de caddie.env). Se puede cambiar en pruebas.
+    static var userName: () -> String? = { AppConfig.userName }
+
+    /// "Yo" siempre es el usuario de caddie.env, buscado entre los jugadores del Setup (por alias o por nombre).
+    /// Si no hay USER_NAME o no está en el roster, se usa el "yo" del Setup.
+    static func meAlias(_ match: MatchManager) -> String {
+        if let name = userName(), let alias = match.resolveAliasDetailed(name).alias,
+           match.players.contains(where: { $0.alias == alias }) { return alias }
+        return match.yoAlias
+    }
+
     /// Contexto que viaja al LLM: jugadores, "yo", hoyo, si es par 3 con oyes, unidades válidas y apodos aprendidos.
     static func context(match: MatchManager, hole: Int?, slang: VoiceSlangStore) -> [String: Any] {
         let h = hole ?? match.expectedNextHole()
         return [
             "jugadores": match.players.map { ["alias": $0.alias, "nombre": $0.name] },
-            "yo_alias": match.yoAlias,
+            "yo_alias": meAlias(match),
             "hoyo_actual": h,
             "par": match.getHole(h)?.par ?? 4,
             "oyes_activo": match.isOyesEnabled && (match.getHole(h)?.par == 3),
@@ -344,7 +355,7 @@ enum VoiceHolePipeline {
         }
 
         for n in extraction.notas {
-            let who = resolveSpoken(n.jugador.isEmpty ? match.yoAlias : n.jugador, match: match, slang: slang)
+            let who = resolveSpoken(n.jugador.isEmpty ? meAlias(match) : n.jugador, match: match, slang: slang)
             let text = n.texto.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !text.isEmpty else { continue }
             out.notes.removeAll { $0.alias == who.alias }
@@ -383,7 +394,7 @@ enum VoiceHolePipeline {
         -> (alias: String, spoken: String, known: Bool, fuzzy: Bool) {
         let t = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         let low = slang.normalize(t)
-        if ["yo", "me", "mi", "mio", "mia"].contains(low) { return (match.yoAlias, match.yoAlias, true, false) }
+        if ["yo", "me", "mi", "mio", "mia"].contains(low) { let me = meAlias(match); return (me, me, true, false) }
         if let learned = slang.target(for: t), match.players.contains(where: { $0.alias == learned }) {
             return (learned, learned, true, false)
         }

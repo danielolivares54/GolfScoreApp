@@ -269,6 +269,56 @@ private enum VoicePipelineSpec {
     static func apply(_ d: VoiceHoleDraft, _ m: MatchManager) -> VoiceUndoToken? { VoiceHolePipeline.apply(d, match: m) }
 }
 
+// MARK: - "Yo" y los nombres salen del Setup
+
+@MainActor
+struct SetupNamesTests {
+    private func slang() -> VoiceSlangStore { VoiceSlangStore(defaults: UserDefaults(suiteName: "setup-\(UUID().uuidString)")!) }
+    private func run(_ m: MatchManager, _ e: VoiceHoleExtraction, text: String = "yo tres") async throws -> VoiceHoleDraft {
+        try await VoiceHolePipeline.propose(transcript: text, match: m, defaultHole: 6, slang: slang(), extractor: { _, _ in e })
+    }
+
+    @Test func meIsTheUserNameFromTheEnvFileEvenIfSetupSaysAnotherYo() async throws {
+        let m = DemoFixture.make()
+        let saved = VoiceHolePipeline.userName
+        defer { VoiceHolePipeline.userName = saved }
+        VoiceHolePipeline.userName = { "Roberto" }
+        #expect(VoiceHolePipeline.meAlias(m) == "ROB")
+        let d = try await run(m, .init(hoyo: 6, scores: [.init(jugador: "yo", gross: 3, putts: nil)]))
+        #expect(d.cells["ROB"]?.gross == 3)
+        #expect(d.cells["DAN"] == nil)
+        let ctx = VoiceHolePipeline.context(match: m, hole: 6, slang: slang())
+        #expect(ctx["yo_alias"] as? String == "ROB")
+    }
+
+    @Test func withoutAUserNameMeFallsBackToTheSetupYo() {
+        let m = DemoFixture.make()
+        let saved = VoiceHolePipeline.userName
+        defer { VoiceHolePipeline.userName = saved }
+        VoiceHolePipeline.userName = { nil }
+        #expect(VoiceHolePipeline.meAlias(m) == m.yoAlias)
+        VoiceHolePipeline.userName = { "Alguien que no juega" }
+        #expect(VoiceHolePipeline.meAlias(m) == m.yoAlias)
+    }
+
+    @Test func thePlayerNamesAreTheOnesFromSetup() async throws {
+        let m = DemoFixture.make()
+        m.setPlayers(names: ["Daniel", "Beto", "Chuy"], preserveScores: false)
+        let ctx = VoiceHolePipeline.context(match: m, hole: 6, slang: slang())
+        let roster = (ctx["jugadores"] as? [[String: String]]) ?? []
+        #expect(roster.map { $0["nombre"] } == ["Daniel", "Beto", "Chuy"])
+        #expect(roster.map { $0["alias"] } == m.players.map(\.alias))
+        // Alguien que no está en el Setup no se acepta: queda como duda, no se anota.
+        let d = try await run(m, .init(hoyo: 6, scores: [.init(jugador: "Anselmo", gross: 5, putts: nil)]), text: "anselmo cinco")
+        #expect(!VoiceHolePipeline.canApply(d, match: m))
+    }
+
+    @Test func theStartHoleOfTheSetupDecidesWhichHoleIsOnScreen() {
+        let m = DemoFixture.make()
+        #expect(m.playOrder().first == m.startHole)
+    }
+}
+
 // MARK: - Casos de dictado de campo (casos_dictado.json). El LLM se simula con lo que devolvió de verdad.
 
 @MainActor
