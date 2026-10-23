@@ -38,6 +38,7 @@ struct VoiceSheetV2: View {
                         Button("Cerrar") { recorder.cancelIfNeeded(); dismiss() }
                             .font(.v2Body).foregroundStyle(CSV2.secondary).frame(minHeight: CSV2.minTap)
                     }
+                    holeBanner
                     if !draft.isEmpty { reviewCard }
                     controls
                 }
@@ -45,6 +46,20 @@ struct VoiceSheetV2: View {
             }
         }
         .dynamicTypeSize(...DynamicTypeSize.accessibility2)
+    }
+
+    /// Qué hoyo se está grabando: el de la pantalla, hasta que el dictado diga otro.
+    private var holeBanner: some View {
+        let current = draft.hole ?? hole
+        let changed = current != hole
+        return VStack(alignment: .leading, spacing: 2) {
+            Text("Grabando el hoyo \(current)").font(.v2Name).foregroundStyle(CSV2.ink)
+            Text(changed ? "Cambiaste del hoyo \(hole) por lo que dijiste. Di \"hoyo \(hole)\" para volver."
+                         : "Es el hoyo en pantalla. Si dices otro número de hoyo, se cambia solo.")
+                .font(.v2Label).foregroundStyle(changed ? CSV2.warning : CSV2.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .combine)
     }
 
     // MARK: Grabar

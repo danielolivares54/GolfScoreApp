@@ -37,6 +37,9 @@ struct VoiceHolePipelineTests {
             notas: notes.map { .init(jugador: $0.0, texto: $0.1) })
     }
 
+    private func sc(_ j: String, _ g: Int? = nil, _ p: Int? = nil, rel: String? = nil) -> VoiceHoleExtraction.Score {
+        .init(jugador: j, gross: g, putts: p, relativo: rel)
+    }
     private func extractor(_ e: VoiceHoleExtraction) -> VoiceHolePipeline.Extractor { { _, _ in e } }
 
     // MARK: Lo que falta
@@ -134,7 +137,7 @@ struct VoiceHolePipelineTests {
         let m = setup()   // el hoyo 14 es par 3
         let bogey = try await VoiceHolePipeline.propose(
             transcript: "rob dos, los demas bogey", match: m, defaultHole: 14, slang: slang(),
-            extractor: extractor(extraction(scores: [("ROB", 2, nil)])))
+            extractor: extractor(VoiceHoleExtraction(hoyo: 14, scores: [sc("ROB", 2), sc("DEMAS", rel: "bogey")])))
         #expect(bogey.cells["ROB"]?.gross == 2)
         #expect(bogey.cells.filter { $0.key != "ROB" }.allSatisfy { $0.value.gross == 4 })
         #expect(bogey.cells.count == 5)
@@ -264,6 +267,139 @@ struct VoiceHolePipelineTests {
 @MainActor
 private enum VoicePipelineSpec {
     static func apply(_ d: VoiceHoleDraft, _ m: MatchManager) -> VoiceUndoToken? { VoiceHolePipeline.apply(d, match: m) }
+}
+
+// MARK: - Casos de dictado de campo (casos_dictado.json). El LLM se simula con lo que devolvió de verdad.
+
+@MainActor
+struct DictationCasesTests {
+    private func setup() -> MatchManager {
+        let m = DemoFixture.make()
+        for i in m.players.indices { for h in 1...18 { m.players[i].scores[h] = nil } }
+        m.oyesRanksByHole = [:]; m.unitEventsByHole = [:]
+        return m
+    }
+    private func slang() -> VoiceSlangStore { VoiceSlangStore(defaults: UserDefaults(suiteName: "cases-\(UUID().uuidString)")!) }
+    private func run(_ m: MatchManager, _ text: String, hole: Int, _ e: VoiceHoleExtraction) async throws -> VoiceHoleDraft {
+        try await VoiceHolePipeline.propose(transcript: text, match: m, defaultHole: hole, slang: slang(), extractor: { _, _ in e })
+    }
+    private func sc(_ j: String, _ g: Int? = nil, _ p: Int? = nil, rel: String? = nil) -> VoiceHoleExtraction.Score {
+        .init(jugador: j, gross: g, putts: p, relativo: rel)
+    }
+    private func grosses(_ d: VoiceHoleDraft) -> [String: Int] { d.cells.compactMapValues(\.gross) }
+
+    @Test func c01FullScores() async throws {   // H6 par 5
+        let d = try await run(setup(), "Hoyo seis: Daniel cinco, Anselmo seis, Roberto siete, Ricardo cinco y Fernando cuatro.", hole: 6,
+                              .init(hoyo: 6, scores: [sc("Daniel", 5), sc("Anselmo", 6), sc("Roberto", 7), sc("Ricardo", 5), sc("Fernando", 4)]))
+        #expect(grosses(d) == ["DAN": 5, "ANS": 6, "ROB": 7, "RIC": 5, "FER": 4])
+    }
+    @Test func c02MeAndTheRestBogey() async throws {
+        let d = try await run(setup(), "Tiré cinco y los demás bogey.", hole: 6,
+                              .init(hoyo: 6, scores: [sc("DAN", 5), sc("DEMAS", rel: "bogey")]))
+        #expect(grosses(d) == ["DAN": 5, "ANS": 6, "ROB": 6, "RIC": 6, "FER": 6])
+    }
+    @Test func c03EveryoneParOnTheEight() async throws {
+        let d = try await run(setup(), "Todos hicimos par en el ocho.", hole: 8, .init(hoyo: 8, scores: [sc("DEMAS", rel: "par")]))
+        #expect(d.hole == 8)
+        #expect(grosses(d).values.allSatisfy { $0 == 4 } && grosses(d).count == 5)
+    }
+    @Test func c04RunOnSentenceWithRelativeScores() async throws {
+        let d = try await run(setup(), "Yo par, Anselmo birdie, Roberto doble bogey y los demás bogey.", hole: 6,
+                              .init(hoyo: 6, scores: [sc("DAN", rel: "par"), sc("ANS", rel: "birdie"), sc("ROB", rel: "doble_bogey"), sc("DEMAS", rel: "bogey")]))
+        #expect(grosses(d) == ["DAN": 5, "ANS": 4, "ROB": 7, "RIC": 6, "FER": 6])
+    }
+    @Test func c05Nicknames() async throws {
+        let d = try await run(setup(), "Dani cuatro, Richi cinco, Bob seis y Anse cuatro.", hole: 8,
+                              .init(hoyo: 8, scores: [sc("DAN", 4), sc("RIC", 5), sc("ROB", 6), sc("ANS", 4)]))
+        #expect(grosses(d) == ["DAN": 4, "RIC": 5, "ROB": 6, "ANS": 4])
+        #expect(d.cells["FER"] == nil)
+    }
+    @Test func c06TwoScoresForTheSamePlayerIsADoubt() async throws {
+        let d = try await run(setup(), "Yo cinco y Daniel seis.", hole: 6, .init(hoyo: 6, scores: [sc("DAN", 5), sc("Daniel", 6)]))
+        #expect(d.doubts["DAN"]?.contains("dos scores distintos") == true)
+        #expect(!VoiceHolePipeline.canApply(d, match: setup()))
+    }
+    @Test func c07to09NumbersThatLookAlike() async throws {
+        let a = try await run(setup(), "Hoyo doce, Daniel seis golpes y dos putts.", hole: 3, .init(hoyo: 12, scores: [sc("DAN", 6, 2)]))
+        #expect(a.hole == 12 && a.cells["DAN"] == .init(gross: 6, putts: 2))
+        let b = try await run(setup(), "En el dieciséis Ricardo hizo seis, con tres putts.", hole: 3, .init(hoyo: 16, scores: [sc("RIC", 6, 3)]))
+        #expect(b.hole == 16 && b.cells["RIC"] == .init(gross: 6, putts: 3))
+        let c = try await run(setup(), "Hoyo dos, Roberto doce golpes y dos putts.", hole: 5, .init(hoyo: 2, scores: [sc("ROB", 12, 2)]))
+        #expect(c.hole == 2 && c.cells["ROB"] == .init(gross: 12, putts: 2))
+    }
+    @Test func c10BirdieEagleParByName() async throws {
+        let d = try await run(setup(), "Daniel birdie, Ricardo eagle y Fernando par.", hole: 6,
+                              .init(hoyo: 6, scores: [sc("DAN", rel: "birdie"), sc("RIC", rel: "eagle"), sc("FER", rel: "par")]))
+        #expect(grosses(d) == ["DAN": 4, "RIC": 3, "FER": 5])
+    }
+    @Test func c11SpokenCorrectionKeepsTheLastValue() async throws {
+        let d = try await run(setup(), "Daniel seis... no, cinco.", hole: 14, .init(hoyo: 14, scores: [sc("DAN", 5)]))
+        #expect(d.cells["DAN"]?.gross == 5)
+    }
+    @Test func c12CorrectionOfAnotherHole() async throws {
+        let d = try await run(setup(), "Corrige a Daniel: fueron cinco en el seis.", hole: 14, .init(hoyo: 6, scores: [sc("DAN", 5)]))
+        #expect(d.hole == 6 && d.cells["DAN"]?.gross == 5)
+    }
+    @Test func c13to14FullOyes() async throws {   // H14 par 3 (el 7 del texto del caso es par 4 en este curso)
+        let d = try await run(setup(), "Oyes del catorce: primero Ricardo, segundo Anselmo, tercero Daniel, cuarto Roberto y quinto Fernando.", hole: 14,
+                              .init(hoyo: 14, oyes: [.init(jugador: "RIC", rank: 1), .init(jugador: "ANS", rank: 2), .init(jugador: "DAN", rank: 3),
+                                                    .init(jugador: "ROB", rank: 4), .init(jugador: "FER", rank: 5)]))
+        #expect(d.oyes == ["RIC": 1, "ANS": 2, "DAN": 3, "ROB": 4, "FER": 5])
+        let n = try await run(setup(), "O yes: Richi primero, Dani segundo, Anse tercero, Bob cuarto y Fernando quinto.", hole: 14,
+                              .init(hoyo: 14, oyes: [.init(jugador: "Richi", rank: 1), .init(jugador: "Dani", rank: 2), .init(jugador: "Anse", rank: 3),
+                                                    .init(jugador: "Bob", rank: 4), .init(jugador: "Fernando", rank: 5)]))
+        #expect(n.oyes == ["RIC": 1, "DAN": 2, "ANS": 3, "ROB": 4, "FER": 5])
+        #expect(n.doubts.isEmpty)
+    }
+    @Test func c15PartialOyesAsksForTheRest() async throws {
+        let m = setup()
+        let d = try await run(m, "El oyes lo ganó Anselmo.", hole: 14, .init(hoyo: 14, oyes: [.init(jugador: "Anselmo", rank: 1)]))
+        #expect(d.oyes == ["ANS": 1])
+        #expect(VoiceHolePipeline.report(d, match: m).missing.contains { $0.hasPrefix("lugar de oyes de") })
+    }
+    @Test func c16TiedOyesIsNotSaved() async throws {
+        let d = try await run(setup(), "Primero Daniel y primero Ricardo en los oyes.", hole: 14,
+                              .init(hoyo: 14, oyes: [.init(jugador: "Daniel", rank: 1), .init(jugador: "Ricardo", rank: 1)]))
+        #expect(d.doubts["oyes"]?.contains("Empate") == true)
+        #expect(!VoiceHolePipeline.canApply(d, match: setup()))
+    }
+    @Test func c17OyesOnAPar5IsRejected() async throws {
+        let d = try await run(setup(), "Ricardo ganó el oyes en el seis.", hole: 6, .init(hoyo: 6, oyes: [.init(jugador: "RIC", rank: 1)]))
+        #expect(d.oyes.isEmpty)
+        #expect(d.doubts["oyes-par"]?.contains("par 5") == true)
+    }
+    @Test func c18to20PuttsNicknamesAndHoleOut() async throws {
+        let a = try await run(setup(), "Roberto hizo seis y tripoteó.", hole: 14, .init(hoyo: 14, scores: [sc("ROB", 6, 3)]))
+        #expect(a.cells["ROB"] == .init(gross: 6, putts: 3))
+        let b = try await run(setup(), "Fernando cinco y cuatripoteo.", hole: 14, .init(hoyo: 14, scores: [sc("FER", 5, 4)]))
+        #expect(b.cells["FER"] == .init(gross: 5, putts: 4))
+        let c = try await run(setup(), "Daniel hizo cuatro y hole out.", hole: 14,
+                              .init(hoyo: 14, scores: [sc("DAN", 4)], unidades: [.init(jugador: "DAN", codigo: "HO", cantidad: 1)]))
+        #expect(c.units == [.init(alias: "DAN", code: "HO", units: 1)])
+    }
+    @Test func c21NewSlangUnitsAreDoubtsUntilTheyAreInTheCatalog() async throws {
+        let m = setup()
+        m.betCatalog.append(BetDefinition(tag: "SAND", name: "Sandy par", type: .individual, mode: .manual, units: 1, description: ""))
+        let d = try await run(m, "Anselmo hizo sandy y Ricardo chip in.", hole: 14,
+                              .init(hoyo: 14, unidades: [.init(jugador: "ANS", codigo: "SAND", cantidad: 1), .init(jugador: "RIC", codigo: "CHIP", cantidad: 1)]))
+        #expect(d.units == [.init(alias: "ANS", code: "SAND", units: 1)])
+        #expect(d.doubts["unidad:chip"] != nil)
+    }
+    @Test func c22MixedPhrase() async throws {   // H14 par 3
+        let d = try await run(setup(), "Yo tres, Anselmo cuatro y los demás bogey. Oyes primero Ricardo, segundo Daniel, tercero Fernando, cuarto Anselmo, quinto Roberto. Daniel hole out.", hole: 14,
+                              .init(hoyo: 14, scores: [sc("DAN", 3), sc("ANS", 4), sc("DEMAS", rel: "bogey")],
+                                    oyes: [.init(jugador: "RIC", rank: 1), .init(jugador: "DAN", rank: 2), .init(jugador: "FER", rank: 3),
+                                           .init(jugador: "ANS", rank: 4), .init(jugador: "ROB", rank: 5)],
+                                    unidades: [.init(jugador: "DAN", codigo: "HO", cantidad: 1)]))
+        #expect(grosses(d) == ["DAN": 3, "ANS": 4, "ROB": 4, "RIC": 4, "FER": 4])
+        #expect(d.oyes == ["RIC": 1, "DAN": 2, "FER": 3, "ANS": 4, "ROB": 5])
+        #expect(d.units == [.init(alias: "DAN", code: "HO", units: 1)])
+    }
+    @Test func c23NoPlayerNamedAsksWho() async throws {
+        let d = try await run(setup(), "Hizo cinco y dos putts.", hole: 6, .init(hoyo: 6, scores: [sc("", 5, 2)]))
+        #expect(d.cells.isEmpty)
+        #expect(d.doubts["?"]?.contains("¿de quién?") == true)
+    }
 }
 
 struct AppConfigTests {
