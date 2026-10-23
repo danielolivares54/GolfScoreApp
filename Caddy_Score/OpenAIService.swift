@@ -29,7 +29,8 @@ class OpenAIService {
 
     private var apiKey: String { AppConfig.value("OPENAI_API_KEY") ?? "" }
     
-    func transcribeAudio(url: URL) async throws -> String {
+    /// `prompt` (opcional) sustituye el de siempre: la v2t le pasa los nombres del Setup, los apodos aprendidos y el vocabulario de golf.
+    func transcribeAudio(url: URL, prompt: String? = nil) async throws -> String {
         guard !apiKey.isEmpty, apiKey != "MISSING" else {
             throw NSError(domain: "Config", code: 1, userInfo: [
                 NSLocalizedDescriptionKey: "Falta OPENAI_API_KEY en Info.plist"
@@ -60,7 +61,7 @@ class OpenAIService {
 
         body.append("--\(boundary)\r\n".data(using: .utf8)!)
         body.append("Content-Disposition: form-data; name=\"prompt\"\r\n\r\n".data(using: .utf8)!)
-        body.append("Dictado de golf. Transcribe nombres propios y números con precisión. Palabras clave: hoyo, strokes, golpes, base, parejas, contra, versus, putts. No inventes texto.\r\n".data(using: .utf8)!)
+        body.append(((prompt ?? "Dictado de golf. Transcribe nombres propios y números con precisión. Palabras clave: hoyo, strokes, golpes, base, parejas, contra, versus, putts. No inventes texto.") + "\r\n").data(using: .utf8)!)
         
         body.append("--\(boundary)--\r\n".data(using: .utf8)!)
         
@@ -163,7 +164,7 @@ class OpenAIService {
         REGLAS:
         0. NO INVENTES NADA. Cada dato debe estar dicho explícitamente en la transcripción; lo que no se dijo va vacío o null.
         1. "jugador" es el alias del roster SOLO si lo dijeron igual o claramente igual (nombre o alias). Un apodo que no esté en "apodos" ni sea claramente un jugador ("el chino", "pelón") se copia tal cual, SIN adivinar a quién se refiere. Nunca inventes jugadores.
-        2. "yo" = yo_alias. "apodos" mapea apodos ya aprendidos a un alias: úsalos.
+        2. "yo" = yo_alias. "apodos" mapea apodos ya aprendidos a un alias de jugador, o una frase de unidad a su código ("tripoteó"→3P): úsalos. "ejemplos" son frases anteriores de ESTE usuario y lo que quiso decir: úsalos para calibrar su jerga, nunca copies sus datos.
         3. scores: un elemento por jugador mencionado con gross (golpes) y/o putts. Si dicen par/birdie/eagle/bogey/doble bogey SIN número, NO calcules: pon gross null y "relativo": "par"|"birdie"|"eagle"|"bogey"|"doble_bogey". Si dicen "hizo cinco" sin decir quién, jugador "" (NO asumas yo). "tripoteó" = putts 3, "cuatripoteo" = putts 4. Si se corrigen ("seis... no, cinco") deja solo el último valor.
         4. oyes: SOLO si oyes_activo Y dijeron el orden de oyes ("oyes primero…", "más cerca…"). Una unidad como hole out NO implica oyes. rank 1 = el más cerca del hoyo, 2 = segundo, etc. "Oyes primero Ricardo, segundo Daniel" -> [{Ricardo,1},{Daniel,2}].
         5. unidades: SOLO códigos de la lista "unidades" (sandy par, green en regulación…). Si dicen una que no está, usa el texto dicho como codigo. cantidad = 1 si no se dice.

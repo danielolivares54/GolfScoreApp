@@ -470,3 +470,84 @@ struct CardResultsTests {
         #expect(ask(m, .init(tipo: "otro")).hasPrefix("No sé responder eso todavía."))
     }
 }
+
+// MARK: - Aprender: ayuda a la transcripción, frases de unidades y ejemplos del usuario
+
+@MainActor
+struct VoiceLearningTests {
+    private func slang() -> VoiceSlangStore { VoiceSlangStore(defaults: UserDefaults(suiteName: "learn-\(UUID().uuidString)")!) }
+    private func tempRecords() -> VoiceRecordStore {
+        VoiceRecordStore(directory: FileManager.default.temporaryDirectory.appendingPathComponent("learn-\(UUID().uuidString)"))
+    }
+
+    @Test func theTranscriptionPromptCarriesNamesUnitsAndLearnedSlang() {
+        let m = DemoFixture.make()
+        m.betCatalog.append(BetDefinition(tag: "SAND", name: "Sandy par", type: .individual, mode: .manual, units: 1, description: ""))
+        let s = slang()
+        s.learn("el chino", as: "ROB")
+        let prompt = VoiceHolePipeline.transcriptionPrompt(match: m, slang: s)
+        #expect(prompt.contains("Dictado de golf en español de México"))
+        #expect(prompt.contains("Sandy par") && prompt.contains("Hole Out") && prompt.contains("tripoteó"))
+        #expect(prompt.contains("el chino"))
+        for name in ["Daniel (DAN)", "Roberto (ROB)", "Anselmo (ANS)"] { #expect(prompt.contains(name)) }
+        // Los jugadores van al final: es lo que más pesa en la transcripción.
+        #expect(prompt.hasSuffix(")."))
+    }
+
+    @Test func aTaughtUnitPhraseIsResolvedByItselfNextTime() async throws {
+        let m = DemoFixture.make()
+        let s = slang(), r = tempRecords()
+        let extraction = VoiceHoleExtraction(hoyo: 14, scores: [.init(jugador: "ROB", gross: 6, putts: 3)],
+                                             unidades: [.init(jugador: "ROB", codigo: "tripoteó", cantidad: nil)])
+        var d = try await VoiceHolePipeline.propose(transcript: "hoyo 14 Rob seis y tripoteó", match: m, defaultHole: 14, slang: s, records: r,
+                                                    extractor: { _, _ in extraction })
+        #expect(d.units.isEmpty)
+        #expect(d.unknownUnits == [.init(alias: "ROB", spoken: "tripoteó", units: 1)])
+        #expect(!VoiceHolePipeline.canApply(d, match: m))
+
+        d = VoiceHolePipeline.assignUnit(d, spoken: "tripoteó", to: "3P", slang: s)
+        #expect(d.units == [.init(alias: "ROB", code: "3P", units: 1)])
+        #expect(d.unknownUnits.isEmpty && d.doubts.isEmpty)
+        #expect(VoiceHolePipeline.canApply(d, match: m))
+        #expect(s.target(for: "Tripoteó") == "3P")
+
+        // La siguiente vez, sin preguntar.
+        let next = try await VoiceHolePipeline.propose(transcript: "ric tripoteó", match: m, defaultHole: 14, slang: s, records: r,
+                                                       extractor: { _, _ in .init(unidades: [.init(jugador: "RIC", codigo: "tripoteó", cantidad: nil)]) })
+        #expect(next.units == [.init(alias: "RIC", code: "3P", units: 1)])
+        #expect(next.unknownUnits.isEmpty)
+    }
+
+    @Test func examplesPutTheHardHolesFirstAndSkipTheUnresolved() {
+        let r = tempRecords()
+        // Un hoyo que costó dos dictadas.
+        let a = r.record(audio: nil, transcript: "rob cuatro y el chino cinco", roundId: "R1", hole: 5)
+        let b = r.record(audio: nil, transcript: "el chino es rob, cinco", roundId: "R1", hole: 5)
+        r.resolve(ids: [a, b], finalCard: "H5 ROB 5")
+        // Uno que salió a la primera, más reciente.
+        let c = r.record(audio: nil, transcript: "yo tres", roundId: "R1", hole: 6)
+        r.resolve(ids: [c], finalCard: "H6 DAN 3")
+        // Uno sin resolver: no es ejemplo.
+        _ = r.record(audio: nil, transcript: "ruido", roundId: "R1", hole: 7)
+
+        let ex = r.examples(limit: 5)
+        #expect(ex.count == 2)
+        #expect((ex[0]["dijo"] as? [String])?.count == 2)    // el difícil primero
+        #expect(ex[0]["quedo"] as? String == "H5 ROB 5")
+        #expect(r.examples(limit: 1).count == 1)
+
+        let st = r.stats()
+        #expect(st.dictations == 4 && st.resolvedHoles == 2 && st.firstTry == 1)
+    }
+
+    @Test func theContextSentToTheModelIncludesSlangAndExamples() {
+        let m = DemoFixture.make()
+        let s = slang(), r = tempRecords()
+        s.learn("el chino", as: "ROB")
+        let id = r.record(audio: nil, transcript: "el chino cinco", roundId: "R1", hole: 5)
+        r.resolve(ids: [id], finalCard: "H5 ROB 5")
+        let ctx = VoiceHolePipeline.context(match: m, hole: 5, slang: s, records: r)
+        #expect((ctx["apodos"] as? [String: String])?["el chino"] == "ROB")
+        #expect((ctx["ejemplos"] as? [[String: Any]])?.count == 1)
+    }
+}

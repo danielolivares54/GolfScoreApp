@@ -45,6 +45,7 @@ struct VoiceSheetV2: View {
                     if let readbackText { readbackCard(readbackText) }
                     if !draft.isEmpty { reviewCard }
                     controls
+                    learningLine
                 }
                 .padding(CSV2.s2)
             }
@@ -192,6 +193,7 @@ struct VoiceSheetV2: View {
             }
             if !draft.units.isEmpty || !draft.notes.isEmpty { extras }
             if !draft.edits.isEmpty { otherHoles }
+            if !draft.unknownUnits.isEmpty { unknownUnitsMenu }
             messageBox
             actionButtons
             if let last = draft.transcripts.last {
@@ -239,6 +241,33 @@ struct VoiceSheetV2: View {
         } label: {
             Label("¿Quién es \"\(wrong.capitalized)\"?", systemImage: "person.fill.questionmark")
                 .font(.v2Label).foregroundStyle(CSV2.warning).frame(minHeight: CSV2.minTap, alignment: .leading)
+        }
+    }
+
+    /// Una unidad que no está en el catálogo: con un toque se asigna a una y la app aprende la frase.
+    private var unknownUnitsMenu: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            ForEach(draft.unknownUnits, id: \.self) { u in
+                Menu {
+                    ForEach(VoiceHolePipeline.dictatableUnits(matchManager), id: \.tag) { unit in
+                        Button("\(u.spoken) es \(unit.name)") { draft = VoiceHolePipeline.assignUnit(draft, spoken: u.spoken, to: unit.tag) }
+                    }
+                } label: {
+                    Label("¿Qué unidad es \"\(u.spoken)\"? (\(matchManager.spokenName(u.alias)))", systemImage: "questionmark.circle")
+                        .font(.v2Label).foregroundStyle(CSV2.warning).frame(minHeight: CSV2.minTap, alignment: .leading)
+                }
+            }
+        }
+    }
+
+    /// Cómo va el aprendizaje, en una línea.
+    private var learningLine: some View {
+        let st = VoiceRecordStore.shared.stats()
+        return Group {
+            if st.resolvedHoles > 0 {
+                Text("Aprendizaje: \(st.dictations) dictadas · \(st.firstTry) de \(st.resolvedHoles) hoyos salieron a la primera · \(VoiceSlangStore.shared.terms.count) apodos y frases aprendidos")
+                    .font(.v2Label).foregroundStyle(CSV2.secondary).frame(maxWidth: .infinity, alignment: .leading)
+            }
         }
     }
 
@@ -313,7 +342,7 @@ struct VoiceSheetV2: View {
         phase = .processing
         Task {
             do {
-                let text = try await OpenAIService.shared.transcribeAudio(url: url)
+                let text = try await OpenAIService.shared.transcribeAudio(url: url, prompt: VoiceHolePipeline.transcriptionPrompt(match: matchManager))
                 // "Qué llevo" / "cómo vamos" / "qué falta": no es un dato del hoyo, es una petición de lectura.
                 if let intent = ReadbackIntentV2.detect(text) {
                     readAloud(intent)

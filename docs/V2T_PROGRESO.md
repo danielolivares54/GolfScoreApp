@@ -36,3 +36,10 @@
 - **Acumulado:** Cómo vamos (conteo primero, dinero después) · Dinero (total, luego individuales y parejas) · **Por qué** (explica cómo resultó: hoyos ganados y perdidos por nueve, vuelta, presiones, match, Carry/Ajuste, unidades, strokes y lo que suma).
 - **Un hoyo contra el rival:** qué tiró cada uno, quién lleva stroke en ese hoyo (con el neto), si gana, pierde o empatan, y cuánto iba antes la vuelta y las presiones abiertas y cómo quedan ahora. Un hoyo, un grupo ("del 5 al 8", formato corto) o el actual; individual y parejas.
 - Todo se puede preguntar hablando: el LLM solo clasifica la pregunta (tipo, jugador, oponente, hoyo, hasta, segmento); el texto sale siempre de lo anotado. Un tipo que no entiende contesta qué sí sabe responder.
+
+## Aprender (23-oct)
+- **Transcripción con tu contexto:** al mandar el audio se le pasa a Whisper un prompt con el vocabulario de golf, las unidades del catálogo, las frases y apodos aprendidos y, al final (lo que más pesa), los jugadores del Setup con su alias (`transcriptionPrompt`).
+- **Frases de unidades:** una unidad que no está en el catálogo ("tripoteó") queda como duda con un menú "¿Qué unidad es…?"; al elegirla se anota y la frase se aprende (`VoiceSlangStore`: apodos de jugadores y frases de unidades); la próxima vez se resuelve sola.
+- **Ejemplos tuyos para el LLM:** las últimas frases tuyas y la tarjeta final que quedó bien (primero las de hoyos que costaron más de una dictada) viajan en cada llamada como `ejemplos`, junto a los `apodos`, para calibrar tu jerga sin copiar datos.
+- **Medirlo:** la hoja de voz muestra "N dictadas · X de Y hoyos salieron a la primera · N apodos y frases aprendidos".
+- Sigue pendiente (fase aparte): exportar los pares audio + texto + tarjeta final para ajustar un modelo; antes hay que decidir si esos audios se pueden subir.

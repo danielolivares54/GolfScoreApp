@@ -76,6 +76,7 @@ struct VoiceHoleDraft: Equatable {
     struct Cell: Equatable { var gross: Int?; var putts: Int? }
     struct Unit: Hashable { var alias: String; var code: String; var units: Int }
     struct Note: Hashable { var alias: String; var text: String }
+    struct UnknownUnit: Hashable { var alias: String; var spoken: String; var units: Int }
     struct Edit: Hashable { var alias: String; var hole: Int; var gross: Int?; var putts: Int?; var pickup: Bool; var reason: String? = nil }
 
     var hole: Int?
@@ -85,12 +86,14 @@ struct VoiceHoleDraft: Equatable {
     var notes: [Note] = []
     /// Cambios en uno o varios hoyos (una corrida "del 5 al 8", o un "se levantó"). Los golpes ya vienen resueltos con el par del hoyo.
     var edits: [Edit] = []
+    /// Unidades dichas que no están en el catálogo: se pueden asignar a una unidad con un toque y la app aprende la frase.
+    var unknownUnits: [UnknownUnit] = []
     /// Dudas por alias (jugador desconocido, nombre aproximado, golpes raros…) o por texto ("unidad:xyz").
     var doubts: [String: String] = [:]
     /// Todo lo dictado para este hoyo, en orden (para mostrarlo y para guardarlo con la grabación).
     var transcripts: [String] = []
 
-    var isEmpty: Bool { cells.isEmpty && oyes.isEmpty && units.isEmpty && notes.isEmpty && edits.isEmpty }
+    var isEmpty: Bool { cells.isEmpty && oyes.isEmpty && units.isEmpty && notes.isEmpty && edits.isEmpty && unknownUnits.isEmpty }
 }
 
 /// Lo que se entendió y lo que falta, listo para mostrar en la tarjeta o leer en voz alta.
@@ -224,6 +227,30 @@ final class VoiceRecordStore {
         return id
     }
 
+    /// Frases anteriores de este usuario con lo que quiso decir (las de hoyos que costaron más de una dictada van primero):
+    /// se mandan al LLM como ejemplos para que se calibre con su jerga.
+    func examples(limit: Int) -> [[String: Any]] {
+        struct Key: Hashable { let round: String; let hole: Int? }
+        let resolved = entries().filter { $0.finalCard != nil }
+        let groups = Dictionary(grouping: resolved, by: { Key(round: $0.roundId, hole: $0.hole) })
+        let ordered = groups.values.sorted { a, b in
+            if (a.count > 1) != (b.count > 1) { return a.count > 1 }
+            return (a.map(\.date).max() ?? .distantPast) > (b.map(\.date).max() ?? .distantPast)
+        }
+        return ordered.prefix(limit).map { group in
+            ["dijo": group.sorted { $0.date < $1.date }.map { String($0.transcript.prefix(200)) },
+             "quedo": group.first?.finalCard ?? ""]
+        }
+    }
+
+    /// Cómo va el aprendizaje: dictadas, hoyos resueltos y cuántos salieron a la primera.
+    func stats() -> (dictations: Int, resolvedHoles: Int, firstTry: Int) {
+        struct Key: Hashable { let round: String; let hole: Int? }
+        let all = entries()
+        let groups = Dictionary(grouping: all.filter { $0.finalCard != nil }, by: { Key(round: $0.roundId, hole: $0.hole) })
+        return (all.count, groups.count, groups.values.filter { $0.count == 1 }.count)
+    }
+
     /// Cuando el hoyo queda resuelto, todas las dictadas de esa sesión quedan ligadas a la tarjeta final.
     func resolve(ids: [String], finalCard: String) {
         var list = entries()
@@ -265,7 +292,7 @@ enum VoiceHolePipeline {
     }
 
     /// Contexto que viaja al LLM: jugadores, "yo", hoyo, si es par 3 con oyes, unidades válidas y apodos aprendidos.
-    static func context(match: MatchManager, hole: Int?, slang: VoiceSlangStore) -> [String: Any] {
+    static func context(match: MatchManager, hole: Int?, slang: VoiceSlangStore, records: VoiceRecordStore = .shared) -> [String: Any] {
         let h = hole ?? match.expectedNextHole()
         return [
             "jugadores": match.players.map { ["alias": $0.alias, "nombre": $0.name] },
@@ -274,8 +301,24 @@ enum VoiceHolePipeline {
             "par": match.getHole(h)?.par ?? 4,
             "oyes_activo": match.isOyesEnabled && (match.getHole(h)?.par == 3),
             "unidades": dictatableUnits(match).map { ["codigo": $0.tag, "nombre": $0.name] },
-            "apodos": slang.terms
+            "apodos": slang.terms,
+            "ejemplos": records.examples(limit: 5)
         ]
+    }
+
+    // MARK: Ayudar a la transcripción con lo que ya se sabe
+
+    /// El texto que acompaña al audio para que se oigan bien los nombres y la jerga: vocabulario de golf, unidades del catálogo,
+    /// frases y apodos aprendidos y, al final (lo que más pesa), los jugadores del Setup con su alias.
+    static func transcriptionPrompt(match: MatchManager, slang: VoiceSlangStore = .shared) -> String {
+        let vocab = "hoyo, par, bogey, doble bogey, birdie, eagle, putts, strokes, oyes, presión, vuelta, match, carry, F9, B9, se levantó, bola equivocada, tripoteó"
+        let units = dictatableUnits(match).map(\.name).joined(separator: ", ")
+        let learned = slang.terms.keys.sorted().prefix(30).joined(separator: ", ")
+        let players = match.players.map { $0.name == $0.alias ? $0.name : "\($0.name) (\($0.alias))" }.joined(separator: ", ")
+        var parts = ["Dictado de golf en español de México. No inventes texto.", "Palabras: \(vocab).", "Unidades: \(units)."]
+        if !learned.isEmpty { parts.append("Jerga del grupo: \(learned).") }
+        parts.append("Jugadores: \(players).")
+        return parts.joined(separator: " ")
     }
 
     // MARK: Entender (una dictada → borrador nuevo)
@@ -283,12 +326,13 @@ enum VoiceHolePipeline {
     /// Una dictada nueva se suma al borrador que ya hay: lo más reciente gana en cada celda.
     /// `defaultHole` = el hoyo que se está jugando en pantalla: se usa si no dijeron otro ("hoyo 7…").
     static func propose(transcript: String, match: MatchManager, draft: VoiceHoleDraft = VoiceHoleDraft(), defaultHole: Int? = nil,
-                        slang: VoiceSlangStore = .shared, extractor: Extractor = liveExtractor) async throws -> VoiceHoleDraft {
+                        slang: VoiceSlangStore = .shared, records: VoiceRecordStore = .shared,
+                        extractor: Extractor = liveExtractor) async throws -> VoiceHoleDraft {
         let text = transcript.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { throw VoiceHoleError.emptyTranscript }
         var start = draft
         if start.hole == nil { start.hole = defaultHole }
-        let extraction = try await extractor(text, context(match: match, hole: start.hole, slang: slang))
+        let extraction = try await extractor(text, context(match: match, hole: start.hole, slang: slang, records: records))
         // Una pregunta ("¿qué hizo Roberto en el 5?") se responde; no es un dato y no toca el borrador.
         if let q = extraction.consulta, extraction.scores.isEmpty, extraction.oyes.isEmpty, extraction.unidades.isEmpty,
            extraction.notas.isEmpty, extraction.corridas.isEmpty {
@@ -424,13 +468,17 @@ enum VoiceHolePipeline {
         let valid = Set(dictatableUnits(match).map(\.tag))
         for u in extraction.unidades {
             let who = resolveSpoken(u.jugador, match: match, slang: slang)
-            let code = u.codigo.uppercased().trimmingCharacters(in: .whitespaces)
+            var code = u.codigo.uppercased().trimmingCharacters(in: .whitespaces)
+            // Una frase que ya se enseñó ("tripoteó" = 3 Putt) se resuelve sola.
+            if !valid.contains(code), let learned = slang.target(for: u.codigo)?.uppercased(), valid.contains(learned) { code = learned }
             if valid.contains(code) {
                 out.units.removeAll { $0.alias == who.alias && $0.code == code }
                 out.units.append(.init(alias: who.alias, code: code, units: max(1, u.cantidad ?? 1)))
                 markDoubts(&out, alias: who.alias, known: who.known, fuzzy: who.fuzzy)
             } else {
                 out.doubts["unidad:\(code.lowercased())"] = "No reconocí la unidad \"\(u.codigo)\" (no está activa en el catálogo)"
+                out.unknownUnits.removeAll { $0.alias == who.alias && slang.normalize($0.spoken) == slang.normalize(u.codigo) }
+                out.unknownUnits.append(.init(alias: who.alias, spoken: u.codigo, units: max(1, u.cantidad ?? 1)))
             }
         }
 
@@ -662,6 +710,21 @@ enum VoiceHolePipeline {
             }
         }
         return highest.map { Int($0.rounded(.down)) + 1 }
+    }
+
+    /// "Ese 'chip raro' es Hole Out": la unidad pasa a su código y la app aprende la frase para la próxima.
+    static func assignUnit(_ draft: VoiceHoleDraft, spoken: String, to code: String, slang: VoiceSlangStore = .shared) -> VoiceHoleDraft {
+        var d = draft
+        let pending = d.unknownUnits.filter { slang.normalize($0.spoken) == slang.normalize(spoken) }
+        d.unknownUnits.removeAll { slang.normalize($0.spoken) == slang.normalize(spoken) }
+        for u in pending {
+            d.units.removeAll { $0.alias == u.alias && $0.code == code }
+            d.units.append(.init(alias: u.alias, code: code, units: u.units))
+        }
+        let key = "unidad:\(spoken.uppercased().trimmingCharacters(in: .whitespaces).lowercased())"
+        d.doubts.removeValue(forKey: key)
+        slang.learn(spoken, as: code)
+        return d
     }
 
     // MARK: Anotar y deshacer
