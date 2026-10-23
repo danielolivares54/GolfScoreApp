@@ -17,7 +17,7 @@ struct ResultadoV2: View {
     /// Log de unidades del match tocado en la columna Unid (misma vista que la v1: UnitLogDetailView).
     @State private var unitLogRow: MatchManager.ResultadoRowV2?
     /// Hoyo actual COMPARTIDO con la v1 y HoleScreenV2 (para la etiqueta "‹ Hoyo N").
-    @AppStorage("currentHoleIndex") private var currentHoleIndex = 0
+    @AppStorage(AppKeys.currentHoleIndex) private var currentHoleIndex = 0
 
     private var currentHole: Int {
         let order = matchManager.playOrder()
@@ -62,15 +62,7 @@ struct ResultadoV2: View {
 
     private var header: some View {
         HStack {
-            Button { dismiss() } label: {
-                HStack(spacing: 4) {
-                    Image(systemName: "chevron.left").font(.system(size: 16, weight: .semibold))
-                    Text("Hoyo \(currentHole)").font(.v2Body)
-                }
-                .foregroundStyle(CSV2.ink)
-                .frame(minHeight: CSV2.minTap)
-            }
-            .buttonStyle(.plain)
+            BackButtonV2(title: "Hoyo \(currentHole)") { dismiss() }
             Spacer()
             Text("después de \(matchManager.completedHolesCountV2()) hoyos")
                 .font(.v2Label).foregroundStyle(CSV2.secondary)
@@ -205,7 +197,7 @@ struct ResultadoV2: View {
         if row.carryActive {
             let color = row.carryMoney > 0 ? CSV2.green : row.carryMoney < 0 ? CSV2.red : CSV2.secondary
             parts.append(Text("Carry ").foregroundStyle(CSV2.secondary)
-                         + Text(moneyText(row.carryMoney)).foregroundStyle(color))
+                         + Text(moneyStringV2(row.carryMoney)).foregroundStyle(color))
         }
         guard var text = parts.first else { return Text("") }
         for part in parts.dropFirst() { text = text + Text("  ·  ").foregroundStyle(CSV2.secondary) + part }
@@ -217,9 +209,6 @@ struct ResultadoV2: View {
         values.map { $0 > 0 ? "+\($0)" : $0 < 0 ? "−\(-$0)" : "0" }.joined(separator: " ")
     }
 
-    private func moneyText(_ amount: Int) -> String {
-        amount > 0 ? "+$\(amount)" : amount < 0 ? "−$\(-amount)" : "$0"
-    }
 
     @ViewBuilder private func strokesLine(_ row: MatchManager.ResultadoRowV2) -> some View {
         if let receiver = row.strokesReceiver {

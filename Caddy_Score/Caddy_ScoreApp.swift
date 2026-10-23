@@ -22,6 +22,14 @@ struct Caddy_ScoreApp: App {
     }
 }
 
+/// Claves compartidas de UserDefaults / @AppStorage (una sola definición: un error de dedo no rompe en silencio).
+enum AppKeys {
+    /// Posición del hoyo actual dentro del orden de juego, compartida por la v1 y la v2.
+    static let currentHoleIndex = "currentHoleIndex"
+    /// "v1" (default) o "v2".
+    static let uiVersion = "uiVersion"
+}
+
 // MARK: - Carátula (splash dibujado en SwiftUI)
 //
 // El target de Xcode no tiene fase "Copy Bundle Resources" configurada (falta en el
@@ -36,7 +44,7 @@ private struct RootView: View {
     // v2. Así cambiar de vista no pierde nada, tampoco lo que solo vive en memoria.
     @StateObject private var matchManager = MatchManager()
     // "v1" (default) = pantallas actuales · "v2" = Vista v2 (en construcción, ver docs/DISENO_V2).
-    @AppStorage("uiVersion") private var uiVersion = "v1"
+    @AppStorage(AppKeys.uiVersion) private var uiVersion = "v1"
 
     var body: some View {
         ZStack {

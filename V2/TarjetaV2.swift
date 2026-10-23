@@ -18,7 +18,7 @@ struct TarjetaV2: View {
     /// Apagado = golpes; encendido = putts en las mismas celdas y total de putts por nueve (decisión de Daniel).
     @State private var showPutts: Bool
     /// Hoyo actual COMPARTIDO con la v1/HoleScreenV2: la fila de ese hoyo va en verde y tocar una celda lo cambia.
-    @AppStorage("currentHoleIndex") private var currentHoleIndex = 0
+    @AppStorage(AppKeys.currentHoleIndex) private var currentHoleIndex = 0
     /// Match elegido para resaltar sus strokes por hoyo (nil = "Todos": los puntos de cada jugador como siempre).
     @State private var selectedMatchId: String?
     /// Celda tocada: se abre la hoja de corrección (la misma de la Auditoría) para editar score, putts, oye y unidades.
@@ -129,15 +129,7 @@ struct TarjetaV2: View {
 
     private var header: some View {
         HStack {
-            Button { dismiss() } label: {
-                HStack(spacing: 4) {
-                    Image(systemName: "chevron.left").font(.system(size: 16, weight: .semibold))
-                    Text("Volver").font(.v2Body)
-                }
-                .foregroundStyle(CSV2.ink)
-                .frame(minHeight: CSV2.minTap)
-            }
-            .buttonStyle(.plain)
+            BackButtonV2 { dismiss() }
             Spacer()
             Text("Tarjeta").font(.v2Name).foregroundStyle(CSV2.ink)
             Spacer()
@@ -359,14 +351,14 @@ private struct HcpCellV2: View {
 
 #if DEBUG
 #Preview("TarjetaV2 · match vs ROB resaltado") {
-    UserDefaults.standard.set(4, forKey: "currentHoleIndex")
+    UserDefaults.standard.set(4, forKey: AppKeys.currentHoleIndex)
     let manager = MatchManager()
     manager.loadDemo18()
     return TarjetaV2(matchManager: manager, initialMatchId: "ind-ROB")
 }
 
 #Preview("TarjetaV2 · putts, hoyo actual 5") {
-    UserDefaults.standard.set(4, forKey: "currentHoleIndex")
+    UserDefaults.standard.set(4, forKey: AppKeys.currentHoleIndex)
     let manager = MatchManager()
     manager.loadDemo18()
     // El demo no trae putts: se anotan los de DAN (siempre se registran) en los primeros hoyos.

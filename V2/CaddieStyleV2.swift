@@ -205,12 +205,17 @@ struct MatchStatusV2: View {
     }
 }
 
+/// "+$50" / "−$30" / "$0" (with the typographic minus).
+func moneyStringV2(_ amount: Int) -> String {
+    amount > 0 ? "+$\(amount)" : amount < 0 ? "−$\(-amount)" : "$0"
+}
+
 struct MoneyTextV2: View {
     let amount: Int
     var size: CGFloat = 16
     var weight: Font.Weight = .semibold
     var body: some View {
-        let t = amount > 0 ? "+$\(amount)" : amount < 0 ? "−$\(-amount)" : "$0"
+        let t = moneyStringV2(amount)
         let c = amount > 0 ? CSV2.green : amount < 0 ? CSV2.red : CSV2.secondary
         Text(t).font(.system(size: size, weight: weight).monospacedDigit()).foregroundStyle(c)
     }
@@ -308,6 +313,24 @@ struct RoundBarV2: View {
             .foregroundStyle(on ? CSV2.green : tint)
             .frame(maxWidth: .infinity, minHeight: 64)
             .overlay(alignment: .top) { if on { Rectangle().fill(CSV2.green).frame(height: 3) } }
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+// MARK: - Back button ("‹ Volver", or "‹ Hoyo N" when the title is passed)
+
+struct BackButtonV2: View {
+    var title = "Volver"
+    let action: () -> Void
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 4) {
+                Image(systemName: "chevron.left").font(.system(size: 16, weight: .semibold))
+                Text(title).font(.v2Body)
+            }
+            .foregroundStyle(CSV2.ink)
+            .frame(minHeight: CSV2.minTap)
         }
         .buttonStyle(.plain)
     }

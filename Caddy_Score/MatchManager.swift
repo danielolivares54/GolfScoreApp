@@ -3829,12 +3829,12 @@ extension MatchManager {
         for (alias, value) in nextStrokes { setStrokesVsBase(alias: alias, value: value) }
         resetScores()
         ScoreManager.shared.clearAll()
-        clearBetConfig()
-        AppDelegate.clearPendingRecord()
-        // El match nuevo no hereda Carry / Ajuste 50 / Doble B9 ni el identificador de la ronda cerrada
-        // (sin esto, cerrar dos rondas en la misma sesión sobrescribía el archivo de la primera).
+        // El match nuevo no hereda Carry / Ajuste 50 / Doble B9 ni el identificador de la ronda cerrada (cada ronda
+        // cerrada es un archivo propio). clearCarryDependentState guarda la configuración, así que va ANTES de borrarla.
         clearCarryDependentState()
         generateRoundId()
+        clearBetConfig()
+        AppDelegate.clearPendingRecord()
     }
 
     // Ajuste de stroke entre rondas (regla 2026-10-06, solo IND — TEAM queda fuera porque las
@@ -4020,7 +4020,6 @@ extension MatchManager {
         }
         if opp.count == 2 { return [make(opp)] }
         if opp.count == 3 { return [[opp[0], opp[1]], [opp[0], opp[2]], [opp[1], opp[2]]].map(make) }
-        if base.count == 3 && opp.count == 2 { return [make(opp)] }
         return []
     }
 

@@ -22,18 +22,6 @@ extension MatchManager {
         return hasBackData ? "B9" : "F9"
     }
 
-    /// ¿Hay al menos un hoyo con historial en este match? (v1: `hasData`)
-    func hasMatchDataV2(for target: UnitLogTarget) -> Bool {
-        switch target {
-        case .individual(let opp):
-            return !individualZoomRows(opponentAlias: opp, segmentOverride: "F9").isEmpty
-                || !individualZoomRows(opponentAlias: opp, segmentOverride: "B9").isEmpty
-        case .pair(let laneId):
-            return !pairZoomRows(laneId: laneId, segmentOverride: "F9").isEmpty
-                || !pairZoomRows(laneId: laneId, segmentOverride: "B9").isEmpty
-        }
-    }
-
     /// Línea de strokes de la v1 (la que sale en dorado bajo F9/B9). Los números y el orden son los de la v1.
     func strokesSummaryV2(for target: UnitLogTarget) -> String? {
         switch target {

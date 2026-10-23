@@ -150,20 +150,6 @@ final class PlayerDirectoryStore: ObservableObject {
         save()
     }
 
-    // Ajuste de stroke entre rondas (regla 2026-10-06): quien ganó el B9 de un duelo IND mueve
-    // ±1 el strokeVsBase del rival para el próximo match. El valor viejo se conserva en
-    // strokeAnt, y resultSummary/roundId quedan en lastResult/lastKeyId como la bitácora de
-    // "por qué cambió" — se consulta la próxima vez que se arme el Setup contra ese rival.
-    func applyMatchStrokeShift(playerName: String, delta: Double, resultSummary: String, roundId: String) {
-        guard let idx = entries.firstIndex(where: { $0.name.caseInsensitiveCompare(playerName) == .orderedSame }) else { return }
-        entries[idx].strokeAnt = entries[idx].strokesVsBase
-        entries[idx].strokesVsBase += delta
-        entries[idx].lastResult = resultSummary
-        entries[idx].lastKeyId = roundId
-        entries[idx].lastUsedAt = Date()
-        save()
-    }
-
     /// Al CERRAR un match: el Directorio queda listo para el siguiente. Guarda los strokes que se usaron (strokeAnt), los
     /// que valen para el próximo (strokesVsBase; sin cambio si el match empató), la plantilla de apuesta usada
     /// (preferredTagId), el resultado, la fecha del último juego y el dinero (último y acumulado). Cada match se registra

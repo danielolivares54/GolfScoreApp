@@ -12,9 +12,9 @@ import SwiftUI
 
 struct HoleScreenV2: View {
     @ObservedObject var matchManager: MatchManager
-    @AppStorage("uiVersion") private var uiVersion = "v1"
+    @AppStorage(AppKeys.uiVersion) private var uiVersion = "v1"
     /// Hoyo actual COMPARTIDO con la v1 (misma clave que ContentView): posición dentro del orden de juego.
-    @AppStorage("currentHoleIndex") private var currentHoleIndex = 0
+    @AppStorage(AppKeys.currentHoleIndex) private var currentHoleIndex = 0
 
     @State private var showTarjeta = false
     @State private var showResultado = false
@@ -433,7 +433,7 @@ private struct FlowPillsV2: Layout {
 
 #if DEBUG
 #Preview("HoleScreenV2 · hoyo 14 (par 3) con evento y nota") {
-    UserDefaults.standard.set(13, forKey: "currentHoleIndex")
+    UserDefaults.standard.set(13, forKey: AppKeys.currentHoleIndex)
     let manager = MatchManager()
     manager.loadDemo18()
     if let tag = manager.manualUnitBetsV2.first?.tag {

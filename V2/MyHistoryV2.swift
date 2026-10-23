@@ -50,14 +50,7 @@ struct MyHistoryV2: View {
 
     private func header(matches: Int) -> some View {
         HStack {
-            Button { dismiss() } label: {
-                HStack(spacing: 4) {
-                    Image(systemName: "chevron.left").font(.system(size: 16, weight: .semibold))
-                    Text("Volver").font(.v2Body)
-                }
-                .foregroundStyle(CSV2.ink).frame(minHeight: CSV2.minTap)
-            }
-            .buttonStyle(.plain)
+            BackButtonV2 { dismiss() }
             Spacer()
             Text("Mi historial · \(matches) match\(matches == 1 ? "" : "es")").font(.v2Name).foregroundStyle(CSV2.ink)
         }

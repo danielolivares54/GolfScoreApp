@@ -100,7 +100,7 @@ struct ContentView: View {
     // El match ya no nace aquí: lo crea RootView y lo comparten la Vista v1 y la v2 (si cada vista
     // creara el suyo, al cambiar de vista se perdería lo que solo vive en memoria: oyes, eventos, notas).
     @ObservedObject private var matchManager: MatchManager
-    @AppStorage("uiVersion") private var uiVersion = "v1"
+    @AppStorage(AppKeys.uiVersion) private var uiVersion = "v1"
 
     init(matchManager: MatchManager) {
         self.matchManager = matchManager
@@ -121,7 +121,7 @@ struct ContentView: View {
     @State private var inlineRecordingIdx: Int? = nil
 
     // Compartido con la Vista v2 (misma clave en ContentViewV2) y conservado al reiniciar la app.
-    @AppStorage("currentHoleIndex") private var currentHoleIndex: Int = 0
+    @AppStorage(AppKeys.currentHoleIndex) private var currentHoleIndex: Int = 0
     @State private var editingPlayerIdx: Int  = 0
     @State private var noteByKey: [String: String] = [:]
     private var playOrder: [Int] { matchManager.playOrder() }
