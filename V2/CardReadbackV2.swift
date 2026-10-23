@@ -115,20 +115,11 @@ extension MatchManager {
         return .init(text: parts.joined(separator: " "), missing: missing)
     }
 
-    /// Cómo va la ronda: hoyos anotados y dinero con cada quien.
+    /// Cómo va la ronda: hoyos completos, PRIMERO el conteo de las apuestas y DESPUÉS el dinero (total, individuales, parejas).
     func roundReadbackV2() -> String {
+        guard !resultadoRowsV2().isEmpty else { return "Todavía no hay matches en la ronda." }
         let done = completedHolesCountV2()
-        let rows = resultadoRowsV2()
-        guard !rows.isEmpty else { return "Todavía no hay matches en la ronda." }
-        var parts = ["Llevas \(done) hoyo\(done == 1 ? "" : "s") completo\(done == 1 ? "" : "s")."]
-        func money(_ v: Int) -> String { v > 0 ? "ganando \(v) pesos" : v < 0 ? "perdiendo \(-v) pesos" : "a mano" }
-        for row in rows {
-            let who = row.isPair ? row.title : "contra " + spokenName(row.title)
-            parts.append("\(who.prefix(1).uppercased() + who.dropFirst()), \(money(row.money)).")
-        }
-        let total = resultadoTotalV2()
-        parts.append("En total, \(money(total)).")
-        return parts.joined(separator: " ")
+        return "Llevas \(done) hoyo\(done == 1 ? "" : "s") completo\(done == 1 ? "" : "s"). " + countsReadbackV2() + " " + moneyReadbackV2()
     }
 
     func readbackV2(_ intent: ReadbackIntentV2, hole: Int) -> String {
@@ -146,12 +137,19 @@ extension MatchManager {
 
 /// Lo que el LLM entiende de una pregunta. La respuesta NUNCA la escribe el LLM: sale de lo anotado, abajo.
 struct ReadbackQueryV2: Codable, Equatable {
-    /// score · total · putts · oyes · unidades · notas · nueve (resultados) · presiones · strokes
+    /// score · total · putts · oyes · unidades · notas · nueve · presiones · strokes · hoyo (cómo quedó un hoyo o grupo de hoyos contra el rival) · dinero · conteo · vuelta · presion · match · explicar (por qué resultó así)
     var tipo: String
     var jugador: String? = nil
     var hoyo: Int? = nil
     /// "F9" / "B9" para las preguntas de nueve, presiones y strokes (nil = los dos).
     var segmento: String? = nil
+    /// Contra quién (preguntas de un hoyo) y hasta qué hoyo (grupo de hoyos: hoyo = desde, hasta = hasta).
+    var oponente: String? = nil
+    var hasta: Int? = nil
+
+    init(tipo: String, jugador: String? = nil, oponente: String? = nil, hoyo: Int? = nil, hasta: Int? = nil, segmento: String? = nil) {
+        self.tipo = tipo; self.jugador = jugador; self.oponente = oponente; self.hoyo = hoyo; self.hasta = hasta; self.segmento = segmento
+    }
 }
 
 extension MatchManager {
@@ -174,7 +172,8 @@ extension MatchManager {
     }
 
     /// Responde una pregunta con lo que hay anotado. `alias` ya viene resuelto (nil = no dijeron de quién).
-    func queryAnswerV2(_ kind: String, alias: String?, hole: Int?, currentHole: Int, segment: String? = nil) -> String {
+    func queryAnswerV2(_ kind: String, alias: String?, hole: Int?, currentHole: Int, segment: String? = nil,
+                       opponent: String? = nil, to: Int? = nil) -> String {
         let order = playOrder()
         let name = alias.map(spokenName)
         switch kind.lowercased() {
@@ -249,6 +248,16 @@ extension MatchManager {
                 guard let es = grouped[a] else { return nil }
                 return "\(spokenName(a)): " + spokenList(es.map(describe))
             }.joined(separator: ". ") + "."
+        case "hoyo", "resultado_hoyo", "resultado":
+            return holeResultsReadbackV2(alias: alias, opponent: opponent, from: hole, to: to, currentHole: currentHole)
+        case "vuelta", "presion", "presión", "match":
+            return betKindAnswerV2(kind.lowercased().replacingOccurrences(of: "ó", with: "o"), alias: alias, opponent: opponent)
+        case "explicar", "porque", "por_que", "acumulado":
+            return explainReadbackV2(alias: alias, opponent: opponent)
+        case "dinero", "money":
+            return moneyReadbackV2()
+        case "conteo", "cuenta":
+            return countsReadbackV2()
         case "nueve", "resultados", "presiones", "strokes", "apuestas":
             return nineAnswerV2(kind.lowercased(), alias: alias, segment: segment)
         case "notas":
@@ -258,7 +267,8 @@ extension MatchManager {
             guard !notes.isEmpty else { return "No hay notas anotadas." }
             return spokenList(notes.map { "hoyo \($0.hole), \(spokenName($0.alias)): \($0.note ?? "")" }) + "."
         default:
-            return holeReadbackV2(hole ?? currentHole).text
+            return "No sé responder eso todavía. Puedo decirte qué hizo cada jugador en un hoyo, cómo quedó un hoyo contra el rival, " +
+                "los resultados de F9 y B9, las presiones abiertas, los strokes, los oyes, las unidades, las notas y el dinero."
         }
     }
 }
@@ -334,6 +344,9 @@ extension MatchManager {
                     parts.append("Strokes: \(spokenName(receiver)) recibe \(strokesWord(row.strokesAmount))")
                 } else { parts.append("Sin strokes") }
             }
+            // Primero el conteo (arriba) y al final el dinero.
+            if wantsResults && !onlyF9 && !onlyB9 { parts.append("Match \(countWords(row.f9Net + row.b9Net))") }
+            if wantsResults { parts.append("Dinero: \(row.money > 0 ? "ganando \(row.money) pesos" : row.money < 0 ? "perdiendo \(-row.money) pesos" : "a mano")") }
             return who + ". " + parts.joined(separator: ". ") + "."
         }
         return lines.joined(separator: " ")

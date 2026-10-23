@@ -234,12 +234,20 @@ struct CardReadbackTests {
         #expect(m.holeReadbackV2(3).text.contains("Roberto") && m.holeReadbackV2(3).text.contains("se levantó, hoyo perdido"))
     }
 
-    @Test func readsTheRoundWithTheMoneyOfEveryMatch() {
+    @Test func readsTheRoundWithTheMoneyOfEveryMatch() throws {
         let m = DemoFixture.make()
         let text = m.roundReadbackV2()
         #expect(text.hasPrefix("Llevas 18 hoyos completos."))
-        #expect(text.contains("Contra Roberto"))
+        #expect(text.contains("contra Roberto"))
         #expect(text.contains("En total,"))
+        // Primero el conteo de las apuestas y después el dinero (total, individuales y parejas).
+        let counts = try! #require(text.range(of: "Por conteo."))
+        let money = try! #require(text.range(of: "Dinero."))
+        #expect(counts.lowerBound < money.lowerBound)
+        let total = try! #require(text.range(of: "En total,"))
+        let individuals = try! #require(text.range(of: "Individuales,"))
+        let pairs = try! #require(text.range(of: "Parejas,"))
+        #expect(money.lowerBound < total.lowerBound && total.lowerBound < individuals.lowerBound && individuals.lowerBound < pairs.lowerBound)
         let robMoney = m.resultadoRowsV2().first { $0.title == "ROB" }!.money
         #expect(text.contains(robMoney >= 0 ? "ganando \(robMoney) pesos" : "perdiendo \(-robMoney) pesos") || robMoney == 0)
     }
@@ -363,5 +371,102 @@ struct CardQuestionsTests {
         #expect(e.consulta == .init(tipo: "unidades", jugador: "Ricardo", hoyo: nil))
         let none = try JSONDecoder().decode(VoiceHoleExtraction.self, from: Data(#"{"scores":[],"consulta":null}"#.utf8))
         #expect(none.consulta == nil)
+    }
+}
+
+// MARK: - Cómo quedó un hoyo contra el rival, vuelta/presión/match y el porqué del acumulado
+
+@MainActor
+struct CardResultsTests {
+    private func slang() -> VoiceSlangStore { VoiceSlangStore(defaults: UserDefaults(suiteName: "res-\(UUID().uuidString)")!) }
+    private func ask(_ m: MatchManager, _ q: ReadbackQueryV2, current: Int = 14) -> String {
+        VoiceHolePipeline.answer(q, match: m, currentHole: current, slang: slang())
+    }
+    private func signed(_ n: Int) -> String { m_countWords(n) }
+    private func m_countWords(_ n: Int) -> String { n > 0 ? "\(n) arriba" : n < 0 ? "\(-n) abajo" : "parejos" }
+
+    @Test func aHoleAgainstARivalSaysWhoShotWhatStrokesResultAndBeforeAfter() throws {
+        let m = DemoFixture.make()
+        let hole = 8
+        let rows = m.individualZoomRows(opponentAlias: "ROB", segmentOverride: "F9")
+        let i = try #require(rows.firstIndex { $0.hole == hole })
+        let r = rows[i]
+        let text = ask(m, .init(tipo: "hoyo", jugador: "Daniel", oponente: "Roberto", hoyo: hole))
+        #expect(text.hasPrefix("Daniel contra Roberto."))
+        #expect(text.contains("Daniel tiró \(r.yoGross) y Roberto \(r.oppGross)"))
+        // Quién lleva stroke en ese hoyo.
+        if r.yoStrokes > 0 { #expect(text.contains("Daniel recibe")) }
+        else if r.oppStrokes > 0 { #expect(text.contains("Roberto recibe")) }
+        else { #expect(text.contains("Sin strokes en este hoyo")) }
+        // Ganó, perdió o empataron.
+        #expect(text.contains(r.result > 0 ? "Gana Daniel" : r.result < 0 ? "Pierde Daniel" : "Empatan"))
+        // Cuánto iba antes y cómo queda.
+        let before = i > 0 ? rows[i - 1].vueltaAccum : 0
+        #expect(text.contains("Vuelta F9: antes \(m_countWords(before)), ahora \(m_countWords(r.vueltaAccum))"))
+        #expect(text.contains("Presiones abiertas: antes \(i > 0 ? rows[i - 1].openPressures.count : 0), ahora \(r.openPressures.count)"))
+    }
+
+    @Test func fromTheRivalsSideEverythingFlips() throws {
+        let m = DemoFixture.make()
+        let r = try #require(m.individualZoomRows(opponentAlias: "ROB", segmentOverride: "F9").first { $0.hole == 8 })
+        let text = ask(m, .init(tipo: "hoyo", jugador: "Roberto", oponente: "Daniel", hoyo: 8))
+        #expect(text.contains("Roberto tiró \(r.oppGross) y Daniel \(r.yoGross)"))
+        #expect(text.contains(r.result > 0 ? "Pierde Roberto" : r.result < 0 ? "Gana Roberto" : "Empatan"))
+    }
+
+    @Test func noOpponentMeansEveryMatchOfThePlayerIncludingPairs() {
+        let m = DemoFixture.make()
+        let text = ask(m, .init(tipo: "hoyo", jugador: "yo", hoyo: 8))
+        for name in ["Roberto", "Fernando", "Ricardo", "Anselmo"] { #expect(text.contains("Daniel contra \(name).")) }
+        #expect(text.contains("Pareja "))
+        #expect(text.contains("tiraron"))
+    }
+
+    @Test func aGroupOfHolesIsCompactAndSaysWhereTheVueltaStands() {
+        let m = DemoFixture.make()
+        let text = ask(m, .init(tipo: "hoyo", jugador: "yo", oponente: "Roberto", hoyo: 5, hasta: 8))
+        #expect(text.contains("hoyo 5,") && text.contains("hoyo 8,"))
+        #expect(text.contains("Vuelta F9 ahora"))
+        #expect(!text.contains("Presiones abiertas: antes"))   // el grupo no repite el antes/después de cada hoyo
+    }
+
+    @Test func aHoleWithoutScoresSaysSo() {
+        let m = DemoFixture.make()
+        for i in m.players.indices { m.players[i].scores[8] = nil }
+        #expect(ask(m, .init(tipo: "hoyo", jugador: "yo", oponente: "Roberto", hoyo: 8)).contains("todavía no hay scores de los dos"))
+    }
+
+    @Test func vueltaPresionAndMatchAnswerWithTheirCount() {
+        let m = DemoFixture.make()
+        let rob = m.resultadoRowsV2().first { $0.title == "ROB" }!
+        let vuelta = ask(m, .init(tipo: "vuelta", jugador: "yo", oponente: "Roberto"))
+        #expect(vuelta.contains("vuelta F9 \(m_countWords(rob.f9Net)), vuelta B9 \(m_countWords(rob.b9Net))"))
+        #expect(vuelta.contains("Cada vuelta vale"))
+        let presion = ask(m, .init(tipo: "presion", jugador: "yo", oponente: "Roberto"))
+        #expect(presion.contains("Cada presión vale") && presion.contains("B9,"))
+        let match = ask(m, .init(tipo: "match", jugador: "yo", oponente: "Roberto"))
+        #expect(match.contains("match \(m_countWords(rob.f9Net + rob.b9Net))") && match.contains("ya se cobra"))
+        // Una apuesta apagada se dice.
+        var sw = m.betSwitchesV2(for: .individual("ROB")); sw.presion = false
+        m.setBetSwitchesV2(sw, for: .individual("ROB"))
+        #expect(ask(m, .init(tipo: "presion", jugador: "yo", oponente: "Roberto")).contains("apagada en este match"))
+    }
+
+    @Test func explainingAMatchBreaksDownHolesCountsAndMoney() {
+        let m = DemoFixture.make()
+        let rob = m.resultadoRowsV2().first { $0.title == "ROB" }!
+        let text = ask(m, .init(tipo: "explicar", jugador: "yo", oponente: "Roberto"))
+        #expect(text.hasPrefix("Contra Roberto, "))
+        #expect(text.contains(rob.money >= 0 ? "ganando \(rob.money) pesos" : "perdiendo \(-rob.money) pesos") || rob.money == 0)
+        for part in ["F9: ", "B9: ", "Match: ", "Unidades: ", "Strokes: Daniel recibe 8"] { #expect(text.contains(part)) }
+        #expect(text.contains("ganaste") || text.contains("perdiste") || text.contains("empataron"))
+        // Sin decir de quién: todos los matches y el total.
+        let all = ask(m, .init(tipo: "explicar"))
+        #expect(all.contains("Contra Ricardo") && all.contains("Pareja ") && all.contains("En total,"))
+    }
+
+    @Test func unknownQuestionsListWhatCanBeAnswered() {
+        let m = DemoFixture.make()
+        #expect(ask(m, .init(tipo: "otro")).hasPrefix("No sé responder eso todavía."))
     }
 }

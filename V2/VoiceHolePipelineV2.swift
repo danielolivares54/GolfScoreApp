@@ -518,8 +518,16 @@ enum VoiceHolePipeline {
             guard r.known else { return "No encontré a \"\(who)\" entre los jugadores." }
             alias = r.alias
         }
+        var opponent: String?
+        if let who = q.oponente?.trimmingCharacters(in: .whitespacesAndNewlines), !who.isEmpty {
+            let r = resolveSpoken(who, match: match, slang: slang)
+            guard r.known else { return "No encontré a \"\(who)\" entre los jugadores." }
+            opponent = r.alias
+        }
         let hole = q.hoyo.flatMap { (1...18).contains($0) ? $0 : nil }
-        return match.queryAnswerV2(q.tipo, alias: alias, hole: hole, currentHole: currentHole, segment: q.segmento)
+        let to = q.hasta.flatMap { (1...18).contains($0) ? $0 : nil }
+        return match.queryAnswerV2(q.tipo, alias: alias, hole: hole, currentHole: currentHole, segment: q.segmento,
+                                   opponent: opponent, to: to)
     }
 
     // MARK: Reporte (qué entendí, qué falta)

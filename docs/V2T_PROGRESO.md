@@ -29,3 +29,10 @@
 - Se pregunta hablando y se responde con lo anotado: "¿qué hizo Roberto en el 5?", "¿cuántos golpes lleva Fernando?", "¿qué oyes ha ganado Daniel?", "¿dónde hizo unidades Ricardo y cuáles?", "¿qué resultados hay en el F9 / B9?", "¿qué presiones hay abiertas en el B9?", "¿con cuántos strokes?".
 - **Cómo se resuelve:** el LLM solo clasifica la pregunta (`consulta`: tipo, jugador, hoyo, segmento) en la misma llamada que ya se hace al dictar; la respuesta NO la escribe el LLM: sale de MatchManager (`queryAnswerV2`, `nineAnswerV2`), igual que lo que ve la Tarjeta y Resultados. Una pregunta nunca toca la tarjeta. "Qué llevo / cómo vamos / qué falta" se detectan en el teléfono, sin LLM.
 - Los nueves dicen: cómo vas (arriba/abajo, tras cuántos hoyos), presiones abiertas con su valor, strokes del match y si Carry / Ajuste 50 / Doble B9 están activos.
+
+## Tres funciones de lectura: revisar, apuestas y acumulado (23-oct)
+- **Revisar:** Unidades · Strokes · Este hoyo (cómo quedó el hoyo contra cada rival) · Qué falta.
+- **Apuestas:** Vuelta · Presión · Match · F9 · B9, con su **conteo** (arriba / abajo), el valor de cada una y si está apagada en ese match.
+- **Acumulado:** Cómo vamos (conteo primero, dinero después) · Dinero (total, luego individuales y parejas) · **Por qué** (explica cómo resultó: hoyos ganados y perdidos por nueve, vuelta, presiones, match, Carry/Ajuste, unidades, strokes y lo que suma).
+- **Un hoyo contra el rival:** qué tiró cada uno, quién lleva stroke en ese hoyo (con el neto), si gana, pierde o empatan, y cuánto iba antes la vuelta y las presiones abiertas y cómo quedan ahora. Un hoyo, un grupo ("del 5 al 8", formato corto) o el actual; individual y parejas.
+- Todo se puede preguntar hablando: el LLM solo clasifica la pregunta (tipo, jugador, oponente, hoyo, hasta, segmento); el texto sale siempre de lo anotado. Un tipo que no entiende contesta qué sí sabe responder.

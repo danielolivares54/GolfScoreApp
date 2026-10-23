@@ -110,16 +110,45 @@ struct VoiceSheetV2: View {
 
     // MARK: El apuntador lee lo que ya está anotado
 
+    /// Tres funciones: revisar lo anotado (unidades, strokes, hoyo), las apuestas (vuelta, presión, match) y el acumulado.
     private var readbackButtons: some View {
-        VStack(spacing: 6) {
-            Text("O pídele que te lea lo anotado (también puedes decir \"qué llevo\", \"cómo vamos\" o \"qué falta\")")
-                .font(.v2Label).foregroundStyle(CSV2.secondary).multilineTextAlignment(.center)
-            FlowChipsV2 {
-                readbackChip("Leer el hoyo", "speaker.wave.2") { readAloud(.hole) }
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Preguntas típicas. También puedes preguntar hablando: \"cómo quedó el hoyo 8 contra Roberto\", \"qué oyes ha ganado Daniel\", \"por qué voy perdiendo con Rob\"")
+                .font(.v2Label).foregroundStyle(CSV2.secondary)
+            readbackGroup("Revisar") {
+                readbackChip("Unidades", "plus.circle") { ask(.init(tipo: "unidades")) }
+                readbackChip("Strokes", "circle.dotted") { ask(.init(tipo: "strokes")) }
+                readbackChip("Este hoyo", "list.number") { ask(.init(tipo: "hoyo", jugador: "yo")) }
                 readbackChip("Qué falta", "questionmark.circle") { readAloud(.missing) }
-                readbackChip("Cómo vamos", "dollarsign.circle") { readAloud(.round) }
+            }
+            readbackGroup("Apuestas") {
+                readbackChip("Vuelta", "arrow.triangle.2.circlepath") { ask(.init(tipo: "vuelta")) }
+                readbackChip("Presión", "arrow.triangle.branch") { ask(.init(tipo: "presion")) }
+                readbackChip("Match", "flag") { ask(.init(tipo: "match")) }
+                readbackChip("F9", "1.circle") { ask(.init(tipo: "nueve", segmento: "F9")) }
+                readbackChip("B9", "2.circle") { ask(.init(tipo: "nueve", segmento: "B9")) }
+            }
+            readbackGroup("Acumulado") {
+                readbackChip("Cómo vamos", "speaker.wave.2") { readAloud(.round) }
+                readbackChip("Dinero", "dollarsign.circle") { ask(.init(tipo: "dinero")) }
+                readbackChip("Por qué", "text.bubble") { ask(.init(tipo: "explicar")) }
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func readbackGroup<Content: View>(_ title: String, @ViewBuilder _ content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title).capsStyleV2()
+            FlowChipsV2 { content() }
+        }
+    }
+
+    /// Una pregunta de los botones: se responde igual que una hablada.
+    private func ask(_ q: ReadbackQueryV2) {
+        let text = VoiceHolePipeline.answer(q, match: matchManager, currentHole: draft.hole ?? hole)
+        readbackText = text
+        speech.speak(text)
     }
 
     private func readbackChip(_ title: String, _ symbol: String, action: @escaping () -> Void) -> some View {
