@@ -187,6 +187,10 @@ struct VoiceSheetV2: View {
     // MARK: Grabar → transcribir → entender
 
     private func start() {
+        guard AppConfig.hasOpenAIKey else {
+            phase = .failed("Falta la clave de OpenAI. Pon tu archivo caddie.env en la carpeta de la app (Archivos > Caddie Score). Ejemplo: caddie.env.example")
+            return
+        }
         recorder.requestMicrophoneAndStart { granted in
             phase = granted ? .recording : .failed("Permiso de micrófono denegado. Actívalo en Ajustes.")
         }

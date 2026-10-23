@@ -17,3 +17,4 @@ build/
 
 # Secrets — never commit API keys
 Caddy_Score/Caddy_Score/Info.plist
+caddie.env

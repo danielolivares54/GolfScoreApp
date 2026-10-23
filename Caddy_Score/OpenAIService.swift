@@ -27,10 +27,7 @@ struct PlayerScore: Codable {
 class OpenAIService {
     static let shared = OpenAIService()
 
-    private var apiKey: String {
-        let key = Bundle.main.object(forInfoDictionaryKey: "OPENAI_API_KEY") as? String ?? ""
-        return key
-    }
+    private var apiKey: String { AppConfig.value("OPENAI_API_KEY") ?? "" }
     
     func transcribeAudio(url: URL) async throws -> String {
         guard !apiKey.isEmpty, apiKey != "MISSING" else {
@@ -282,4 +279,52 @@ struct NameConfirmResponse: Codable {
     let accepted: [String]
     let rejected: [String]?
     let notes: String?
+}
+
+// MARK: - Configuración local (caddie.env)
+
+/// Claves y datos del usuario fuera del código: un archivo `caddie.env` con líneas CLAVE=valor (# = comentario).
+/// Se busca en este orden: Documents del teléfono (se copia con la app Archivos o Finder; la app comparte
+/// Documents), el bundle, y por último el Info.plist (OPENAI_API_KEY). El archivo real NO se sube a git.
+/// Claves conocidas: OPENAI_API_KEY, USER_NAME.
+enum AppConfig {
+    static let fileName = "caddie.env"
+
+    static func value(_ key: String) -> String? {
+        let v = values[key]?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let v, !v.isEmpty, v != "MISSING", !v.hasPrefix("REPLACE_WITH") { return v }
+        if let plist = Bundle.main.object(forInfoDictionaryKey: key) as? String,
+           !plist.isEmpty, plist != "MISSING", !plist.hasPrefix("REPLACE_WITH") { return plist }
+        return nil
+    }
+
+    /// Nombre del usuario ("yo") si está en el archivo; nil si no.
+    static var userName: String? { value("USER_NAME") }
+
+    static var hasOpenAIKey: Bool { value("OPENAI_API_KEY") != nil }
+
+    static var values: [String: String] {
+        let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first?.appendingPathComponent(fileName)
+        let bundled = Bundle.main.url(forResource: "caddie", withExtension: "env")
+        for url in [docs, bundled].compactMap({ $0 }) {
+            if let text = try? String(contentsOf: url, encoding: .utf8) { return parse(text) }
+        }
+        return [:]
+    }
+
+    /// Texto → diccionario. Acepta comillas, `export `, espacios y comentarios.
+    static func parse(_ text: String) -> [String: String] {
+        var out: [String: String] = [:]
+        for raw in text.split(whereSeparator: \.isNewline) {
+            var line = raw.trimmingCharacters(in: .whitespaces)
+            if line.isEmpty || line.hasPrefix("#") { continue }
+            if line.hasPrefix("export ") { line.removeFirst(7) }
+            guard let eq = line.firstIndex(of: "=") else { continue }
+            let key = line[..<eq].trimmingCharacters(in: .whitespaces)
+            var val = line[line.index(after: eq)...].trimmingCharacters(in: .whitespaces)
+            if val.count >= 2, let f = val.first, f == "\"" || f == "'", val.last == f { val = String(val.dropFirst().dropLast()) }
+            if !key.isEmpty { out[key] = val }
+        }
+        return out
+    }
 }

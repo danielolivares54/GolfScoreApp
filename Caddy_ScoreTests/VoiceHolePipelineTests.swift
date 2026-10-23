@@ -231,3 +231,22 @@ struct VoiceHolePipelineTests {
 private enum VoicePipelineSpec {
     static func apply(_ d: VoiceHoleDraft, _ m: MatchManager) -> VoiceUndoToken? { VoiceHolePipeline.apply(d, match: m) }
 }
+
+struct AppConfigTests {
+    @Test func parsesKeysCommentsQuotesAndExport() {
+        let text = """
+        # comentario
+        OPENAI_API_KEY = "sk-abc"
+        export USER_NAME='Daniel'
+
+        SIN_IGUAL
+        EMPTY=
+        """
+        let v = AppConfig.parse(text)
+        #expect(v["OPENAI_API_KEY"] == "sk-abc")
+        #expect(v["USER_NAME"] == "Daniel")
+        #expect(v["EMPTY"] == "")
+        #expect(v["SIN_IGUAL"] == nil)
+        #expect(v.count == 3)
+    }
+}
