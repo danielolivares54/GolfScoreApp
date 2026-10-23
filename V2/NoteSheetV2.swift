@@ -14,6 +14,8 @@ struct NoteSheetV2: View {
     @Environment(\.dismiss) private var dismiss
     @State private var selectedAlias: String?
     @State private var text = ""
+    /// Reglas locales de la cancha/ronda (texto libre), guardadas en el dispositivo.
+    @AppStorage("localRulesV2") private var localRules = ""
 
     private var alias: String? { selectedAlias ?? matchManager.players.first?.alias }
 
@@ -27,7 +29,7 @@ struct NoteSheetV2: View {
             CSV2.background.ignoresSafeArea()
             VStack(alignment: .leading, spacing: CSV2.s2) {
                 HStack {
-                    Text("Nota · hoyo \(hole)").font(.v2Name).foregroundStyle(CSV2.ink)
+                    Text("Reglas / Notas · hoyo \(hole)").font(.v2Name).foregroundStyle(CSV2.ink)
                     Spacer()
                     PrimaryButtonV2(title: "Guardar") { save(); dismiss() }
                 }
@@ -48,11 +50,24 @@ struct NoteSheetV2: View {
                         .font(.v2Label).foregroundStyle(CSV2.secondary)
                     notesLog
                 }
+                localRulesSection
                 Spacer()
             }
             .padding(CSV2.s2)
         }
         .onAppear { text = savedNote(for: alias) }
+    }
+
+    /// Reglas locales: cómo se interpretan en esta cancha (drop, piedras, fuera de límites…), para consultarlas durante la ronda.
+    private var localRulesSection: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Reglas locales").capsStyleV2()
+            TextField("interpretación de las reglas locales…", text: $localRules, axis: .vertical)
+                .font(.v2Body).lineLimit(3...8)
+                .padding(CSV2.s2)
+                .background(CSV2.surface, in: RoundedRectangle(cornerRadius: CSV2.rCard))
+                .overlay(RoundedRectangle(cornerRadius: CSV2.rCard).stroke(CSV2.line))
+        }
     }
 
     /// Log de la ronda: todas las notas y penalidades anotadas, por hoyo (al cerrar la ronda se archivan en el historial).

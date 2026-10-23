@@ -308,7 +308,7 @@ struct RoundBarV2: View {
             }
             .buttonStyle(.plain).frame(maxWidth: .infinity)
             .accessibilityLabel(isRecording ? "Detener dictado" : "Dictar el hoyo")
-            tab("Nota", "pencil", action: onNota)
+            tab("Reglas/Notas", "pencil", action: onNota)
             tab("Resultado", "chart.bar", on: active == .resultado, action: onResultado)
         }
         .frame(minHeight: 84)
