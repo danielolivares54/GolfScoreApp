@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		F8057682308BED7100AE2B4F /* VoiceSheetV2.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8057681308BED7100AE2B4F /* VoiceSheetV2.swift */; };
+		F8057683308BED7100AE2B4F /* VoiceSheetV2.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8057681308BED7100AE2B4F /* VoiceSheetV2.swift */; };
 		F808CADB30895E9F00CAB58C /* ContentViewV2.swift in Sources */ = {isa = PBXBuildFile; fileRef = F808CAD930895E9F00CAB58C /* ContentViewV2.swift */; };
 		F808CADC30895E9F00CAB58C /* CaddieStyleV2.swift in Sources */ = {isa = PBXBuildFile; fileRef = F808CAD830895E9F00CAB58C /* CaddieStyleV2.swift */; };
 		F808CADD30895E9F00CAB58C /* ContentViewV2.swift in Sources */ = {isa = PBXBuildFile; fileRef = F808CAD930895E9F00CAB58C /* ContentViewV2.swift */; };
@@ -69,6 +71,7 @@
 /* End PBXBuildRule section */
 
 /* Begin PBXFileReference section */
+		F8057681308BED7100AE2B4F /* VoiceSheetV2.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceSheetV2.swift; sourceTree = "<group>"; };
 		F808CACA308953AD00CAB58C /* Caddy_ScoreTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = Caddy_ScoreTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		F808CAD830895E9F00CAB58C /* CaddieStyleV2.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaddieStyleV2.swift; sourceTree = "<group>"; };
 		F808CAD930895E9F00CAB58C /* ContentViewV2.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentViewV2.swift; sourceTree = "<group>"; };
@@ -188,6 +191,7 @@
 				F808CB0F3089932400CAB58C /* MyHistoryV2.swift */,
 				F808CB12308994D900CAB58C /* CatalogoV2.swift */,
 				F808CB173089993500CAB58C /* SplashMarkV2.swift */,
+				F8057681308BED7100AE2B4F /* VoiceSheetV2.swift */,
 			);
 			path = V2;
 			sourceTree = "<group>";
@@ -358,6 +362,7 @@
 				F808CB103089932400CAB58C /* MyHistoryV2.swift in Sources */,
 				F808CAF6308971AE00CAB58C /* MatchDetailV2.swift in Sources */,
 				F808CB183089993500CAB58C /* SplashMarkV2.swift in Sources */,
+				F8057682308BED7100AE2B4F /* VoiceSheetV2.swift in Sources */,
 				F808CB013089863600CAB58C /* NoteSheetV2.swift in Sources */,
 				F808CAE43089647F00CAB58C /* MatchManager+V2.swift in Sources */,
 				F808CAF33089716600CAB58C /* MatchDetailDataV2.swift in Sources */,
@@ -382,6 +387,7 @@
 				F808CAE33089647F00CAB58C /* MatchManager+V2.swift in Sources */,
 				F808CB093089905B00CAB58C /* SetupV2.swift in Sources */,
 				F808CAFA308981E700CAB58C /* HoleScreenV2.swift in Sources */,
+				F8057683308BED7100AE2B4F /* VoiceSheetV2.swift in Sources */,
 				F808CADD30895E9F00CAB58C /* ContentViewV2.swift in Sources */,
 				F808CADE30895E9F00CAB58C /* CaddieStyleV2.swift in Sources */,
 				F808CB0D3089931200CAB58C /* HistorialV2.swift in Sources */,

@@ -4,8 +4,8 @@
 //
 //  Escribe con las MISMAS llamadas que la v1 (applyHoleEntry + ScoreManager, setOyesRanks/clearOyeRank),
 //  así que un hoyo capturado aquí da los mismos scores, putts, oyes y dinero que en la v1.
-//  Voz: fuera de la v2 (irá como v2t compartido iPhone + Watch). El mic central y los botones Evento / Nota
-//  de la barra son ganchos sin lógica hasta que existan v2t y el Paso 4 (EventSheetV2 / NoteSheetV2).
+//  Voz: el mic central abre VoiceSheetV2 (v2t, pipeline compartido con el futuro Watch). Los botones Evento / Nota
+//  de la barra abren EventSheetV2 / NoteSheetV2.
 //
 
 import SwiftUI
@@ -24,6 +24,29 @@ struct HoleScreenV2: View {
     @State private var showCloseConfirm = false
     @State private var showEvento = false
     @State private var showNota = false
+    @State private var showVoice = false
+    /// Última captura por voz, para el banner "Hoyo N actualizado · Deshacer".
+    @State private var voiceUndo: (hole: Int, token: VoiceUndoToken)?
+
+    @ViewBuilder
+    private var voiceBanner: some View {
+        if let undo = voiceUndo {
+            HStack {
+                Text("Hoyo \(undo.hole) actualizado ✓").font(.v2Body).foregroundStyle(CSV2.ink)
+                Spacer()
+                Button("Deshacer") {
+                    VoiceHolePipeline.undo(undo.token, match: matchManager)
+                    voiceUndo = nil
+                }
+                .font(.v2Body.weight(.semibold)).foregroundStyle(CSV2.green).frame(minHeight: CSV2.minTap)
+            }
+            .padding(.horizontal, CSV2.s2)
+            .background(CSV2.surface, in: RoundedRectangle(cornerRadius: CSV2.rCard))
+            .overlay(RoundedRectangle(cornerRadius: CSV2.rCard).strokeBorder(CSV2.green, lineWidth: 1))
+            .padding(.horizontal, CSV2.s2)
+            .transition(.move(edge: .bottom).combined(with: .opacity))
+        }
+    }
 
     private var playOrder: [Int] { matchManager.playOrder() }
     private var currentHole: Int {
@@ -49,7 +72,7 @@ struct HoleScreenV2: View {
             RoundBarV2(
                 onTarjeta: { showTarjeta = true },
                 onEvento: { showEvento = true },
-                onMic: {},      // v2t (iPhone + Watch)
+                onMic: { showVoice = true },
                 onNota: { showNota = true },
                 onResultado: { showResultado = true }
             )
@@ -63,6 +86,17 @@ struct HoleScreenV2: View {
         .sheet(isPresented: $showSetup) { SetupV2(matchManager: matchManager) }
         .sheet(isPresented: $showHistory) { HistorialV2() }
         .sheet(isPresented: $showEvento) { EventSheetV2(matchManager: matchManager, hole: currentHole).presentationDetents([.medium, .large]) }
+        .sheet(isPresented: $showVoice) {
+            VoiceSheetV2(matchManager: matchManager) { proposal, token in
+                voiceUndo = (proposal.hole, token)
+                let hole = proposal.hole
+                Task {
+                    try? await Task.sleep(for: .seconds(8))
+                    if voiceUndo?.hole == hole { voiceUndo = nil }
+                }
+            }
+        }
+        .overlay(alignment: .bottom) { voiceBanner.padding(.bottom, 72) }
         .sheet(isPresented: $showNota) { NoteSheetV2(matchManager: matchManager, hole: currentHole).presentationDetents([.medium, .large]) }
         .confirmationDialog("¿Cerrar ronda?", isPresented: $showCloseConfirm, titleVisibility: .visible) {
             Button("Cerrar Ronda", role: .destructive) {
