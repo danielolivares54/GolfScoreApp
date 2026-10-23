@@ -22,6 +22,14 @@ class ScoreManager {
         return true
     }
 
+    // MARK: - Quitar un puntaje (Deshacer de un hoyo capturado por voz que estaba vacío)
+
+    func removeScore(player: String, hole: Int) {
+        guard scores[player]?[hole] != nil else { return }
+        scores[player]?[hole] = nil
+        saveToDisk()
+    }
+
     // MARK: - Editar un puntaje existente
 
     func editScore(player: String, hole: Int, newStrokes: Int, newPutts: Int, newPenalties: Int, newSpecialMark: SpecialMark) -> Bool {

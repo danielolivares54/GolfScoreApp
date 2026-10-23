@@ -250,3 +250,148 @@ enum MatchInterpreter {
         return nil
     }
 }
+
+// MARK: - Pipeline de voz por hoyo (propuesta → confirmar → aplicar → deshacer)
+//
+// Un solo camino para el iPhone y, después, el Apple Watch. Proponer no guarda nada; aplicar usa las mismas
+// llamadas que la v1 (applyHoleEntry + ScoreManager) y devuelve lo necesario para deshacer.
+
+/// Qué tanta confianza hay en una fila de la propuesta. Umbral del contrato del Watch: lo dudoso se marca.
+enum VoiceRowState: Equatable {
+    case ok
+    case doubtful(String)
+}
+
+struct VoiceHoleRow: Identifiable, Equatable {
+    let id = UUID()
+    var alias: String
+    var gross: Int
+    var putts: Int?
+    var state: VoiceRowState
+}
+
+/// Lo que se va a anotar, sin haberse anotado todavía.
+struct VoiceHoleProposal: Equatable {
+    var hole: Int
+    var rows: [VoiceHoleRow]
+    var transcript: String
+
+    var hasDoubts: Bool { rows.contains { $0.state != .ok } }
+}
+
+enum VoiceHoleError: Error, Equatable {
+    case emptyTranscript
+    case notUnderstood(String)
+    case noHole
+    case noScores
+
+    /// Mensaje en español para el banner / la tarjeta.
+    var message: String {
+        switch self {
+        case .emptyTranscript: return "No detecté voz. Habla más cerca del micrófono."
+        case .notUnderstood(let text): return text
+        case .noHole: return "No detecté el hoyo. Di: \"Hoyo 5, Daniel cuatro golpes\""
+        case .noScores: return "No detecté golpes. Menciona al jugador y sus golpes."
+        }
+    }
+}
+
+/// Lo necesario para deshacer una captura por voz: el valor anterior de cada celda tocada.
+struct VoiceUndoToken {
+    struct Cell {
+        let alias: String
+        let previous: (gross: Int, putts: Int?)?
+    }
+    let hole: Int
+    let cells: [Cell]
+}
+
+@MainActor
+enum VoiceHolePipeline {
+    /// Convierte texto en entidades con el LLM. Se inyecta para poder probar sin red.
+    typealias Parser = (_ transcript: String, _ matchState: [String: Any]) async throws -> LLMResult
+
+    static let liveParser: Parser = { transcript, state in
+        try await OpenAIService.shared.parseScore(transcript: transcript, matchState: state)
+    }
+
+    // MARK: Proponer
+
+    static func propose(transcript: String, match: MatchManager, parser: Parser = liveParser) async throws -> VoiceHoleProposal {
+        let text = transcript.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { throw VoiceHoleError.emptyTranscript }
+
+        let state: [String: Any] = [
+            "jugadores": match.players.map { $0.alias },
+            "yo_alias": match.yoAlias,
+            "hoyo_actual": match.expectedNextHole()
+        ]
+        let result = try await parser(text, state)
+        guard result.ok else {
+            throw VoiceHoleError.notUnderstood(result.error ?? "No se pudo interpretar el score.")
+        }
+        return try proposal(from: result.entities, transcript: text, match: match)
+    }
+
+    /// Segundo paso de `propose`, aparte para probarlo directo con entidades ya extraídas.
+    static func proposal(from entities: ScoreEntities, transcript: String, match: MatchManager) throws -> VoiceHoleProposal {
+        let interpreted = MatchInterpreter.apply(transcript: transcript, entities: entities, match: match)
+        if interpreted.error == "NOISE" {
+            throw VoiceHoleError.notUnderstood("No entendí. Di: \"Hoyo 5, Daniel cuatro golpes\"")
+        }
+        guard let hole = interpreted.entities.hoyo else { throw VoiceHoleError.noHole }
+        let scores = interpreted.entities.scores ?? []
+        guard !scores.isEmpty else { throw VoiceHoleError.noScores }
+
+        let known = Set(match.players.map { $0.alias })
+        let rows = scores.map { s -> VoiceHoleRow in
+            VoiceHoleRow(alias: s.jugador, gross: s.gross, putts: s.putts,
+                         state: state(alias: s.jugador, gross: s.gross, putts: s.putts,
+                                      known: known, fuzzy: interpreted.usedFuzzy))
+        }
+        return VoiceHoleProposal(hole: hole, rows: rows, transcript: transcript)
+    }
+
+    /// Marca lo dudoso: jugador desconocido, nombre aproximado, golpes raros o más putts que golpes.
+    private static func state(alias: String, gross: Int, putts: Int?, known: Set<String>, fuzzy: Bool) -> VoiceRowState {
+        if !known.contains(alias) { return .doubtful("Jugador no reconocido") }
+        if fuzzy { return .doubtful("Nombre aproximado") }
+        if !(1...12).contains(gross) { return .doubtful("Golpes poco probables") }
+        if let putts, putts > gross { return .doubtful("Más putts que golpes") }
+        return .ok
+    }
+
+    // MARK: Aplicar y deshacer
+
+    /// Anota la propuesta (con las mismas llamadas que la v1: applyHoleEntry + espejo a ScoreManager)
+    /// y devuelve lo necesario para deshacerla. Las filas con jugador desconocido se ignoran.
+    @discardableResult
+    static func apply(_ proposal: VoiceHoleProposal, match: MatchManager) -> VoiceUndoToken {
+        var cells: [VoiceUndoToken.Cell] = []
+        for row in proposal.rows {
+            guard let player = match.players.first(where: { $0.alias == row.alias }) else { continue }
+            cells.append(.init(alias: player.alias, previous: player.scores[proposal.hole]))
+            match.applyHoleEntry(HoleEntryData(
+                hole_number: proposal.hole, player_alias: player.alias,
+                strokes: row.gross, putts: row.putts ?? 0, units: nil, tags: nil))
+            _ = ScoreManager.shared.saveScore(record: GolfScoreRecord(
+                player: player.alias, hole: proposal.hole, strokes: row.gross, putts: row.putts ?? 0))
+        }
+        return VoiceUndoToken(hole: proposal.hole, cells: cells)
+    }
+
+    /// Devuelve cada celda tocada a su valor anterior (o la vacía si no tenía nada).
+    static func undo(_ token: VoiceUndoToken, match: MatchManager) {
+        for cell in token.cells {
+            guard let idx = match.players.firstIndex(where: { $0.alias == cell.alias }) else { continue }
+            if let previous = cell.previous {
+                match.players[idx].scores[token.hole] = previous
+                _ = ScoreManager.shared.saveScore(record: GolfScoreRecord(
+                    player: cell.alias, hole: token.hole, strokes: previous.gross, putts: previous.putts ?? 0))
+            } else {
+                match.players[idx].scores[token.hole] = nil
+                ScoreManager.shared.removeScore(player: cell.alias, hole: token.hole)
+            }
+        }
+    }
+}
