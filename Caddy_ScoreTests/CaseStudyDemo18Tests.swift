@@ -182,4 +182,45 @@ struct CaseStudyDemo18Tests {
         m.updateStartHole(10, resetScores: false)
         #expect(m.walletSnapshot().totalMoney == 1075)
     }
+
+    // MARK: R13 — F9 en 0: B9 y Match se pagan con un solo precio combinado
+
+    private func tiedF9Match() -> MatchManager {
+        let m = makeDemo()
+        m.clearCarryDependentState()
+        m.setStrokesVsBase(alias: "ROB", value: 0)
+        let order = m.playOrder()
+        for (index, hole) in order.enumerated() {
+            let dan = m.getScore(hole: hole, player: "DAN")
+            // F9: ROB empata a DAN hoyo por hoyo. B9: ROB hace uno más (DAN gana cada hoyo).
+            m.applyHoleEntry(HoleEntryData(hole_number: hole, player_alias: "ROB", strokes: index < 9 ? dan : dan + 1,
+                                           putts: 0, units: nil, tags: nil))
+        }
+        return m
+    }
+
+    @Test func tiedF9PaysB9AndMatchWithOneCombinedPrice() throws {
+        let m = tiedF9Match()
+        #expect(m.individualF9Vuelta(opponentAlias: "ROB") == 0)
+        let line = try #require(m.walletSnapshot().lines.first { $0.opponentAlias == "ROB" && $0.scope == .individual })
+        let v = m.betValues(forOpponent: "ROB")
+        let price = v.vueltaValue + v.presionValue + v.matchValue
+        let b9Presiones = m.individualB9Presion(opponentAlias: "ROB").reduce(0) { $0 + ($1 > 0 ? 1 : $1 < 0 ? -1 : 0) }
+        let units = (m.individualB9Vuelta(opponentAlias: "ROB") > 0 ? 1 : -1) + b9Presiones
+        #expect(units >= 2)                                   // vuelta + al menos una presión abierta
+        #expect(line.matchMoney == 0)                         // el Match no se paga aparte
+        #expect(line.vueltaMoney == units * price)            // unidades × (vuelta + presión + match)
+        #expect(line.presionMoney == 0)                       // la presión de F9 no se abrió
+    }
+
+    @Test func withAnyOfTheThreeBetsOffTheNormalCalculationApplies() throws {
+        let m = tiedF9Match()
+        let alias = "ROB"
+        var switches = m.betSwitchesForIndividual(opponentAlias: alias)
+        switches.match = false
+        m.setBetSwitchesForIndividual(opponentAlias: alias, switches: switches)
+        let line = try #require(m.walletSnapshot().lines.first { $0.opponentAlias == alias && $0.scope == .individual })
+        let v = m.betValues(forOpponent: alias)
+        #expect(line.vueltaMoney == v.vueltaValue)            // solo la vuelta de B9 × su valor, sin precio combinado
+    }
 }

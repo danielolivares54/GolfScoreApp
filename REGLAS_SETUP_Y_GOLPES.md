@@ -46,6 +46,15 @@ After pressing Guardar, these must reflect the saved setup, without reopening th
 - One save of the full setup is written at the end of Setup, including a course-only change.
 - `match_meta.json` is only used to seed a **new** match, when nothing was restored from the saved config.
 
+### R13. Money when the F9 vuelta is 0 (tie)
+Applies to the individual matches (`MatchManager.walletSnapshot`). It needs Vuelta, Presión and Match all switched on for that rival; otherwise the normal calculation is used.
+- Carry, Ajuste 50 and Doble B9 are not available (there is no F9 winner to ask them from).
+- The F9 presión is paid as usual: F9 presiones × presión value.
+- Vuelta B9, the B9 presiones and the Match are settled together with **one combined price**: vuelta value + presión value + match value of the rival's template. That price is paid once per unit won: the B9 vuelta counts 1 and every B9 presión counts 1 more. The Match is not paid separately.
+- Anything else (units, etc.) is added as usual.
+- Example: bets 100 / 100 / 100 (vuelta / presión / match) → combined price 300. B9 ends 5-3-1 (vuelta + 2 presiones = 3 units) → 3 × 300 = 900, plus the F9 presión and the rest. With 50 / 50 / 100 the combined price would be 200, so the same 3 units pay 600.
+- Pairs do not have this rule yet: a tied F9 in a pair match is settled with the normal calculation.
+
 ---
 
 ## 2. Changes made
