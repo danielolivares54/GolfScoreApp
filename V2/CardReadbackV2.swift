@@ -39,12 +39,12 @@ struct CardReadbackV2: Equatable {
 
 extension MatchManager {
 
-    private func spokenName(_ alias: String) -> String {
+    func spokenName(_ alias: String) -> String {
         let full = players.first { $0.alias == alias }?.name ?? alias
         return full.split(separator: " ").first.map(String.init) ?? full
     }
 
-    private func spokenList(_ items: [String]) -> String {
+    func spokenList(_ items: [String]) -> String {
         switch items.count {
         case 0: return ""
         case 1: return items[0]
@@ -52,7 +52,7 @@ extension MatchManager {
         }
     }
 
-    private func spokenUnitName(_ code: String) -> String {
+    func spokenUnitName(_ code: String) -> String {
         switch code.uppercased() {
         case "3P": return "tres putts"
         case "4P": return "cuatro putts"
@@ -61,7 +61,7 @@ extension MatchManager {
         }
     }
 
-    private func ordinal(_ n: Int) -> String {
+    func spokenOrdinal(_ n: Int) -> String {
         ["", "primero", "segundo", "tercero", "cuarto", "quinto"].indices.contains(n) ? ["", "primero", "segundo", "tercero", "cuarto", "quinto"][n] : "lugar \(n)"
     }
 
@@ -89,7 +89,7 @@ extension MatchManager {
             let ranks = oyesRanksByHole[hole] ?? [:]
             let ranked = order.filter { ranks[$0] != nil }.sorted { ranks[$0]! < ranks[$1]! }
             if !ranked.isEmpty {
-                parts.append("Oyes: " + spokenList(ranked.map { "\(ordinal(ranks[$0]!)) \(spokenName($0))" }) + ".")
+                parts.append("Oyes: " + spokenList(ranked.map { "\(spokenOrdinal(ranks[$0]!)) \(spokenName($0))" }) + ".")
             }
             let unranked = scored.filter { ranks[$0] == nil }
             if ranked.isEmpty { missing.append("el orden de oyes") }
@@ -138,6 +138,123 @@ extension MatchManager {
         case .missing:
             let r = holeReadbackV2(hole)
             return r.missing.isEmpty ? "En el hoyo \(hole) no falta nada." : "En el hoyo \(hole) falta " + spokenList(r.missing) + "."
+        }
+    }
+}
+
+// MARK: - Preguntas sobre lo anotado ("¿qué hizo Roberto en el 5?", "¿qué oyes ha ganado Daniel?", "¿dónde hizo unidades Ricardo?")
+
+/// Lo que el LLM entiende de una pregunta. La respuesta NUNCA la escribe el LLM: sale de lo anotado, abajo.
+struct ReadbackQueryV2: Codable, Equatable {
+    /// score · total · putts · oyes · unidades · notas
+    var tipo: String
+    var jugador: String? = nil
+    var hoyo: Int? = nil
+}
+
+extension MatchManager {
+    private func playIndex(_ hole: Int) -> Int { playOrder().firstIndex(of: hole) ?? hole }
+
+    private func relativeWord(_ diff: Int) -> String {
+        switch diff {
+        case ...(-3): return "albatros"
+        case -2: return "eagle"
+        case -1: return "birdie"
+        case 0: return "par"
+        case 1: return "bogey"
+        case 2: return "doble bogey"
+        default: return "\(diff) sobre par"
+        }
+    }
+
+    private func holesText(_ holes: [Int]) -> String {
+        holes.count == 1 ? "el hoyo \(holes[0])" : "los hoyos " + spokenList(holes.map(String.init))
+    }
+
+    /// Responde una pregunta con lo que hay anotado. `alias` ya viene resuelto (nil = no dijeron de quién).
+    func queryAnswerV2(_ kind: String, alias: String?, hole: Int?, currentHole: Int) -> String {
+        let order = playOrder()
+        let name = alias.map(spokenName)
+        switch kind.lowercased() {
+        case "score", "golpes":
+            guard let alias, let name else { return holeReadbackV2(hole ?? currentHole).text }
+            let h = hole ?? currentHole
+            let gross = getScore(hole: h, player: alias)
+            guard gross > 0 else { return "\(name) no tiene score en el hoyo \(h)." }
+            let par = getHole(h)?.par ?? 4
+            var text = "\(name) hizo \(gross) en el hoyo \(h), \(relativeWord(gross - par))"
+            let putts = getPutts(hole: h, player: alias)
+            if putts > 0 { text += ", con \(putts) putt\(putts == 1 ? "" : "s")" }
+            if cellOverride(alias: alias, hole: h) == .lostHole { text += ". Se levantó: hoyo perdido" }
+            return text + "."
+        case "total":
+            guard let alias, let name else { return roundReadbackV2() }
+            let holes = order.filter { getScore(hole: $0, player: alias) > 0 }
+            guard !holes.isEmpty else { return "\(name) todavía no tiene scores." }
+            let sum = holes.reduce(0) { $0 + getScore(hole: $1, player: alias) }
+            let pars = holes.reduce(0) { $0 + (getHole($1)?.par ?? 4) }
+            let diff = sum - pars
+            return "\(name) lleva \(sum) golpes en \(holes.count) hoyo\(holes.count == 1 ? "" : "s"), " +
+                (diff == 0 ? "par del campo." : diff > 0 ? "\(diff) sobre par." : "\(-diff) bajo par.")
+        case "putts":
+            guard let alias, let name else { return "¿De quién quieres saber los putts?" }
+            if let hole {
+                let p = getPutts(hole: hole, player: alias)
+                return p > 0 ? "\(name) hizo \(p) putt\(p == 1 ? "" : "s") en el hoyo \(hole)." : "\(name) no tiene putts anotados en el hoyo \(hole)."
+            }
+            let holes = order.filter { getPutts(hole: $0, player: alias) > 0 }
+            guard !holes.isEmpty else { return "\(name) no tiene putts anotados." }
+            let total = holes.reduce(0) { $0 + getPutts(hole: $1, player: alias) }
+            return "\(name) lleva \(total) putts en \(holes.count) hoyo\(holes.count == 1 ? "" : "s")."
+        case "oyes":
+            guard isOyesEnabled else { return "Los oyes están apagados en el catálogo." }
+            let par3 = order.filter { getHole($0)?.par == 3 && !(oyesRanksByHole[$0] ?? [:]).isEmpty }
+            if let hole {
+                guard let ranks = oyesRanksByHole[hole], !ranks.isEmpty else { return "El hoyo \(hole) no tiene oyes anotados." }
+                let ranked = ranks.sorted { $0.value < $1.value }.map { "\(spokenOrdinal($0.value)) \(spokenName($0.key))" }
+                return "Oyes del hoyo \(hole): " + spokenList(ranked) + "."
+            }
+            if let alias, let name {
+                let won = par3.filter { oyesRanksByHole[$0]?[alias] == 1 }
+                return won.isEmpty ? "\(name) no ha ganado ningún oyes." : "\(name) ganó el oyes en " + holesText(won) + "."
+            }
+            guard !par3.isEmpty else { return "Todavía no hay oyes anotados." }
+            let lines = par3.compactMap { h -> String? in
+                guard let w = oyesRanksByHole[h]?.first(where: { $0.value == 1 })?.key else { return nil }
+                return "hoyo \(h), \(spokenName(w))"
+            }
+            return "Oyes ganados: " + lines.joined(separator: "; ") + "."
+        case "unidades":
+            func events(_ filter: (UnitEvent) -> Bool) -> [UnitEvent] {
+                unitEventsByHole.values.flatMap { $0 }
+                    .filter { $0.code.uppercased() != "NOTA" && isUnitCodeActive($0.code) && filter($0) }
+                    .sorted { (playIndex($0.hole), $0.alias) < (playIndex($1.hole), $1.alias) }
+            }
+            func describe(_ e: UnitEvent) -> String { "\(spokenUnitName(e.code)) en el hoyo \(e.hole)" }
+            if let hole {
+                let list = events { $0.hole == hole && (alias == nil || $0.alias == alias) }
+                return list.isEmpty ? "No hay unidades anotadas en el hoyo \(hole)." :
+                    "En el hoyo \(hole): " + spokenList(list.map { "\(spokenName($0.alias)), \(spokenUnitName($0.code))" }) + "."
+            }
+            if let alias, let name {
+                let list = events { $0.alias == alias }
+                return list.isEmpty ? "\(name) no tiene unidades anotadas." : "\(name) hizo unidades: " + spokenList(list.map(describe)) + "."
+            }
+            let list = events { _ in true }
+            guard !list.isEmpty else { return "Todavía no hay unidades anotadas." }
+            let grouped = Dictionary(grouping: list, by: \.alias)
+            return players.map(\.alias).compactMap { a -> String? in
+                guard let es = grouped[a] else { return nil }
+                return "\(spokenName(a)): " + spokenList(es.map(describe))
+            }.joined(separator: ". ") + "."
+        case "notas":
+            let notes = unitEventsByHole.values.flatMap { $0 }
+                .filter { $0.code.uppercased() == "NOTA" && ($0.note?.isEmpty == false) && (alias == nil || $0.alias == alias) && (hole == nil || $0.hole == hole) }
+                .sorted { playIndex($0.hole) < playIndex($1.hole) }
+            guard !notes.isEmpty else { return "No hay notas anotadas." }
+            return spokenList(notes.map { "hoyo \($0.hole), \(spokenName($0.alias)): \($0.note ?? "")" }) + "."
+        default:
+            return holeReadbackV2(hole ?? currentHole).text
         }
     }
 }

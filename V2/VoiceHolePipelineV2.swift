@@ -48,9 +48,13 @@ struct VoiceHoleExtraction: Codable, Equatable {
     var unidades: [Unit] = []
     var notas: [Note] = []
     var corridas: [Run] = []
+    /// Una pregunta sobre lo anotado (no un dato): se responde con lo que hay, no se anota nada.
+    var consulta: ReadbackQueryV2? = nil
 
-    init(hoyo: Int? = nil, scores: [Score] = [], oyes: [Oyes] = [], unidades: [Unit] = [], notas: [Note] = [], corridas: [Run] = []) {
+    init(hoyo: Int? = nil, scores: [Score] = [], oyes: [Oyes] = [], unidades: [Unit] = [], notas: [Note] = [], corridas: [Run] = [],
+         consulta: ReadbackQueryV2? = nil) {
         self.hoyo = hoyo; self.scores = scores; self.oyes = oyes; self.unidades = unidades; self.notas = notas; self.corridas = corridas
+        self.consulta = consulta
     }
 
     // El LLM a veces omite una lista vacía: se toma como [].
@@ -62,6 +66,7 @@ struct VoiceHoleExtraction: Codable, Equatable {
         unidades = try c.decodeIfPresent([Unit].self, forKey: .unidades) ?? []
         notas = try c.decodeIfPresent([Note].self, forKey: .notas) ?? []
         corridas = try c.decodeIfPresent([Run].self, forKey: .corridas) ?? []
+        consulta = try? c.decodeIfPresent(ReadbackQueryV2.self, forKey: .consulta)
     }
 }
 
@@ -112,12 +117,15 @@ enum VoiceHoleError: Error, Equatable {
     case emptyTranscript
     case notUnderstood(String)
     case nothingHeard
+    /// No es un dato del hoyo sino una pregunta sobre lo anotado.
+    case query(ReadbackQueryV2)
 
     var message: String {
         switch self {
         case .emptyTranscript: return "No detecté voz. Habla más cerca del micrófono."
         case .notUnderstood(let text): return text
         case .nothingHeard: return "No entendí datos del hoyo. Di, por ejemplo: \"Hoyo 5, Dan cuatro, Rob cinco\"."
+        case .query: return ""
         }
     }
 }
@@ -281,6 +289,11 @@ enum VoiceHolePipeline {
         var start = draft
         if start.hole == nil { start.hole = defaultHole }
         let extraction = try await extractor(text, context(match: match, hole: start.hole, slang: slang))
+        // Una pregunta ("¿qué hizo Roberto en el 5?") se responde; no es un dato y no toca el borrador.
+        if let q = extraction.consulta, extraction.scores.isEmpty, extraction.oyes.isEmpty, extraction.unidades.isEmpty,
+           extraction.notas.isEmpty, extraction.corridas.isEmpty {
+            throw VoiceHoleError.query(q)
+        }
         let merged = merging(extraction, transcript: text, into: start, match: match, slang: slang)
         // Si la dictada no aportó nada nuevo (ruido, otra conversación), no se toca el borrador.
         var sameData = merged
@@ -493,6 +506,20 @@ enum VoiceHolePipeline {
     private static func markDoubts(_ d: inout VoiceHoleDraft, alias: String, known: Bool, fuzzy: Bool) {
         if !known { d.doubts[alias] = "\(alias): jugador no reconocido" }
         else if fuzzy, d.doubts[alias] == nil { d.doubts[alias] = "\(alias): nombre aproximado, confírmalo" }
+    }
+
+    // MARK: Responder una pregunta sobre lo anotado
+
+    /// El jugador de la pregunta se resuelve igual que al dictar ("yo" = USER_NAME, apodos, nombres aproximados).
+    static func answer(_ q: ReadbackQueryV2, match: MatchManager, currentHole: Int, slang: VoiceSlangStore = .shared) -> String {
+        var alias: String?
+        if let who = q.jugador?.trimmingCharacters(in: .whitespacesAndNewlines), !who.isEmpty {
+            let r = resolveSpoken(who, match: match, slang: slang)
+            guard r.known else { return "No encontré a \"\(who)\" entre los jugadores." }
+            alias = r.alias
+        }
+        let hole = q.hoyo.flatMap { (1...18).contains($0) ? $0 : nil }
+        return match.queryAnswerV2(q.tipo, alias: alias, hole: hole, currentHole: currentHole)
     }
 
     // MARK: Reporte (qué entendí, qué falta)

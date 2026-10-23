@@ -296,6 +296,11 @@ struct VoiceSheetV2: View {
                                                                 roundId: matchManager.roundId, hole: draft.hole))
                 draft = try await VoiceHolePipeline.propose(transcript: text, match: matchManager, draft: draft, defaultHole: hole)
                 phase = .idle
+            } catch VoiceHoleError.query(let q) {
+                let text = VoiceHolePipeline.answer(q, match: matchManager, currentHole: draft.hole ?? hole)
+                readbackText = text
+                speech.speak(text)
+                phase = .idle
             } catch let error as VoiceHoleError {
                 phase = .failed(error.message)
             } catch {

@@ -244,3 +244,96 @@ struct CardReadbackTests {
         #expect(text.contains(robMoney >= 0 ? "ganando \(robMoney) pesos" : "perdiendo \(-robMoney) pesos") || robMoney == 0)
     }
 }
+
+// MARK: - Preguntas sobre lo anotado ("¿qué hizo Roberto en el 5?")
+
+@MainActor
+struct CardQuestionsTests {
+    private func slang() -> VoiceSlangStore { VoiceSlangStore(defaults: UserDefaults(suiteName: "q-\(UUID().uuidString)")!) }
+    private func ask(_ m: MatchManager, _ kind: String, _ who: String? = nil, hole: Int? = nil, current: Int = 14) -> String {
+        VoiceHolePipeline.answer(.init(tipo: kind, jugador: who, hoyo: hole), match: m, currentHole: current, slang: slang())
+    }
+
+    @Test func whatSomeoneShotOnAHole() {
+        let m = DemoFixture.make()
+        let gross = m.getScore(hole: 3, player: "ROB")
+        let text = ask(m, "score", "Roberto", hole: 3)
+        #expect(text.hasPrefix("Roberto hizo \(gross) en el hoyo 3, "))
+        // Sin decir de quién: lee el hoyo completo.
+        #expect(ask(m, "score", nil, hole: 3).hasPrefix("Hoyo 3, par 3."))
+        // Un hoyo sin score lo dice.
+        for i in m.players.indices { m.players[i].scores[3] = nil }
+        #expect(ask(m, "score", "Roberto", hole: 3) == "Roberto no tiene score en el hoyo 3.")
+    }
+
+    @Test func totalsAndPutts() {
+        let m = DemoFixture.make()
+        let sum = (1...18).reduce(0) { $0 + m.getScore(hole: $1, player: "DAN") }
+        #expect(ask(m, "total", "DAN").hasPrefix("Daniel lleva \(sum) golpes en 18 hoyos"))
+        m.applyHoleEntry(HoleEntryData(hole_number: 5, player_alias: "DAN", strokes: m.getScore(hole: 5, player: "DAN"), putts: 3, units: nil, tags: nil))
+        #expect(ask(m, "putts", "DAN", hole: 5) == "Daniel hizo 3 putts en el hoyo 5.")
+        #expect(ask(m, "putts", "DAN").contains("putts en"))
+    }
+
+    @Test func whichOyesWasWon() {
+        let m = DemoFixture.make()
+        let par3 = (1...18).filter { m.getHole($0)?.par == 3 && !(m.oyesRanksByHole[$0] ?? [:]).isEmpty }
+        let winners = Dictionary(grouping: par3, by: { h in m.oyesRanksByHole[h]!.first { $0.value == 1 }!.key })
+        #expect(!winners.isEmpty)
+        for (alias, holes) in winners {
+            let text = ask(m, "oyes", alias)
+            #expect(text.contains("ganó el oyes en"))
+            for h in holes { #expect(text.contains(String(h))) }
+        }
+        let nobody = m.players.map(\.alias).first { winners[$0] == nil }
+        if let nobody { #expect(ask(m, "oyes", nobody).contains("no ha ganado ningún oyes")) }
+        #expect(ask(m, "oyes").hasPrefix("Oyes ganados:"))
+        #expect(ask(m, "oyes", nil, hole: 14).hasPrefix("Oyes del hoyo 14: primero"))
+    }
+
+    @Test func whereAndWhichUnits() {
+        let m = DemoFixture.make()
+        m.betCatalog.append(BetDefinition(tag: "SAND", name: "Sandy par", type: .individual, mode: .manual, units: 1, description: ""))
+        m.upsertUnitEvent(hole: 4, alias: "ANS", code: "SAND", units: 1)
+        m.upsertUnitEvent(hole: 14, alias: "ANS", code: "HO", units: 1)
+        m.upsertUnitEvent(hole: 14, alias: "ROB", code: "NOTA", units: 0, note: "no cuenta")
+        #expect(ask(m, "unidades", "Anselmo") == "Anselmo hizo unidades: Sandy par en el hoyo 4 y hole out en el hoyo 14.")
+        #expect(ask(m, "unidades", "Ricardo") == "Ricardo no tiene unidades anotadas.")
+        #expect(ask(m, "unidades", nil, hole: 14).contains("Anselmo, hole out"))
+        #expect(ask(m, "unidades").contains("Anselmo: Sandy par en el hoyo 4"))
+    }
+
+    @Test func notesAndUnknownPlayers() {
+        let m = DemoFixture.make()
+        m.upsertUnitEvent(hole: 14, alias: "ROB", code: "NOTA", units: 0, note: "bola al agua")
+        #expect(ask(m, "notas") == "hoyo 14, Roberto: bola al agua.")
+        #expect(ask(m, "score", "Pelón", hole: 3) == "No encontré a \"Pelón\" entre los jugadores.")
+    }
+
+    @Test func meMeansTheUserNameInQuestionsToo() {
+        let m = DemoFixture.make()
+        let saved = VoiceHolePipeline.userName
+        defer { VoiceHolePipeline.userName = saved }
+        VoiceHolePipeline.userName = { "Roberto" }
+        #expect(ask(m, "score", "yo", hole: 3).hasPrefix("Roberto hizo"))
+    }
+
+    @Test func aQuestionIsNotWrittenToTheCard() async throws {
+        let m = DemoFixture.make()
+        let before = m.getScore(hole: 5, player: "ROB")
+        let e = VoiceHoleExtraction(consulta: .init(tipo: "score", jugador: "Roberto", hoyo: 5))
+        await #expect(throws: VoiceHoleError.query(.init(tipo: "score", jugador: "Roberto", hoyo: 5))) {
+            _ = try await VoiceHolePipeline.propose(transcript: "qué hizo Roberto en el 5", match: m, defaultHole: 5,
+                                                    slang: slang(), extractor: { _, _ in e })
+        }
+        #expect(m.getScore(hole: 5, player: "ROB") == before)
+    }
+
+    @Test func aQuestionDecodesFromTheModelJSON() throws {
+        let json = #"{"hoyo":null,"scores":[],"consulta":{"tipo":"unidades","jugador":"Ricardo","hoyo":null}}"#
+        let e = try JSONDecoder().decode(VoiceHoleExtraction.self, from: Data(json.utf8))
+        #expect(e.consulta == .init(tipo: "unidades", jugador: "Ricardo", hoyo: nil))
+        let none = try JSONDecoder().decode(VoiceHoleExtraction.self, from: Data(#"{"scores":[],"consulta":null}"#.utf8))
+        #expect(none.consulta == nil)
+    }
+}
