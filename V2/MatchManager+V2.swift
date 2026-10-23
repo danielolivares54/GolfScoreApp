@@ -97,7 +97,7 @@ extension MatchManager {
                 money: line?.totalMoney ?? 0,
                 f9CarryPrice: f9Rows.count >= 9 && isF9ZeroCarry(opponentAlias: opp.alias)
                     ? bet.vueltaValue + bet.presionValue + bet.matchValue : nil,
-                betText: betSummaryV2(templateId: bet.templateId, values: bet)
+                betText: betSummaryV2(templateId: bet.templateId, values: bet, switches: betSwitchesForIndividual(opponentAlias: opp.alias))
             ))
         }
 
@@ -132,17 +132,21 @@ extension MatchManager {
                 betText: betSummaryV2(templateId: activeTemplateId,
                                       values: OpponentBetValues(templateId: activeTemplateId, vueltaValue: vueltaValue,
                                                                 presionValue: presionValue, matchValue: matchValue,
-                                                                unitValue: unitValue))
+                                                                unitValue: unitValue),
+                                      switches: pairSwitches)
             ))
         }
         return rows
     }
 
     /// "TPCH · vuelta $50 · presión $50 · match $50 · unidad $25" (nil si no hay ni plantilla ni valores).
-    func betSummaryV2(templateId: String?, values: OpponentBetValues) -> String? {
+    func betSummaryV2(templateId: String?, values: OpponentBetValues, switches: MatchBetSwitches? = nil) -> String? {
         let name = templateId.flatMap { id in BetTemplateStore.shared.entries.first { $0.id == id }?.name }
         let amounts = "vuelta $\(values.vueltaValue) · presión $\(values.presionValue) · match $\(values.matchValue) · unidad $\(values.unitValue)"
-        return name.map { "\($0) · \(amounts)" } ?? amounts
+        var text = name.map { "\($0) · \(amounts)" } ?? amounts
+        // Lo que se apagó en este match se dice ("sin Oyes").
+        if let off = switches?.offLabels, !off.isEmpty { text += " · sin " + off.joined(separator: ", ") }
+        return text
     }
 
     /// Neto de la ronda: la suma de todos los matches (igual que "TOTAL GENERAL" en la v1).

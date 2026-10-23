@@ -253,13 +253,29 @@ struct OpponentBetValues: Codable, Equatable {
     var unitValue: Int
 }
 
-struct MatchBetSwitches: Codable {
+struct MatchBetSwitches: Codable, Equatable {
     var vuelta: Bool = true
     var presion: Bool = true
     var carry: Bool = true
     var adjust50: Bool = true
     var match: Bool = true
+    /// Oyes de ESTE match ("yo no apuesto oyes con Rob"). Aparte del catálogo, que lo apaga para todos.
+    var oyes: Bool = true
     var units: Bool = true
+
+    init() {}
+
+    // Los archivos guardados antes de que existiera `oyes` no traen esa clave: se toma como encendido.
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        vuelta = try c.decodeIfPresent(Bool.self, forKey: .vuelta) ?? true
+        presion = try c.decodeIfPresent(Bool.self, forKey: .presion) ?? true
+        carry = try c.decodeIfPresent(Bool.self, forKey: .carry) ?? true
+        adjust50 = try c.decodeIfPresent(Bool.self, forKey: .adjust50) ?? true
+        match = try c.decodeIfPresent(Bool.self, forKey: .match) ?? true
+        oyes = try c.decodeIfPresent(Bool.self, forKey: .oyes) ?? true
+        units = try c.decodeIfPresent(Bool.self, forKey: .units) ?? true
+    }
 
     var summary: String {
         var out: [String] = []
@@ -268,6 +284,7 @@ struct MatchBetSwitches: Codable {
         if carry { out.append("C") }
         if adjust50 { out.append("A") }
         if match { out.append("M") }
+        if oyes { out.append("O") }
         if units { out.append("U") }
         return out.isEmpty ? "—" : out.joined(separator: " ")
     }
@@ -729,6 +746,9 @@ class MatchManager: ObservableObject {
         // de la app los perdía siempre, no solo al guardar el Setup.
         var pairAdjust50ByOppKey: [String] = []
         var pairDoublePressByOppKey: [String] = []
+        // Qué apuestas están encendidas en cada match ("no apuesto oyes"). Por alias del rival y, en parejas, por la clave estable de aliases.
+        var individualSwitchesByOpponent: [String: MatchBetSwitches] = [:]
+        var pairSwitchesByOppKey: [String: MatchBetSwitches] = [:]
         // Roster + campo — sin esto, syncFromScoreManager()/el resto de este snapshot no tienen
         // a quién aplicarse tras matar la app a medio match: players arranca vacío en cada
         // relanzamiento (setupDefaultPlayers), y el replay por alias/nombre no encuentra nada.
@@ -743,6 +763,7 @@ class MatchManager: ObservableObject {
              pairCarryRequesterByOppKey: [String: String], pairCarryStartHoleByOppKey: [String: Int],
              laneCarrierByOppKey: [String: String],
              pairAdjust50ByOppKey: [String] = [], pairDoublePressByOppKey: [String] = [],
+             individualSwitchesByOpponent: [String: MatchBetSwitches] = [:], pairSwitchesByOppKey: [String: MatchBetSwitches] = [:],
              playerNames: [String] = [], courseId: String = "", matchStartHole: Int = 1) {
             self.activeTemplateId = activeTemplateId
             self.vueltaValue = vueltaValue
@@ -760,6 +781,8 @@ class MatchManager: ObservableObject {
             self.laneCarrierByOppKey = laneCarrierByOppKey
             self.pairAdjust50ByOppKey = pairAdjust50ByOppKey
             self.pairDoublePressByOppKey = pairDoublePressByOppKey
+            self.individualSwitchesByOpponent = individualSwitchesByOpponent
+            self.pairSwitchesByOppKey = pairSwitchesByOppKey
             self.playerNames = playerNames
             self.courseId = courseId
             self.matchStartHole = matchStartHole
@@ -783,6 +806,8 @@ class MatchManager: ObservableObject {
             laneCarrierByOppKey = try c.decodeIfPresent([String: String].self, forKey: .laneCarrierByOppKey) ?? [:]
             pairAdjust50ByOppKey = try c.decodeIfPresent([String].self, forKey: .pairAdjust50ByOppKey) ?? []
             pairDoublePressByOppKey = try c.decodeIfPresent([String].self, forKey: .pairDoublePressByOppKey) ?? []
+            individualSwitchesByOpponent = try c.decodeIfPresent([String: MatchBetSwitches].self, forKey: .individualSwitchesByOpponent) ?? [:]
+            pairSwitchesByOppKey = try c.decodeIfPresent([String: MatchBetSwitches].self, forKey: .pairSwitchesByOppKey) ?? [:]
             playerNames = try c.decodeIfPresent([String].self, forKey: .playerNames) ?? []
             courseId = try c.decodeIfPresent(String.self, forKey: .courseId) ?? ""
             matchStartHole = try c.decodeIfPresent(Int.self, forKey: .matchStartHole) ?? 1
@@ -814,8 +839,10 @@ class MatchManager: ObservableObject {
         var pairCarryStartByKey: [String: Int] = [:]
         var pairAdjust50Keys: [String] = []
         var pairDoublePressKeys: [String] = []
+        var pairSwitchesKeys: [String: MatchBetSwitches] = [:]
         for lane in lanes {
             let key = lane.opp.sorted().joined(separator: "+")
+            if let sw = pairBetSwitchesByLane[lane.id] { pairSwitchesKeys[key] = sw }
             if let req = pairCarryRequesterByLane[lane.id] { pairCarryReqByKey[key] = req }
             if let start = pairCarryStartHoleByLane[lane.id] { pairCarryStartByKey[key] = start }
             if pairAdjust50Lanes.contains(lane.id) { pairAdjust50Keys.append(key) }
@@ -835,6 +862,7 @@ class MatchManager: ObservableObject {
             laneCarrierByOppKey: laneCarrierKeys,
             pairAdjust50ByOppKey: pairAdjust50Keys,
             pairDoublePressByOppKey: pairDoublePressKeys,
+            individualSwitchesByOpponent: individualBetSwitchesByOpponent, pairSwitchesByOppKey: pairSwitchesKeys,
             playerNames: players.map { $0.name }, courseId: courseId, matchStartHole: startHole
         )
         do {
@@ -885,7 +913,11 @@ class MatchManager: ObservableObject {
                     }
                     if snapshot.pairAdjust50ByOppKey.contains(key) { pairAdjust50Lanes.insert(lane.id) }
                     if snapshot.pairDoublePressByOppKey.contains(key) { pairDoublePressLanes.insert(lane.id) }
+                    if let sw = snapshot.pairSwitchesByOppKey[key] { pairBetSwitchesByLane[lane.id] = sw }
                 }
+            }
+            for (opp, sw) in snapshot.individualSwitchesByOpponent where individualBetSwitchesByOpponent[opp] != nil {
+                individualBetSwitchesByOpponent[opp] = sw
             }
             for (opp, req) in snapshot.individualCarryRequesterByOpponent {
                 if let start = snapshot.individualCarryStartHoleByOpponent[opp] {
@@ -1788,6 +1820,7 @@ class MatchManager: ObservableObject {
     func setBetSwitchesForIndividual(opponentAlias: String, switches: MatchBetSwitches) {
         individualBetSwitchesByOpponent[opponentAlias] = switches
         objectWillChange.send()
+        saveBetConfig()
     }
 
     func betSwitchesForPair(laneId: UUID) -> MatchBetSwitches {
@@ -1797,6 +1830,7 @@ class MatchManager: ObservableObject {
     func setBetSwitchesForPair(laneId: UUID, switches: MatchBetSwitches) {
         pairBetSwitchesByLane[laneId] = switches
         objectWillChange.send()
+        saveBetConfig()
     }
 
     func setLaneStrokes(id: UUID, value: Double) {
@@ -2941,7 +2975,7 @@ class MatchManager: ObservableObject {
     }
 
     private func oyesIndividualResult(hole: Int, opponentAlias: String) -> Int? {
-        guard isOyesEnabled else { return nil }
+        guard isOyesEnabled, betSwitchesForIndividual(opponentAlias: opponentAlias).oyes else { return nil }
         guard getHole(hole)?.par == 3 else { return nil }
         guard let ranks = oyesRanksByHole[hole],
               let yoRank = ranks[yoAlias],
@@ -2965,7 +2999,7 @@ class MatchManager: ObservableObject {
     }
 
     private func oyesPairResult(hole: Int, lane: LaneModel) -> Int? {
-        guard isOyesPairEnabled, isPairMatchEnabled else { return nil }
+        guard isOyesPairEnabled, isPairMatchEnabled, betSwitchesForPair(laneId: lane.id).oyes else { return nil }
         guard getHole(hole)?.par == 3 else { return nil }
         guard let ranks = oyesRanksByHole[hole] else { return nil }
         let baseRanks = lane.base.compactMap { ranks[$0] }

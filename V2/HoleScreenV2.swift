@@ -25,6 +25,7 @@ struct HoleScreenV2: View {
     @State private var showEvento = false
     @State private var showNota = false
     @State private var showVoice = false
+    @State private var showBetSwitches = false
     /// Última captura por voz, para el banner "Hoyo N actualizado · Deshacer".
     @State private var voiceUndo: (hole: Int, token: VoiceUndoToken)?
 
@@ -81,6 +82,7 @@ struct HoleScreenV2: View {
         .dynamicTypeSize(...DynamicTypeSize.accessibility2)   // la fila −/score/+ de cinco jugadores deja de caber después
         .onChange(of: matchManager.startHole) { _, _ in currentHoleIndex = 0 }
         .sheet(isPresented: $showTarjeta) { TarjetaV2(matchManager: matchManager) }
+        .sheet(isPresented: $showBetSwitches) { BetSwitchesSheetV2(matchManager: matchManager) }
         .sheet(isPresented: $showResultado) { ResultadoV2(matchManager: matchManager) }
         .sheet(isPresented: $showAudit) { AuditV2(matchManager: matchManager) }
         .sheet(isPresented: $showSetup) { SetupV2(matchManager: matchManager) }
@@ -216,9 +218,25 @@ struct HoleScreenV2: View {
                     ForEach(rows) { row in
                         Button { showResultado = true } label: { statusChip(row) }.buttonStyle(.plain)
                     }
+                    betsChip
                 }
             }
         }
+    }
+
+    /// Las apuestas activas ("todas activas" / "sin Oyes en 2"): un toque para apagar o prender.
+    private var betsChip: some View {
+        Button { showBetSwitches = true } label: {
+            VStack(alignment: .leading, spacing: 4) {
+                Label("Apuestas", systemImage: "slider.horizontal.3").font(.v2Label).foregroundStyle(CSV2.green)
+                Text(matchManager.betSwitchesSummaryV2).font(.v2Label).foregroundStyle(CSV2.secondary).lineLimit(1)
+            }
+            .padding(.horizontal, 12).padding(.vertical, 8)
+            .background(CSV2.surface, in: RoundedRectangle(cornerRadius: 12))
+            .overlay(RoundedRectangle(cornerRadius: 12).stroke(CSV2.green.opacity(0.4)))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Apuestas activas, \(matchManager.betSwitchesSummaryV2)")
     }
 
     private func statusChip(_ row: MatchManager.ResultadoRowV2) -> some View {

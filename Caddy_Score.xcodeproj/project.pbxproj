@@ -11,6 +11,8 @@
 		F8057683308BED7100AE2B4F /* VoiceSheetV2.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8057681308BED7100AE2B4F /* VoiceSheetV2.swift */; };
 		F8057685308BF01B00AE2B4F /* VoiceHolePipelineV2.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8057684308BF01B00AE2B4F /* VoiceHolePipelineV2.swift */; };
 		F8057686308BF01B00AE2B4F /* VoiceHolePipelineV2.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8057684308BF01B00AE2B4F /* VoiceHolePipelineV2.swift */; };
+		F805768A308BFC5500AE2B4F /* BetSwitchesV2.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8057689308BFC5500AE2B4F /* BetSwitchesV2.swift */; };
+		F805768B308BFC5500AE2B4F /* BetSwitchesV2.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8057689308BFC5500AE2B4F /* BetSwitchesV2.swift */; };
 		F808CADB30895E9F00CAB58C /* ContentViewV2.swift in Sources */ = {isa = PBXBuildFile; fileRef = F808CAD930895E9F00CAB58C /* ContentViewV2.swift */; };
 		F808CADC30895E9F00CAB58C /* CaddieStyleV2.swift in Sources */ = {isa = PBXBuildFile; fileRef = F808CAD830895E9F00CAB58C /* CaddieStyleV2.swift */; };
 		F808CADD30895E9F00CAB58C /* ContentViewV2.swift in Sources */ = {isa = PBXBuildFile; fileRef = F808CAD930895E9F00CAB58C /* ContentViewV2.swift */; };
@@ -75,6 +77,7 @@
 /* Begin PBXFileReference section */
 		F8057681308BED7100AE2B4F /* VoiceSheetV2.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceSheetV2.swift; sourceTree = "<group>"; };
 		F8057684308BF01B00AE2B4F /* VoiceHolePipelineV2.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceHolePipelineV2.swift; sourceTree = "<group>"; };
+		F8057689308BFC5500AE2B4F /* BetSwitchesV2.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BetSwitchesV2.swift; sourceTree = "<group>"; };
 		F808CACA308953AD00CAB58C /* Caddy_ScoreTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = Caddy_ScoreTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		F808CAD830895E9F00CAB58C /* CaddieStyleV2.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaddieStyleV2.swift; sourceTree = "<group>"; };
 		F808CAD930895E9F00CAB58C /* ContentViewV2.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentViewV2.swift; sourceTree = "<group>"; };
@@ -196,6 +199,7 @@
 				F808CB173089993500CAB58C /* SplashMarkV2.swift */,
 				F8057681308BED7100AE2B4F /* VoiceSheetV2.swift */,
 				F8057684308BF01B00AE2B4F /* VoiceHolePipelineV2.swift */,
+				F8057689308BFC5500AE2B4F /* BetSwitchesV2.swift */,
 			);
 			path = V2;
 			sourceTree = "<group>";
@@ -360,6 +364,7 @@
 				F808CB0430898D6200CAB58C /* AuditV2.swift in Sources */,
 				F808CADC30895E9F00CAB58C /* CaddieStyleV2.swift in Sources */,
 				F808CB0E3089931200CAB58C /* HistorialV2.swift in Sources */,
+				F805768A308BFC5500AE2B4F /* BetSwitchesV2.swift in Sources */,
 				F808CAFE3089863000CAB58C /* EventSheetV2.swift in Sources */,
 				F8057685308BF01B00AE2B4F /* VoiceHolePipelineV2.swift in Sources */,
 				F808CAED3089691C00CAB58C /* TarjetaV2.swift in Sources */,
@@ -403,6 +408,7 @@
 				F808CAF23089716600CAB58C /* MatchDetailDataV2.swift in Sources */,
 				F808CB0330898D6200CAB58C /* AuditV2.swift in Sources */,
 				F808CB14308994D900CAB58C /* CatalogoV2.swift in Sources */,
+				F805768B308BFC5500AE2B4F /* BetSwitchesV2.swift in Sources */,
 				F808CAE73089649000CAB58C /* ResultadoV2.swift in Sources */,
 				F8A100202F43000100A1B2C3 /* Caddy_Score/Persistence.swift in Sources */,
 				F82AA8AF304F4871004066B3 /* ScoreManager.swift in Sources */,

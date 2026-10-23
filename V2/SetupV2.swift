@@ -337,8 +337,21 @@ struct SetupV2: View {
                 Spacer()
                 templateMenu(for: rival.alias)
             }
+            activeBets(for: rival.alias)
         }
         .padding(CSV2.s2)
+    }
+
+    /// Las apuestas de este rival con lo que está encendido: "no, yo no apuesto oyes" se corrige aquí con un toque.
+    @ViewBuilder private func activeBets(for alias: String) -> some View {
+        if matchManager.players.contains(where: { $0.alias == alias }) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Apuestas activas").capsStyleV2()
+                BetSwitchChipsV2(matchManager: matchManager, target: .individual(alias))
+            }
+        } else {
+            Text("Guarda el Setup para editar sus apuestas activas.").font(.v2Label).foregroundStyle(CSV2.secondary)
+        }
     }
 
     private func hasHalf(_ value: Double) -> Bool { Int((abs(value) * 2).rounded()) % 2 != 0 }

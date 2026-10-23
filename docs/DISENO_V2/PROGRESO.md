@@ -145,3 +145,8 @@
 ## F9 en cero: precio combinado en parejas, "salió Carry" y strokes sin cambio (23-oct)
 - La regla R13 ahora también aplica a las parejas (antes solo individuales). Resultado muestra "Carry" en la columna F9 y "F9 en cero · salió Carry · $P por unidad" en la fila y en el detalle del match.
 - Con F9 en cero los strokes del próximo match NO cambian y el Directorio lo anota ("F9 Zero (salió Carry) · los strokes no cambian"). 90 pruebas verdes (+3).
+
+## Apuestas activas por match, editables al momento (23-oct)
+- Cada match (rival o pareja) enseña su tag con lo que está encendido —Vuelta, Presión, Carry, Ajuste 50, Match, **Oyes**, Unidades— y se apaga o prende con un toque (`BetSwitchesV2.swift`). Nuevo interruptor `oyes` por match en `MatchBetSwitches` ("yo no apuesto oyes con Rob"); no toca el catálogo y no cambia nada al prenderlo de nuevo.
+- Dónde: ficha "Apuestas" en la pantalla del hoyo (resumen "todas activas" / "sin Oyes en 2") → hoja con todos los matches y el interruptor "Oyes en todos"; Setup (por rival); detalle del match. Resultados dice "· sin Oyes" en el tag del match.
+- Los interruptores ahora se guardan (`bet_config.json`, campos nuevos opcionales: los archivos viejos siguen leyéndose). Un interruptor no puede prender lo que el catálogo tiene apagado.
