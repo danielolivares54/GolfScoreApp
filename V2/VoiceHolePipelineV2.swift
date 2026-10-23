@@ -519,7 +519,7 @@ enum VoiceHolePipeline {
             alias = r.alias
         }
         let hole = q.hoyo.flatMap { (1...18).contains($0) ? $0 : nil }
-        return match.queryAnswerV2(q.tipo, alias: alias, hole: hole, currentHole: currentHole)
+        return match.queryAnswerV2(q.tipo, alias: alias, hole: hole, currentHole: currentHole, segment: q.segmento)
     }
 
     // MARK: Reporte (qué entendí, qué falta)

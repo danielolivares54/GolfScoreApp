@@ -303,6 +303,34 @@ struct CardQuestionsTests {
         #expect(ask(m, "unidades").contains("Anselmo: Sandy par en el hoyo 4"))
     }
 
+    @Test func ninesPressuresAndStrokesOfAMatch() {
+        let m = DemoFixture.make()
+        let rob = m.resultadoRowsV2().first { $0.title == "ROB" }!
+        let text = ask(m, "nueve", "Roberto")
+        #expect(text.hasPrefix("Contra Roberto. F9: "))
+        #expect(text.contains("B9: "))
+        #expect(text.contains("Strokes: Daniel recibe 8"))
+        // Las presiones abiertas de B9 salen de lo mismo que Resultados.
+        let open = rob.b9Presiones.count
+        #expect(text.contains(open == 0 ? "sin presiones abiertas" : "\(open) presion"))
+        // Solo B9 / solo presiones / solo strokes.
+        let b9 = VoiceHolePipeline.answer(.init(tipo: "nueve", jugador: "Roberto", segmento: "B9"), match: m, currentHole: 14, slang: slang())
+        #expect(b9.contains("B9: ") && !b9.contains("F9: "))
+        let pres = VoiceHolePipeline.answer(.init(tipo: "presiones", jugador: "Roberto", segmento: "B9"), match: m, currentHole: 14, slang: slang())
+        #expect(!pres.contains("Strokes") && pres.contains("B9: "))
+        let st = ask(m, "strokes", "Roberto")
+        #expect(st.contains("Strokes: Daniel recibe 8") && !st.contains("F9:") && !st.contains("B9:"))
+    }
+
+    @Test func allMatchesWhenNobodyIsNamedAndTheActiveRefreshIsSaid() {
+        let m = DemoFixture.make()
+        let text = ask(m, "nueve")
+        #expect(text.contains("Contra Roberto") && text.contains("Contra Ricardo") && text.contains("Pareja"))
+        let robRefresh = m.refreshStateV2(for: .individual("ROB"))
+        if robRefresh.carryActive { #expect(ask(m, "nueve", "Roberto").contains("Carry activo")) }
+        if robRefresh.doublePressActive { #expect(ask(m, "strokes", "Roberto").contains("Doble B9 activo")) }
+    }
+
     @Test func notesAndUnknownPlayers() {
         let m = DemoFixture.make()
         m.upsertUnitEvent(hole: 14, alias: "ROB", code: "NOTA", units: 0, note: "bola al agua")

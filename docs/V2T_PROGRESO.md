@@ -24,3 +24,8 @@
 - En la hoja de voz: botones **Leer el hoyo**, **Qué falta** y **Cómo vamos**, o decirlo ("qué llevo", "léeme el hoyo", "cómo vamos", "qué falta"): se detecta en el teléfono, sin LLM y sin gastar una dictada. Lee con voz es-MX y también lo muestra en pantalla; se puede detener.
 - Hoyo: scores con nombres, putts, "se levantó", oyes, unidades, notas y lo que falta. Ronda: hoyos completos y dinero con cada quien y en total.
 - Todo sale de lo ya anotado en MatchManager (`CardReadbackV2.swift`, pruebas en `CardReadbackTests`).
+
+## Preguntas sobre lo anotado (23-oct)
+- Se pregunta hablando y se responde con lo anotado: "¿qué hizo Roberto en el 5?", "¿cuántos golpes lleva Fernando?", "¿qué oyes ha ganado Daniel?", "¿dónde hizo unidades Ricardo y cuáles?", "¿qué resultados hay en el F9 / B9?", "¿qué presiones hay abiertas en el B9?", "¿con cuántos strokes?".
+- **Cómo se resuelve:** el LLM solo clasifica la pregunta (`consulta`: tipo, jugador, hoyo, segmento) en la misma llamada que ya se hace al dictar; la respuesta NO la escribe el LLM: sale de MatchManager (`queryAnswerV2`, `nineAnswerV2`), igual que lo que ve la Tarjeta y Resultados. Una pregunta nunca toca la tarjeta. "Qué llevo / cómo vamos / qué falta" se detectan en el teléfono, sin LLM.
+- Los nueves dicen: cómo vas (arriba/abajo, tras cuántos hoyos), presiones abiertas con su valor, strokes del match y si Carry / Ajuste 50 / Doble B9 están activos.

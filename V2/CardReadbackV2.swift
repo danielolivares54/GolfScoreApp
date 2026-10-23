@@ -146,10 +146,12 @@ extension MatchManager {
 
 /// Lo que el LLM entiende de una pregunta. La respuesta NUNCA la escribe el LLM: sale de lo anotado, abajo.
 struct ReadbackQueryV2: Codable, Equatable {
-    /// score · total · putts · oyes · unidades · notas
+    /// score · total · putts · oyes · unidades · notas · nueve (resultados) · presiones · strokes
     var tipo: String
     var jugador: String? = nil
     var hoyo: Int? = nil
+    /// "F9" / "B9" para las preguntas de nueve, presiones y strokes (nil = los dos).
+    var segmento: String? = nil
 }
 
 extension MatchManager {
@@ -172,7 +174,7 @@ extension MatchManager {
     }
 
     /// Responde una pregunta con lo que hay anotado. `alias` ya viene resuelto (nil = no dijeron de quién).
-    func queryAnswerV2(_ kind: String, alias: String?, hole: Int?, currentHole: Int) -> String {
+    func queryAnswerV2(_ kind: String, alias: String?, hole: Int?, currentHole: Int, segment: String? = nil) -> String {
         let order = playOrder()
         let name = alias.map(spokenName)
         switch kind.lowercased() {
@@ -247,6 +249,8 @@ extension MatchManager {
                 guard let es = grouped[a] else { return nil }
                 return "\(spokenName(a)): " + spokenList(es.map(describe))
             }.joined(separator: ". ") + "."
+        case "nueve", "resultados", "presiones", "strokes", "apuestas":
+            return nineAnswerV2(kind.lowercased(), alias: alias, segment: segment)
         case "notas":
             let notes = unitEventsByHole.values.flatMap { $0 }
                 .filter { $0.code.uppercased() == "NOTA" && ($0.note?.isEmpty == false) && (alias == nil || $0.alias == alias) && (hole == nil || $0.hole == hole) }
@@ -256,6 +260,83 @@ extension MatchManager {
         default:
             return holeReadbackV2(hole ?? currentHole).text
         }
+    }
+}
+
+// MARK: - Resultados de los nueves, presiones activas y strokes
+
+extension MatchManager {
+    private func holesPlayed(_ n: Int) -> String { n == 0 ? "sin hoyos jugados" : "tras \(n) hoyo\(n == 1 ? "" : "s")" }
+
+    private func standing(_ net: Int, played: Int) -> String {
+        if played == 0 { return "sin hoyos jugados" }
+        let base = net > 0 ? "vas \(net) arriba" : net < 0 ? "vas \(-net) abajo" : "van empatados"
+        return base + ", " + holesPlayed(played)
+    }
+
+    private func pressuresText(_ values: [Int]) -> String {
+        if values.isEmpty { return "sin presiones abiertas" }
+        let parts = values.map { v in v > 0 ? "a favor por \(v)" : v < 0 ? "en contra por \(-v)" : "empatada" }
+        return "\(values.count) presion\(values.count == 1 ? "" : "es") abierta\(values.count == 1 ? "" : "s"): " + spokenList(parts)
+    }
+
+    private func strokesWord(_ amount: Double) -> String {
+        let whole = Int(amount)
+        return abs(amount - Double(whole)) > 0.01 ? (whole == 0 ? "medio" : "\(whole) y medio") : "\(whole)"
+    }
+
+    /// F9 / B9 de cada match: cómo van, qué presiones están abiertas, cuántos strokes y qué refresh de B9 está activo.
+    func nineAnswerV2(_ kind: String, alias: String?, segment: String?) -> String {
+        let seg = segment?.uppercased()
+        let onlyF9 = seg == "F9", onlyB9 = seg == "B9"
+        let rows = resultadoRowsV2().filter { row in
+            guard let alias else { return true }
+            switch row.kind {
+            case .individual(let a): return a == alias
+            case .pair(let id): return lanes.first { $0.id == id }.map { $0.base.contains(alias) || $0.opp.contains(alias) } ?? false
+            }
+        }
+        guard !rows.isEmpty else { return "No encontré ese match." }
+        let wantsResults = kind != "presiones" && kind != "strokes"
+        let wantsPressures = kind != "strokes"
+        let wantsStrokes = kind != "presiones"
+
+        let lines = rows.map { row -> String in
+            let who: String
+            switch row.kind {
+            case .individual(let a): who = "Contra \(spokenName(a))"
+            case .pair: who = "Pareja \(row.title)" + (row.rivalsText.map { " contra \($0)" } ?? "")
+            }
+            var parts: [String] = []
+            let showNines = wantsResults || wantsPressures
+            if showNines && !onlyB9 {
+                var f9 = "F9: " + (wantsResults ? standing(row.f9Net, played: row.f9Played) : "")
+                if wantsPressures, row.f9Played > 0 { f9 += (wantsResults ? "; " : "") + pressuresText(row.f9Presiones) }
+                parts.append(f9.trimmingCharacters(in: CharacterSet(charactersIn: " ;")))
+                if row.f9CarryPrice != nil { parts.append("F9 en cero, salió Carry") }
+            }
+            if showNines && !onlyF9 {
+                var b9 = "B9: " + (wantsResults ? standing(row.b9Net, played: row.b9Played) : "")
+                if wantsPressures { b9 += (wantsResults ? "; " : "") + pressuresText(row.b9Presiones) }
+                parts.append(b9.trimmingCharacters(in: CharacterSet(charactersIn: " ;")))
+            }
+            // Carry, Ajuste 50 y Doble B9 cambian los strokes y las presiones de B9: se dicen en cualquier pregunta de B9 o de strokes.
+            if !onlyF9 {
+                let refresh = refreshStateV2(for: row.target)
+                var active: [String] = []
+                if refresh.carryActive { active.append("Carry activo") }
+                if refresh.adjust50Active { active.append("Ajuste 50 activo") }
+                if refresh.doublePressActive { active.append("Doble B9 activo") }
+                if !active.isEmpty { parts.append(spokenList(active)) }
+            }
+            if wantsStrokes {
+                if let receiver = row.strokesReceiver, row.strokesAmount > 0 {
+                    parts.append("Strokes: \(spokenName(receiver)) recibe \(strokesWord(row.strokesAmount))")
+                } else { parts.append("Sin strokes") }
+            }
+            return who + ". " + parts.joined(separator: ". ") + "."
+        }
+        return lines.joined(separator: " ")
     }
 }
 
