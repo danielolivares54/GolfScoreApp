@@ -46,7 +46,7 @@ struct VoiceHolePipelineTests {
         let e = extraction(scores: [("DAN", 3, 2), ("ROB", 4, nil), ("RIC", 5, 2)],
                            oyes: [("ROB", 1), ("DAN", 2)], units: [("DAN", "SAND")])
         let draft = try await VoiceHolePipeline.propose(transcript: "hoyo 14 dan tres rob cuatro ric cinco oyes rob dan sandy dan",
-                                                        match: m, slang: slang(), extractor: extractor(e))
+                                                        match: m, defaultHole: 14, slang: slang(), extractor: extractor(e))
         let report = VoiceHolePipeline.report(draft, match: m)
         #expect(report.understood.contains("hoyo 14"))
         #expect(report.understood.contains("DAN 3 (2 putts)"))
@@ -63,25 +63,25 @@ struct VoiceHolePipelineTests {
         let m = setup()
         let s = slang()
         var draft = try await VoiceHolePipeline.propose(
-            transcript: "primera", match: m, slang: s,
+            transcript: "dan tres rob cuatro oyes primero rob", match: m, defaultHole: 14, slang: s,
             extractor: extractor(extraction(scores: [("DAN", 3, 2), ("ROB", 4, 2)], oyes: [("ROB", 1)])))
         draft = try await VoiceHolePipeline.propose(
-            transcript: "segunda", match: m, draft: draft, slang: s,
+            transcript: "fer cinco ric cinco ans cuatro, oyes segundo dan tercero fer cuarto ric quinto ans", match: m, draft: draft, defaultHole: 14, slang: s,
             extractor: extractor(extraction(hole: nil, scores: [("FER", 5, 2), ("RIC", 5, 2), ("ANS", 4, 2)],
                                             oyes: [("DAN", 2), ("FER", 3), ("RIC", 4), ("ANS", 5)])))
         let report = VoiceHolePipeline.report(draft, match: m)
         #expect(report.isComplete)
         #expect(report.message.hasSuffix("Está completo."))
         #expect(draft.hole == 14)
-        #expect(draft.transcripts == ["primera", "segunda"])
+        #expect(draft.transcripts.count == 2)
     }
 
     @Test func theLatestDictationWinsOnTheSameCell() async throws {
         let m = setup()
         let s = slang()
-        var draft = try await VoiceHolePipeline.propose(transcript: "a", match: m, slang: s,
+        var draft = try await VoiceHolePipeline.propose(transcript: "a", match: m, defaultHole: 14, slang: s,
                                                         extractor: extractor(extraction(scores: [("DAN", 3, 2)])))
-        draft = try await VoiceHolePipeline.propose(transcript: "corrige", match: m, draft: draft, slang: s,
+        draft = try await VoiceHolePipeline.propose(transcript: "corrige", match: m, draft: draft, defaultHole: 14, slang: s,
                                                     extractor: extractor(extraction(hole: nil, scores: [("DAN", 4, nil)])))
         #expect(draft.cells["DAN"]?.gross == 4)
         #expect(draft.cells["DAN"]?.putts == 2)   // los putts ya dictados se conservan
@@ -90,9 +90,9 @@ struct VoiceHolePipelineTests {
     @Test func putts_alone_fillTheCell() async throws {
         let m = setup()
         let s = slang()
-        var draft = try await VoiceHolePipeline.propose(transcript: "a", match: m, slang: s,
+        var draft = try await VoiceHolePipeline.propose(transcript: "a", match: m, defaultHole: 14, slang: s,
                                                         extractor: extractor(extraction(scores: [("ROB", 4, nil)])))
-        draft = try await VoiceHolePipeline.propose(transcript: "rob dos putts", match: m, draft: draft, slang: s,
+        draft = try await VoiceHolePipeline.propose(transcript: "rob dos putts", match: m, draft: draft, defaultHole: 14, slang: s,
                                                     extractor: extractor(extraction(hole: nil, scores: [("ROB", nil, 2)])))
         #expect(draft.cells["ROB"] == .init(gross: 4, putts: 2))
     }
@@ -100,11 +100,11 @@ struct VoiceHolePipelineTests {
     @Test func nothingHeardLeavesTheDraftAlone() async {
         let m = setup()
         await #expect(throws: VoiceHoleError.nothingHeard) {
-            _ = try await VoiceHolePipeline.propose(transcript: "ruido", match: m, slang: slang(),
+            _ = try await VoiceHolePipeline.propose(transcript: "ruido", match: m, defaultHole: 14, slang: slang(),
                                                     extractor: extractor(VoiceHoleExtraction()))
         }
         await #expect(throws: VoiceHoleError.emptyTranscript) {
-            _ = try await VoiceHolePipeline.propose(transcript: "  ", match: m, slang: slang(),
+            _ = try await VoiceHolePipeline.propose(transcript: "  ", match: m, defaultHole: 14, slang: slang(),
                                                     extractor: extractor(VoiceHoleExtraction()))
         }
     }
@@ -114,17 +114,51 @@ struct VoiceHolePipelineTests {
     @Test func anUnknownUnitIsADoubtAndNotApplied() async throws {
         let m = setup()
         let draft = try await VoiceHolePipeline.propose(
-            transcript: "x", match: m, slang: slang(),
+            transcript: "x", match: m, defaultHole: 14, slang: slang(),
             extractor: extractor(extraction(scores: [("DAN", 4, 2)], units: [("DAN", "chip raro")])))
         #expect(draft.units.isEmpty)
         #expect(VoiceHolePipeline.report(draft, match: m).doubts.contains { $0.contains("chip raro") })
         #expect(!VoiceHolePipeline.canApply(draft, match: m))
     }
 
+    @Test func theHoleOnScreenIsUsedUnlessYouSayAnother() async throws {
+        let m = setup()
+        let e = extraction(hole: 3, scores: [("ROB", 4, nil)])   // el LLM inventó el hoyo 3: no lo dijeron
+        let a = try await VoiceHolePipeline.propose(transcript: "rob cuatro", match: m, defaultHole: 14, slang: slang(), extractor: extractor(e))
+        #expect(a.hole == 14)
+        let b = try await VoiceHolePipeline.propose(transcript: "hoyo 3 rob cuatro", match: m, defaultHole: 14, slang: slang(), extractor: extractor(e))
+        #expect(b.hole == 3)
+    }
+
+    @Test func theRestOfThePlayersGetBogeyOrANumber() async throws {
+        let m = setup()   // el hoyo 14 es par 3
+        let bogey = try await VoiceHolePipeline.propose(
+            transcript: "rob dos, los demas bogey", match: m, defaultHole: 14, slang: slang(),
+            extractor: extractor(extraction(scores: [("ROB", 2, nil)])))
+        #expect(bogey.cells["ROB"]?.gross == 2)
+        #expect(bogey.cells.filter { $0.key != "ROB" }.allSatisfy { $0.value.gross == 4 })
+        #expect(bogey.cells.count == 5)
+
+        let five = try await VoiceHolePipeline.propose(
+            transcript: "yo tres, los demas cinco", match: m, defaultHole: 14, slang: slang(),
+            extractor: extractor(extraction(scores: [("yo", 3, nil), ("DEMAS", 5, nil)])))
+        #expect(five.cells["DAN"]?.gross == 3)
+        #expect(five.cells["ROB"]?.gross == 5 && five.cells["ANS"]?.gross == 5)
+    }
+
+    @Test func anInventedOyesOrderIsIgnoredWhenNobodyTalkedAboutOyes() async throws {
+        let m = setup()
+        let e = extraction(scores: [("ROB", nil, 3)], oyes: [("ROB", 1)], units: [("DAN", "HO")])
+        let a = try await VoiceHolePipeline.propose(transcript: "dan hole out y rob tres putts", match: m, defaultHole: 14, slang: slang(), extractor: extractor(e))
+        #expect(a.oyes.isEmpty)
+        let b = try await VoiceHolePipeline.propose(transcript: "oyes primero rob", match: m, defaultHole: 14, slang: slang(), extractor: extractor(e))
+        #expect(b.oyes == ["ROB": 1])
+    }
+
     @Test func holeOutAndThreePuttAreReceivedEvenWithoutButtons() async throws {
         let m = setup()
         let draft = try await VoiceHolePipeline.propose(
-            transcript: "x", match: m, slang: slang(),
+            transcript: "x", match: m, defaultHole: 14, slang: slang(),
             extractor: extractor(extraction(scores: [("DAN", 3, 1)], units: [("DAN", "HO"), ("ROB", "3P")])))
         #expect(draft.units.contains(.init(alias: "DAN", code: "HO", units: 1)))
         #expect(draft.units.contains(.init(alias: "ROB", code: "3P", units: 1)))
@@ -135,7 +169,7 @@ struct VoiceHolePipelineTests {
     @Test func yoMeansDanAndNotesAreKept() async throws {
         let m = setup()
         let draft = try await VoiceHolePipeline.propose(
-            transcript: "x", match: m, slang: slang(),
+            transcript: "x", match: m, defaultHole: 14, slang: slang(),
             extractor: extractor(extraction(scores: [("yo", 3, 1)], notes: [("", "bola al agua")])))
         #expect(draft.cells["DAN"]?.gross == 3)
         #expect(draft.notes == [.init(alias: "DAN", text: "bola al agua")])
@@ -145,7 +179,7 @@ struct VoiceHolePipelineTests {
         let m = setup()
         let s = slang()
         var draft = try await VoiceHolePipeline.propose(
-            transcript: "el chino cuatro", match: m, slang: s,
+            transcript: "el chino cuatro", match: m, defaultHole: 14, slang: s,
             extractor: extractor(extraction(scores: [("Chino", 4, 2)])))
         #expect(draft.cells["CHINO"]?.gross == 4)
         #expect(!VoiceHolePipeline.canApply(draft, match: m))   // jugador no reconocido
@@ -158,7 +192,7 @@ struct VoiceHolePipelineTests {
 
         // La siguiente vez "Chino" ya es ROB, sin preguntar.
         let next = try await VoiceHolePipeline.propose(
-            transcript: "chino cinco", match: m, slang: s,
+            transcript: "chino cinco", match: m, defaultHole: 14, slang: s,
             extractor: extractor(extraction(scores: [("Chino", 5, nil)])))
         #expect(next.cells["ROB"]?.gross == 5)
         #expect(next.doubts.isEmpty)
@@ -171,7 +205,7 @@ struct VoiceHolePipelineTests {
         m.upsertUnitEvent(hole: 14, alias: "FER", code: "SAND", units: 1)   // algo previo que Deshacer debe devolver
         let e = extraction(scores: [("DAN", 3, 2), ("ROB", 4, 2)], oyes: [("ROB", 1), ("DAN", 2)],
                            units: [("DAN", "SAND")], notes: [("ROB", "penalidad")])
-        let draft = try await VoiceHolePipeline.propose(transcript: "x", match: m, slang: slang(), extractor: extractor(e))
+        let draft = try await VoiceHolePipeline.propose(transcript: "dan tres rob cuatro oyes primero rob segundo dan", match: m, defaultHole: 14, slang: slang(), extractor: extractor(e))
         let token = try #require(VoicePipelineSpec.apply(draft, m))
 
         #expect(m.getScore(hole: 14, player: "DAN") == 3)
@@ -190,7 +224,7 @@ struct VoiceHolePipelineTests {
         let m = setup()
         let before = m.getScore(hole: 5, player: "DAN")
         let e = extraction(hole: 5, scores: [("DAN", before + 2, nil)])
-        let draft = try await VoiceHolePipeline.propose(transcript: "x", match: m, slang: slang(), extractor: extractor(e))
+        let draft = try await VoiceHolePipeline.propose(transcript: "hoyo 5 dan lo que sea", match: m, defaultHole: 14, slang: slang(), extractor: extractor(e))
         let token = try #require(VoicePipelineSpec.apply(draft, m))
         #expect(m.getScore(hole: 5, player: "DAN") == before + 2)
         VoiceHolePipeline.undo(token, match: m)
@@ -200,7 +234,7 @@ struct VoiceHolePipelineTests {
     @Test func doubtfulDraftsAreNotApplied() async throws {
         let m = setup()
         let draft = try await VoiceHolePipeline.propose(
-            transcript: "x", match: m, slang: slang(),
+            transcript: "x", match: m, defaultHole: 14, slang: slang(),
             extractor: extractor(extraction(scores: [("Pelón", 4, 2)])))
         #expect(VoicePipelineSpec.apply(draft, m) == nil)
         #expect(m.getScore(hole: 14, player: "DAN") == 0)

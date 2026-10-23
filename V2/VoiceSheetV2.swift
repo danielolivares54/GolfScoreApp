@@ -11,6 +11,8 @@ import SwiftUI
 
 struct VoiceSheetV2: View {
     @ObservedObject var matchManager: MatchManager
+    /// Hoyo que se juega en pantalla: es el de la tarjeta salvo que digas otro ("hoyo 7…").
+    let hole: Int
     /// Se llama al anotar, con el hoyo y lo necesario para deshacer (el banner vive en la pantalla del hoyo).
     let onApplied: (Int, VoiceUndoToken) -> Void
     @Environment(\.dismiss) private var dismiss
@@ -208,7 +210,7 @@ struct VoiceSheetV2: View {
                 // La grabación se guarda aunque no se entienda: también sirve para aprender.
                 recordIds.append(VoiceRecordStore.shared.record(audio: url, transcript: text,
                                                                 roundId: matchManager.roundId, hole: draft.hole))
-                draft = try await VoiceHolePipeline.propose(transcript: text, match: matchManager, draft: draft)
+                draft = try await VoiceHolePipeline.propose(transcript: text, match: matchManager, draft: draft, defaultHole: hole)
                 phase = .idle
             } catch let error as VoiceHoleError {
                 phase = .failed(error.message)
@@ -230,6 +232,6 @@ extension VoiceRecorder {
 #Preview("VoiceSheetV2") {
     let manager = MatchManager()
     manager.loadDemo18()
-    return VoiceSheetV2(matchManager: manager) { _, _ in }
+    return VoiceSheetV2(matchManager: manager, hole: 14) { _, _ in }
 }
 #endif

@@ -236,16 +236,19 @@ enum VoiceHolePipeline {
     // MARK: Entender (una dictada → borrador nuevo)
 
     /// Una dictada nueva se suma al borrador que ya hay: lo más reciente gana en cada celda.
-    static func propose(transcript: String, match: MatchManager, draft: VoiceHoleDraft = VoiceHoleDraft(),
+    /// `defaultHole` = el hoyo que se está jugando en pantalla: se usa si no dijeron otro ("hoyo 7…").
+    static func propose(transcript: String, match: MatchManager, draft: VoiceHoleDraft = VoiceHoleDraft(), defaultHole: Int? = nil,
                         slang: VoiceSlangStore = .shared, extractor: Extractor = liveExtractor) async throws -> VoiceHoleDraft {
         let text = transcript.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { throw VoiceHoleError.emptyTranscript }
-        let extraction = try await extractor(text, context(match: match, hole: draft.hole, slang: slang))
-        let merged = merging(extraction, transcript: text, into: draft, match: match, slang: slang)
+        var start = draft
+        if start.hole == nil { start.hole = defaultHole }
+        let extraction = try await extractor(text, context(match: match, hole: start.hole, slang: slang))
+        let merged = merging(extraction, transcript: text, into: start, match: match, slang: slang)
         // Si la dictada no aportó nada nuevo (ruido, otra conversación), no se toca el borrador.
         var sameData = merged
-        sameData.transcripts = draft.transcripts
-        if sameData == draft { throw VoiceHoleError.nothingHeard }
+        sameData.transcripts = start.transcripts
+        if sameData == start { throw VoiceHoleError.nothingHeard }
         return merged
     }
 
@@ -254,18 +257,22 @@ enum VoiceHolePipeline {
                         match: MatchManager, slang: VoiceSlangStore = .shared) -> VoiceHoleDraft {
         var out = draft
         out.transcripts.append(transcript)
-        if let hole = extraction.hoyo, (1...18).contains(hole) { out.hole = hole }
+        // El número de hoyo solo cuenta si lo dijeron (el LLM a veces lo toma del contexto).
+        let spoken = slang.normalize(transcript)
+        if let hole = extraction.hoyo, (1...18).contains(hole), spoken.contains("hoyo") { out.hole = hole }
 
         // Scores y putts. Lo que el jugador dijo con nombre es lo que manda (el intérprete de la v1 descarta "dan" y
         // "yo" si no se dijo "Daniel"); MatchInterpreter solo aporta lo que no se dijo con nombre: "los demás",
         // "todos" y bogey/birdie sin número.
         var explicit: [String: (cell: VoiceHoleDraft.Cell, known: Bool, fuzzy: Bool)] = [:]
+        var restGross: Int?   // "los demás cinco"
         for s in extraction.scores {
             guard let g = s.gross else { continue }
+            if ["demas", "resto", "otros", "los demas", "todos"].contains(slang.normalize(s.jugador)) { restGross = g; continue }
             let who = resolveSpoken(s.jugador, match: match, slang: slang)
             explicit[who.alias] = (.init(gross: g, putts: s.putts ?? out.cells[who.alias]?.putts), who.known, who.fuzzy)
         }
-        let entities = ScoreEntities(hoyo: out.hole ?? extraction.hoyo, scores: explicit.map { alias, e in
+        let entities = ScoreEntities(hoyo: out.hole, scores: explicit.map { alias, e in
             PlayerScore(jugador: alias, gross: e.cell.gross ?? 0, putts: e.cell.putts)
         })
         let interpreted = MatchInterpreter.apply(transcript: transcript, entities: entities, match: match)
@@ -282,9 +289,19 @@ enum VoiceHolePipeline {
             out.cells[alias] = e.cell
             markDoubts(&out, alias: alias, known: e.known, fuzzy: e.fuzzy)
         }
+        // "Los demás …": con número, o con bogey/par/birdie (relativo al par del hoyo). Solo a quien no se dijo.
+        if spoken.contains("los demas") || spoken.contains("todos") {
+            let delta = relativeToPar(spoken)
+            let par = out.hole.flatMap { match.getHole($0)?.par }
+            if let value = restGross ?? par.flatMap({ p in delta.map { p + $0 } }) {
+                for p in match.players where explicit[p.alias] == nil && (out.cells[p.alias]?.gross == nil || restGross != nil) {
+                    out.cells[p.alias] = .init(gross: value, putts: out.cells[p.alias]?.putts)
+                }
+            }
+        }
         // Putts dictados sin golpes ("Rob dos putts") se suman a la celda si ya existe.
         for s in extraction.scores where s.gross == nil {
-            guard let p = s.putts else { continue }
+            guard let p = s.putts, !s.jugador.trimmingCharacters(in: .whitespaces).isEmpty else { continue }
             let who = resolveSpoken(s.jugador, match: match, slang: slang)
             var cell = out.cells[who.alias] ?? .init(gross: nil, putts: nil)
             cell.putts = p
@@ -292,7 +309,9 @@ enum VoiceHolePipeline {
             markDoubts(&out, alias: who.alias, known: who.known, fuzzy: who.fuzzy)
         }
 
-        for o in extraction.oyes {
+        // El LLM a veces inventa un orden de oyes cuando dicen "hole out"; solo cuenta si hablaron de oyes/lugares.
+        let talkedAboutOyes = ["oye", "primero", "segundo", "tercero", "cerca"].contains { spoken.contains($0) }
+        for o in extraction.oyes where talkedAboutOyes {
             let who = resolveSpoken(o.jugador, match: match, slang: slang)
             guard o.rank > 0 else { continue }
             out.oyes[who.alias] = o.rank
@@ -318,8 +337,19 @@ enum VoiceHolePipeline {
             guard !text.isEmpty else { continue }
             out.notes.removeAll { $0.alias == who.alias }
             out.notes.append(.init(alias: who.alias, text: text))
+            markDoubts(&out, alias: who.alias, known: who.known, fuzzy: who.fuzzy)
         }
         return out
+    }
+
+    /// bogey +1, doble bogey +2, par 0, birdie −1, eagle −2 (texto ya normalizado). nil si no hay ninguno.
+    private static func relativeToPar(_ t: String) -> Int? {
+        if t.contains("doble bogey") { return 2 }
+        if t.contains("bogey") { return 1 }
+        if t.contains("birdie") { return -1 }
+        if t.contains("eagle") || t.contains("aguila") { return -2 }
+        if t.range(of: "\\bpar\\b", options: .regularExpression) != nil { return 0 }
+        return nil
     }
 
     /// Un jugador dicho → alias del roster. `spoken` es el texto que se usará para volver a resolverlo en el intérprete.

@@ -87,7 +87,7 @@ struct HoleScreenV2: View {
         .sheet(isPresented: $showHistory) { HistorialV2() }
         .sheet(isPresented: $showEvento) { EventSheetV2(matchManager: matchManager, hole: currentHole).presentationDetents([.medium, .large]) }
         .sheet(isPresented: $showVoice) {
-            VoiceSheetV2(matchManager: matchManager) { hole, token in
+            VoiceSheetV2(matchManager: matchManager, hole: currentHole) { hole, token in
                 voiceUndo = (hole, token)
                 Task {
                     try? await Task.sleep(for: .seconds(8))

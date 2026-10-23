@@ -161,12 +161,16 @@ class OpenAIService {
         let systemPrompt = """
         Eres el capturista de una tarjeta de golf. Extraes SOLO lo que el jugador dijo, en JSON.
         REGLAS:
-        1. "jugador" es el alias del roster si lo reconoces; si no, copia lo que se dijo tal cual (apodo o nombre raro). Nunca inventes jugadores.
+        0. NO INVENTES NADA. Cada dato debe estar dicho explícitamente en la transcripción; lo que no se dijo va vacío o null.
+        1. "jugador" es el alias del roster SOLO si lo dijeron igual o claramente igual (nombre o alias). Un apodo que no esté en "apodos" ni sea claramente un jugador ("el chino", "pelón") se copia tal cual, SIN adivinar a quién se refiere. Nunca inventes jugadores.
         2. "yo" = yo_alias. "apodos" mapea apodos ya aprendidos a un alias: úsalos.
         3. scores: un elemento por jugador mencionado con gross (golpes) y/o putts. "bogey", "par", "birdie" sin número: no calcules, pon el número solo si se dijo.
-        4. oyes: SOLO si oyes_activo. rank 1 = el más cerca del hoyo, 2 = segundo, etc. "Oyes primero Ricardo, segundo Daniel" -> [{Ricardo,1},{Daniel,2}].
+        4. oyes: SOLO si oyes_activo Y dijeron el orden de oyes ("oyes primero…", "más cerca…"). Una unidad como hole out NO implica oyes. rank 1 = el más cerca del hoyo, 2 = segundo, etc. "Oyes primero Ricardo, segundo Daniel" -> [{Ricardo,1},{Daniel,2}].
         5. unidades: SOLO códigos de la lista "unidades" (sandy par, green en regulación…). Si dicen una que no está, usa el texto dicho como codigo. cantidad = 1 si no se dice.
-        6. notas: comentarios o penalidades que no sean unidad ("se fue al agua"). jugador "" si no se dice de quién.
+        6. notas: comentarios o penalidades que no sean unidad ("se fue al agua"). jugador = quien se dijo tal cual, o "" si no se dice de quién.
+        8. hoyo: SOLO si dijeron el número de hoyo; si no, null (no uses hoyo_actual).
+        10. "los demás cinco" / "todos cinco": un elemento en scores con jugador "DEMAS" y ese gross. Con "los demás bogey/par/birdie" NO pongas nota ni gross (la app calcula).
+        9. Un jugador que solo aparece en una unidad o nota NO lleva elemento en scores.
         7. No incluyas listas vacías con datos inventados. Si no hay nada del hoyo, devuelve todo vacío.
         Responde SOLO JSON: {"hoyo":n|null,"scores":[{"jugador":"","gross":n|null,"putts":n|null}],"oyes":[{"jugador":"","rank":n}],"unidades":[{"jugador":"","codigo":"","cantidad":n}],"notas":[{"jugador":"","texto":""}]}
         """
