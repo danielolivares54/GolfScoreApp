@@ -114,3 +114,8 @@
 ## Quick fix Historial v1 (23-oct)
 - El Historial de la v1 (que sigue abriéndose desde la ficha del Directorio, el Setup de la v1 y la pantalla de la v1) ya no muestra "Vuelta +0 · Match +0" ni la insignia "VIGENTE": solo "Match ganado / perdido / empatado". La línea "Próximo match: N strokes" se conserva en la ronda más reciente de cada rival. `HistorialV2` ya estaba así.
 - Propuestas de Daniel pendientes de decidir (ver la conversación): acumulado en el Directorio, estadísticas con promedio y desviación estándar + porcentajes de "este match", y dinero acumulado en lugar de oyes ganados/perdidos.
+
+## Tag de apuesta visible (23-oct)
+- Pedido de Daniel: ver con qué se apuesta. `ResultadoV2` y el encabezado de `MatchDetailV2` ahora muestran la plantilla (el "tag", p. ej. TPCH) y sus valores: "TPCH · vuelta $50 · presión $50 · match $50 · unidad $25" (por rival; en parejas, la plantilla de parejas). Dato: `ResultadoRowV2.betText`.
+- Reglas confirmadas por Daniel: un match empatado SÍ se guarda en el historial, pero no cambia los strokes del próximo juego (hoy `applyInterMatchStrokeCarry` ya no mueve strokes con empate; falta que el Directorio registre igualmente la fecha y el resultado).
+- Observación: al abrir el Setup, un rival sin plantilla recibe la primera plantilla del catálogo y guardar le pone sus valores (igual que en la v1); la prueba `loadedModelSavesWithoutChangingTheMatch` se aisló de eso.

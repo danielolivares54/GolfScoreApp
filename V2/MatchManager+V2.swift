@@ -40,6 +40,8 @@ extension MatchManager {
         /// Unidades netas (eventos + oyes), igual que la columna UNID de la v1.
         let unitsNet: Int
         let money: Int
+        /// Con qué se apuesta este match: plantilla (el "tag", p. ej. TPCH) y sus valores — "TPCH · vuelta $50 · presión $50 …".
+        let betText: String?
 
         var id: String {
             switch kind {
@@ -89,7 +91,9 @@ extension MatchManager {
                 carryActive: line?.carryActive ?? false,
                 carryMoney: line?.carryMoney ?? 0,
                 unitsNet: line?.unitsPoints ?? 0,
-                money: line?.totalMoney ?? 0
+                money: line?.totalMoney ?? 0,
+                betText: betSummaryV2(templateId: betValues(forOpponent: opp.alias).templateId,
+                                      values: betValues(forOpponent: opp.alias))
             ))
         }
 
@@ -117,10 +121,21 @@ extension MatchManager {
                 carryActive: line?.carryActive ?? false,
                 carryMoney: line?.carryMoney ?? 0,
                 unitsNet: line?.unitsPoints ?? 0,
-                money: line?.totalMoney ?? 0
+                money: line?.totalMoney ?? 0,
+                betText: betSummaryV2(templateId: activeTemplateId,
+                                      values: OpponentBetValues(templateId: activeTemplateId, vueltaValue: vueltaValue,
+                                                                presionValue: presionValue, matchValue: matchValue,
+                                                                unitValue: unitValue))
             ))
         }
         return rows
+    }
+
+    /// "TPCH · vuelta $50 · presión $50 · match $50 · unidad $25" (nil si no hay ni plantilla ni valores).
+    func betSummaryV2(templateId: String?, values: OpponentBetValues) -> String? {
+        let name = templateId.flatMap { id in BetTemplateStore.shared.entries.first { $0.id == id }?.name }
+        let amounts = "vuelta $\(values.vueltaValue) · presión $\(values.presionValue) · match $\(values.matchValue) · unidad $\(values.unitValue)"
+        return name.map { "\($0) · \(amounts)" } ?? amounts
     }
 
     /// Neto de la ronda: la suma de todos los matches (igual que "TOTAL GENERAL" en la v1).

@@ -93,6 +93,11 @@ struct SetupDraftTests {
         let before = m.resultadoRowsV2().map { "\($0.title)|\($0.f9Net)|\($0.b9Net)|\($0.money)" }
         let model = SetupDraftModel(manager: m)
         model.load()
+        // El Setup ofrece la primera plantilla del catálogo guardado a los rivales que no tienen una; el valor de esa
+        // plantilla depende de lo que haya guardado el dispositivo, así que aquí se deja sin elegir (el caso de estudio
+        // define sus propios valores) para que la prueba no dependa del simulador.
+        model.templateIdByOpponent = [:]
+        model.selectedTemplateId = ""
         #expect(model.aliases == ["DAN", "FER", "ROB", "RIC", "ANS"])
         #expect(model.baseAliases == ["DAN", "FER"])
         #expect(model.lanes.count == 3)

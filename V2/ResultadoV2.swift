@@ -135,6 +135,10 @@ struct ResultadoV2: View {
                                 Text(rivals).font(.v2Label).foregroundStyle(CSV2.secondary)
                             }
                             strokesLine(row)
+                            if let bet = row.betText {
+                                Text(bet).font(.v2Label).foregroundStyle(CSV2.secondary)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                         MatchStatusV2(net: row.f9Net, played: row.f9Played)

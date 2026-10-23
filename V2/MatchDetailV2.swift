@@ -95,6 +95,7 @@ struct MatchDetailV2: View {
             if let rivals = row.rivalsText {
                 Text(rivals).font(.v2Body).foregroundStyle(CSV2.secondary)
             }
+            if let bet = row.betText { Text(bet).font(.v2Body).foregroundStyle(CSV2.ink) }
             Text(conditions(resumen)).font(.v2Label).foregroundStyle(CSV2.secondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
