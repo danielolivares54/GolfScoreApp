@@ -28,14 +28,16 @@ struct PlayerDirectoryEntry: Codable, Identifiable, Equatable {
     // Liga este jugador con su última entrada en el log de matches (Matches/UNITS_LOG, SSOT
     // Sección 14) para poder trazar de qué partida vienen sus datos acumulados.
     var lastKeyId: String?
+    // Fecha del último match CERRADO contra este jugador (lastUsedAt también se mueve al guardar un Setup).
+    var lastGameAt: Date?
 
     enum CodingKeys: String, CodingKey {
         case id, name, alias, strokesVsBase, preferredTagId, lastUsedAt, active
         case opponentTee, adjustmentNotes, lastResult, strokeAnt, myTee, comentario
-        case gameMoneyMxn, accumulatedMxn, lastKeyId
+        case gameMoneyMxn, accumulatedMxn, lastKeyId, lastGameAt
     }
 
-    init(id: UUID = UUID(), name: String, alias: String, strokesVsBase: Double, preferredTagId: String? = nil, lastUsedAt: Date = Date(), active: Bool = true, opponentTee: String? = nil, adjustmentNotes: String? = nil, lastResult: String? = nil, strokeAnt: Double? = nil, myTee: String? = nil, comentario: String? = nil, gameMoneyMxn: Double? = nil, accumulatedMxn: Double? = nil, lastKeyId: String? = nil) {
+    init(id: UUID = UUID(), name: String, alias: String, strokesVsBase: Double, preferredTagId: String? = nil, lastUsedAt: Date = Date(), active: Bool = true, opponentTee: String? = nil, adjustmentNotes: String? = nil, lastResult: String? = nil, strokeAnt: Double? = nil, myTee: String? = nil, comentario: String? = nil, gameMoneyMxn: Double? = nil, accumulatedMxn: Double? = nil, lastKeyId: String? = nil, lastGameAt: Date? = nil) {
         self.id = id
         self.name = name
         self.alias = alias
@@ -52,6 +54,7 @@ struct PlayerDirectoryEntry: Codable, Identifiable, Equatable {
         self.gameMoneyMxn = gameMoneyMxn
         self.accumulatedMxn = accumulatedMxn
         self.lastKeyId = lastKeyId
+        self.lastGameAt = lastGameAt
     }
 
     // Decodificación manual: los JSON guardados antes de agregar un campo nuevo no lo traen, y
@@ -74,6 +77,7 @@ struct PlayerDirectoryEntry: Codable, Identifiable, Equatable {
         gameMoneyMxn = try c.decodeIfPresent(Double.self, forKey: .gameMoneyMxn)
         accumulatedMxn = try c.decodeIfPresent(Double.self, forKey: .accumulatedMxn)
         lastKeyId = try c.decodeIfPresent(String.self, forKey: .lastKeyId)
+        lastGameAt = try c.decodeIfPresent(Date.self, forKey: .lastGameAt)
     }
 }
 
@@ -82,14 +86,16 @@ final class PlayerDirectoryStore: ObservableObject {
 
     @Published private(set) var entries: [PlayerDirectoryEntry] = []
 
-    private let fileName = "player_directory.json"
+    private let fileName: String
 
     private var fileURL: URL? {
         FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first?
             .appendingPathComponent(fileName)
     }
 
-    init() {
+    /// `fileName` distinto solo para pruebas (que no toquen el directorio real).
+    init(fileName: String = "player_directory.json") {
+        self.fileName = fileName
         load()
         if entries.isEmpty {
             seedInitialData()
@@ -155,6 +161,32 @@ final class PlayerDirectoryStore: ObservableObject {
         entries[idx].lastResult = resultSummary
         entries[idx].lastKeyId = roundId
         entries[idx].lastUsedAt = Date()
+        save()
+    }
+
+    /// Al CERRAR un match: el Directorio queda listo para el siguiente. Guarda los strokes que se usaron (strokeAnt), los
+    /// que valen para el próximo (strokesVsBase; sin cambio si el match empató), la plantilla de apuesta usada
+    /// (preferredTagId), el resultado, la fecha del último juego y el dinero (último y acumulado). Cada match se registra
+    /// una sola vez (por roundId); un empate también se registra.
+    func recordClosedMatch(playerName: String, alias: String, strokesUsed: Double, nextStrokes: Double, templateId: String?,
+                           resultSummary: String, roundId: String, moneyMxn: Int, date: Date = Date()) {
+        let cleanName = playerName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleanName.isEmpty else { return }
+        var idx = entries.firstIndex(where: { $0.name.caseInsensitiveCompare(cleanName) == .orderedSame })
+        if idx == nil {
+            entries.append(PlayerDirectoryEntry(name: cleanName, alias: alias, strokesVsBase: nextStrokes, preferredTagId: templateId))
+            idx = entries.count - 1
+        }
+        guard let i = idx, entries[i].lastKeyId != roundId else { return }
+        entries[i].strokeAnt = strokesUsed
+        entries[i].strokesVsBase = nextStrokes
+        if let templateId, !templateId.isEmpty { entries[i].preferredTagId = templateId }
+        entries[i].lastResult = resultSummary
+        entries[i].lastKeyId = roundId
+        entries[i].lastGameAt = date
+        entries[i].lastUsedAt = date
+        entries[i].gameMoneyMxn = Double(moneyMxn)
+        entries[i].accumulatedMxn = (entries[i].accumulatedMxn ?? 0) + Double(moneyMxn)
         save()
     }
 

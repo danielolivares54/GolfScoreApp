@@ -55,6 +55,12 @@ struct PlayerDirectoryView: View {
                                         Text(entry.alias)
                                             .font(.system(size: 13, weight: .bold))
                                             .foregroundColor(.secondary)
+                                        // Se llena al cerrar cada match: fecha del último juego, strokes de ese match → los del próximo,
+                                        // y el dinero acumulado contra este jugador.
+                                        if let last = entry.lastGameAt {
+                                            Text(lastGameLine(entry, date: last))
+                                                .font(.system(size: 11.5)).foregroundColor(.secondary)
+                                        }
                                     }
                                     Spacer()
                                     VStack(alignment: .trailing, spacing: 2) {
@@ -98,6 +104,17 @@ struct PlayerDirectoryView: View {
 
     private func formatStroke(_ value: Double) -> String {
         abs(value - value.rounded()) < 0.001 ? String(Int(value.rounded())) : String(format: "%.1f", value)
+    }
+
+    /// "Último juego 20 oct · strokes −8 → −7 · acumulado +$425"
+    private func lastGameLine(_ entry: PlayerDirectoryEntry, date: Date) -> String {
+        var parts = ["Último juego " + date.formatted(.dateTime.day().month(.abbreviated))]
+        if let previous = entry.strokeAnt { parts.append("strokes \(formatStroke(previous)) → \(formatStroke(entry.strokesVsBase))") }
+        if let total = entry.accumulatedMxn {
+            let amount = Int(total.rounded())
+            parts.append("acumulado " + (amount >= 0 ? "+$" : "-$") + "\(abs(amount))")
+        }
+        return parts.joined(separator: " · ")
     }
 }
 

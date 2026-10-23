@@ -3821,12 +3821,20 @@ extension MatchManager {
     /// Único punto que borra datos de la ronda: ajusta strokes entre rondas, guarda el resultado a disco
     /// y limpia scores, apuestas y registro pendiente. El orden es el mismo que tenía ContentView.cerrarRonda().
     func closeRound() {
-        applyInterMatchStrokeCarry()
+        // El Directorio se actualiza con ESTE match (strokes usados y próximos, plantilla, resultado, dinero) y de ahí
+        // salen los strokes y el tag del siguiente. Los strokes del roster vivo se cambian DESPUÉS de archivar la
+        // ronda (el archivo guarda los strokes con los que se jugó).
+        let nextStrokes = applyInterMatchStrokeCarry()
         saveRoundResultToFile()
+        for (alias, value) in nextStrokes { setStrokesVsBase(alias: alias, value: value) }
         resetScores()
         ScoreManager.shared.clearAll()
         clearBetConfig()
         AppDelegate.clearPendingRecord()
+        // El match nuevo no hereda Carry / Ajuste 50 / Doble B9 ni el identificador de la ronda cerrada
+        // (sin esto, cerrar dos rondas en la misma sesión sobrescribía el archivo de la primera).
+        clearCarryDependentState()
+        generateRoundId()
     }
 
     // Ajuste de stroke entre rondas (regla 2026-10-06, solo IND — TEAM queda fuera porque las
@@ -3843,15 +3851,16 @@ extension MatchManager {
     // el stroke efectivo con su propia fórmula (ganados/perdidos, no un ±1 plano), y replicar esa
     // fórmula para el salto entre rondas es un caso raro que Daniel prefiere resolver a mano. Solo
     // se deja una bandera en lastResult para que se revise el Setup del próximo match contra ese rival.
-    func applyInterMatchStrokeCarry() {
+    @discardableResult
+    func applyInterMatchStrokeCarry(directory: PlayerDirectoryStore = .shared) -> [String: Double] {
+        var nextStrokes: [String: Double] = [:]
         let opponents = self.players.map(\.alias).filter { $0 != self.yoAlias }
-        guard !opponents.isEmpty else { return }
+        guard !opponents.isEmpty else { return nextStrokes }
         let snapshot = self.walletSnapshot()
         for opp in opponents {
             guard let player = self.players.first(where: { $0.alias == opp }) else { continue }
             let templateId = self.betValues(forOpponent: opp).templateId
             let carryEnabled = BetTemplateStore.shared.entries.first(where: { $0.id == templateId })?.carryMatchEnabled ?? true
-            guard carryEnabled else { continue }
 
             let f9 = self.individualF9Vuelta(opponentAlias: opp)
             let b9 = self.individualB9Vuelta(opponentAlias: opp)
@@ -3860,32 +3869,34 @@ extension MatchManager {
             let base = "F9 \(f9 >= 0 ? "+" : "")\(f9) · B9 \(b9 >= 0 ? "+" : "")\(b9) · Match \(matchLabel)"
                 + " · $\(line?.totalMoney ?? 0) · \(self.dateString)"
 
+            var delta = 0.0
+            var summary = base
             if self.isIndividualAdjust50Active(opponentAlias: opp) {
-                // Con Ajuste 50 activo no se deja a mano: se aplica la misma fórmula de medio
-                // golpe por hoyo que usa individualAdjust50Profile dentro de la ronda (ganados
-                // se restan, perdidos se suman, 0.5 por hoyo), pero proyectada sobre el B9 recién
-                // jugado como si fuera el F9 de un ajuste nuevo de cara a la próxima ronda.
+                // Con Ajuste 50 activo se aplica la misma fórmula de medio golpe por hoyo que usa
+                // individualAdjust50Profile dentro de la ronda (ganados se restan, perdidos se suman, 0.5 por
+                // hoyo), proyectada sobre el B9 recién jugado como si fuera el F9 de un ajuste nuevo.
                 let (wins, losses) = self.individualB9WinLossCount(opponentAlias: opp)
-                let delta = 0.5 * Double(wins - losses)
-                guard delta != 0 else { continue }
-                let summary = "⚖️ Ajuste 50 (B9 \(wins)-\(losses)) · " + base
-                PlayerDirectoryStore.shared.applyMatchStrokeShift(
-                    playerName: player.name, delta: delta, resultSummary: summary, roundId: self.roundId
-                )
-                continue
+                delta = 0.5 * Double(wins - losses)
+                summary = "⚖️ Ajuste 50 (B9 \(wins)-\(losses)) · " + base
+            } else {
+                // El match completo (F9+B9, 18 hoyos) define quién gana — no solo el B9. matchTotal > 0 = yo gané:
+                // el rival recibe un golpe más (+1); matchTotal < 0 = yo perdí: da un golpe más (-1). Un empate (0)
+                // no mueve los strokes, pero el match SÍ se registra en el Directorio.
+                let matchTotal = f9 + b9
+                delta = matchTotal > 0 ? 1 : (matchTotal < 0 ? -1 : 0)
             }
+            // Si la plantilla de este rival no pide ajuste entre rondas, el match se registra igual pero sin mover strokes.
+            if !carryEnabled { delta = 0 }
 
-            // El match completo (F9+B9, 18 hoyos) define quién gana — no solo el B9. Si el rival
-            // dio strokes y ganó el match, da uno más la próxima vez; si recibía y perdió, se le
-            // deduce uno. matchTotal > 0 = yo gané el match -> el rival perdió -> recibe un golpe
-            // más (+1). matchTotal < 0 = yo perdí -> el rival ganó -> da un golpe más (-1).
-            let matchTotal = f9 + b9
-            guard matchTotal != 0 else { continue }
-            let delta: Double = matchTotal > 0 ? 1 : -1
-            PlayerDirectoryStore.shared.applyMatchStrokeShift(
-                playerName: player.name, delta: delta, resultSummary: base, roundId: self.roundId
+            let used = player.strokesVsBase
+            let next = used + delta
+            directory.recordClosedMatch(
+                playerName: player.name, alias: player.alias, strokesUsed: used, nextStrokes: next,
+                templateId: templateId, resultSummary: summary, roundId: self.roundId, moneyMxn: line?.totalMoney ?? 0
             )
+            nextStrokes[opp] = next
         }
+        return nextStrokes
     }
 
     // Guarda el resultado final (scores + wallet) a disco antes de borrar.

@@ -124,3 +124,10 @@
 - Pedido de Daniel: editar desde la Tarjeta. Tocar una celda abre la hoja de corrección de la Auditoría (`CorrectionSheetV2`: score, putts, puesto de Oye, unidades; mismo guardado que v1). Tocar el número de hoyo va a la captura de ese hoyo.
 - Pedido de Daniel: resaltar los strokes por hoyo de cada match. Fila de fichas "Todos · ROB · FER · … · vs RIC – ANS": al elegir un match, solo se destacan sus dos lados (los demás se atenúan), los hoyos donde se recibe stroke llevan un recuadro azul con el punto (también en mi columna cuando YO recibo) y una línea azul dice "DAN recibe 8 · hoyos …". Datos: `matchStrokesByHoleV2` / `matchParticipantsV2` (los hoyos jugados salen de las mismas filas del detalle del match, con Carry / Ajuste 50; el resto, del reparto base).
 - 71 pruebas verdes (+3). Captura: P3_14_Tarjeta_match_ROB.png.
+
+## Cerrar el match actualiza el Directorio (23-oct)
+- Decisión de Daniel: solo al CERRAR el match se aplica, y el Directorio queda con ese match para que el siguiente tome de ahí los strokes y el tag.
+- `MatchManager.closeRound()` → `applyInterMatchStrokeCarry(directory:)` ahora registra a CADA rival (también si el match empató o la plantilla no pide ajuste; entonces los strokes no cambian) con `PlayerDirectoryStore.recordClosedMatch`: strokes usados (`strokeAnt`), strokes del próximo (`strokesVsBase`), plantilla usada (`preferredTagId` = el tag), resultado, fecha del último juego (`lastGameAt`, nuevo), dinero del match y dinero acumulado. Cada match se registra una sola vez (por roundId).
+- Los strokes del roster vivo pasan a los del próximo match DESPUÉS de archivar la ronda (el archivo guarda con los que se jugó); se limpian Carry / Ajuste 50 / Doble B9; y se genera un roundId nuevo (antes, cerrar dos rondas en la misma sesión sobrescribía el archivo de la primera).
+- El Directorio (v1) muestra "Último juego 20 oct · strokes −8 → −7 · acumulado +$425". `PlayerDirectoryStore(fileName:)` permite pruebas sin tocar el directorio real. 76 pruebas verdes (+5).
+- Pendiente: estadísticas con promedio y desviación estándar (acumulado) y porcentajes (este match); dinero acumulado en lugar de oyes ganados/perdidos.
