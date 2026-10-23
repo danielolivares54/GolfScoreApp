@@ -155,6 +155,49 @@ class OpenAIService {
         return try JSONDecoder().decode(LLMResult.self, from: resultData)
     }
 
+    /// Dictado integral de un hoyo: score, putts, orden de oyes, unidades y notas de todos los jugadores.
+    /// `context` trae el roster, el hoyo, las unidades válidas y los apodos aprendidos (ver VoiceHolePipeline.context).
+    func parseHole(transcript: String, context: [String: Any]) async throws -> VoiceHoleExtraction {
+        guard !apiKey.isEmpty, apiKey != "MISSING" else {
+            throw NSError(domain: "Config", code: 1, userInfo: [NSLocalizedDescriptionKey: "Falta OPENAI_API_KEY en Info.plist"])
+        }
+        let systemPrompt = """
+        Eres el capturista de una tarjeta de golf. Extraes SOLO lo que el jugador dijo, en JSON.
+        REGLAS:
+        1. "jugador" es el alias del roster si lo reconoces; si no, copia lo que se dijo tal cual (apodo o nombre raro). Nunca inventes jugadores.
+        2. "yo" = yo_alias. "apodos" mapea apodos ya aprendidos a un alias: úsalos.
+        3. scores: un elemento por jugador mencionado con gross (golpes) y/o putts. "bogey", "par", "birdie" sin número: no calcules, pon el número solo si se dijo.
+        4. oyes: SOLO si oyes_activo. rank 1 = el más cerca del hoyo, 2 = segundo, etc. "Oyes primero Ricardo, segundo Daniel" -> [{Ricardo,1},{Daniel,2}].
+        5. unidades: SOLO códigos de la lista "unidades" (sandy par, green en regulación…). Si dicen una que no está, usa el texto dicho como codigo. cantidad = 1 si no se dice.
+        6. notas: comentarios o penalidades que no sean unidad ("se fue al agua"). jugador "" si no se dice de quién.
+        7. No incluyas listas vacías con datos inventados. Si no hay nada del hoyo, devuelve todo vacío.
+        Responde SOLO JSON: {"hoyo":n|null,"scores":[{"jugador":"","gross":n|null,"putts":n|null}],"oyes":[{"jugador":"","rank":n}],"unidades":[{"jugador":"","codigo":"","cantidad":n}],"notas":[{"jugador":"","texto":""}]}
+        """
+        let contextData = try JSONSerialization.data(withJSONObject: context, options: [.sortedKeys])
+        let userPrompt = "CONTEXTO:\n\(String(data: contextData, encoding: .utf8) ?? "{}")\n\nTRANSCRIPCIÓN:\n\"\(transcript)\"\n\nSOLO JSON."
+
+        var request = URLRequest(url: URL(string: "https://api.openai.com/v1/chat/completions")!)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        let body: [String: Any] = [
+            "model": "gpt-4o-mini",
+            "messages": [["role": "system", "content": systemPrompt], ["role": "user", "content": userPrompt]],
+            "temperature": 0.2,
+            "max_tokens": 700,
+            "response_format": ["type": "json_object"]
+        ]
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        let (data, _) = try await URLSession.shared.data(for: request)
+        let response = try JSONDecoder().decode(GPTResponse.self, from: data)
+        guard let content = response.choices.first?.message.content,
+              let json = content.replacingOccurrences(of: "```json", with: "").replacingOccurrences(of: "```", with: "")
+                .trimmingCharacters(in: .whitespacesAndNewlines).data(using: .utf8) else {
+            throw NSError(domain: "GPT", code: -1)
+        }
+        return try JSONDecoder().decode(VoiceHoleExtraction.self, from: json)
+    }
+
     func confirmPlayerNames(candidates: [String], transcript: String) async throws -> NameConfirmResponse {
         guard !apiKey.isEmpty, apiKey != "MISSING" else {
             throw NSError(domain: "Config", code: 1, userInfo: [

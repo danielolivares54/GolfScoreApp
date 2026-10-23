@@ -9,6 +9,8 @@
 /* Begin PBXBuildFile section */
 		F8057682308BED7100AE2B4F /* VoiceSheetV2.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8057681308BED7100AE2B4F /* VoiceSheetV2.swift */; };
 		F8057683308BED7100AE2B4F /* VoiceSheetV2.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8057681308BED7100AE2B4F /* VoiceSheetV2.swift */; };
+		F8057685308BF01B00AE2B4F /* VoiceHolePipelineV2.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8057684308BF01B00AE2B4F /* VoiceHolePipelineV2.swift */; };
+		F8057686308BF01B00AE2B4F /* VoiceHolePipelineV2.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8057684308BF01B00AE2B4F /* VoiceHolePipelineV2.swift */; };
 		F808CADB30895E9F00CAB58C /* ContentViewV2.swift in Sources */ = {isa = PBXBuildFile; fileRef = F808CAD930895E9F00CAB58C /* ContentViewV2.swift */; };
 		F808CADC30895E9F00CAB58C /* CaddieStyleV2.swift in Sources */ = {isa = PBXBuildFile; fileRef = F808CAD830895E9F00CAB58C /* CaddieStyleV2.swift */; };
 		F808CADD30895E9F00CAB58C /* ContentViewV2.swift in Sources */ = {isa = PBXBuildFile; fileRef = F808CAD930895E9F00CAB58C /* ContentViewV2.swift */; };
@@ -72,6 +74,7 @@
 
 /* Begin PBXFileReference section */
 		F8057681308BED7100AE2B4F /* VoiceSheetV2.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceSheetV2.swift; sourceTree = "<group>"; };
+		F8057684308BF01B00AE2B4F /* VoiceHolePipelineV2.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceHolePipelineV2.swift; sourceTree = "<group>"; };
 		F808CACA308953AD00CAB58C /* Caddy_ScoreTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = Caddy_ScoreTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		F808CAD830895E9F00CAB58C /* CaddieStyleV2.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaddieStyleV2.swift; sourceTree = "<group>"; };
 		F808CAD930895E9F00CAB58C /* ContentViewV2.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentViewV2.swift; sourceTree = "<group>"; };
@@ -192,6 +195,7 @@
 				F808CB12308994D900CAB58C /* CatalogoV2.swift */,
 				F808CB173089993500CAB58C /* SplashMarkV2.swift */,
 				F8057681308BED7100AE2B4F /* VoiceSheetV2.swift */,
+				F8057684308BF01B00AE2B4F /* VoiceHolePipelineV2.swift */,
 			);
 			path = V2;
 			sourceTree = "<group>";
@@ -357,6 +361,7 @@
 				F808CADC30895E9F00CAB58C /* CaddieStyleV2.swift in Sources */,
 				F808CB0E3089931200CAB58C /* HistorialV2.swift in Sources */,
 				F808CAFE3089863000CAB58C /* EventSheetV2.swift in Sources */,
+				F8057685308BF01B00AE2B4F /* VoiceHolePipelineV2.swift in Sources */,
 				F808CAED3089691C00CAB58C /* TarjetaV2.swift in Sources */,
 				F808CB13308994D900CAB58C /* CatalogoV2.swift in Sources */,
 				F808CB103089932400CAB58C /* MyHistoryV2.swift in Sources */,
@@ -381,6 +386,7 @@
 				F82AA8E2304F6029004066B3 /* GolfScoreRecord.swift in Sources */,
 				F8A1001C2F43000100A1B2C3 /* Caddy_Score/MatchManager.swift in Sources */,
 				F82AA8E0304F5E7B004066B3 /* SiriMatchManager.swift in Sources */,
+				F8057686308BF01B00AE2B4F /* VoiceHolePipelineV2.swift in Sources */,
 				F8A1001D2F43000100A1B2C3 /* Caddy_Score/OpenAIService.swift in Sources */,
 				F8A1001E2F43000100A1B2C3 /* Caddy_Score/VoiceRecorder.swift in Sources */,
 				F808CB113089932400CAB58C /* MyHistoryV2.swift in Sources */,
