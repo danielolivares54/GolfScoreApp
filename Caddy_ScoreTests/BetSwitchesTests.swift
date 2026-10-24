@@ -663,12 +663,12 @@ struct ContrastAndBriefTests {
 
         let round = m.roundReadbackV2(detail: false), roundFull = m.roundReadbackV2(detail: true)
         #expect(round.count < roundFull.count)
-        #expect(round.contains("Por conteo.") && round.contains("Dinero."))
+        #expect(round.contains("match:") && round.contains("Dinero."))
 
         let explain = brief(m, .init(tipo: "explicar", jugador: "yo", oponente: "Roberto"))
         let explainFull = full(m, .init(tipo: "explicar", jugador: "yo", oponente: "Roberto"))
         #expect(explain.count < explainFull.count)
-        #expect(explain.hasPrefix("Contra Roberto, ") && explain.contains("F9 ") && !explain.contains("Strokes:"))
+        #expect(explain.hasPrefix("Contra Roberto: ") && explain.contains("ganaste") && !explain.contains("Strokes:"))
 
         let nine = brief(m, .init(tipo: "nueve", jugador: "yo", oponente: "Roberto"))
         #expect(nine.contains("F9: ") && nine.contains("Dinero:") && !nine.contains("Strokes:") && !nine.contains("presion"))
@@ -763,5 +763,16 @@ struct CorrectionRouteTests {
                                             slang: VoiceSlangStore(defaults: UserDefaults(suiteName: "status-\(UUID().uuidString)")!))
         #expect((text.hasPrefix("Daniel contra Roberto.") || text.hasPrefix("Individuales. Daniel contra Roberto.")) && text.contains(" contra ") && text.contains("Vuelta "))
         #expect(!text.contains("Presiones abiertas"))
+    }
+
+    @Test func scoreboardIsJustCountsAndOneOpponentGetsOneLine() {
+        let m = DemoFixture.make()
+        let slang = VoiceSlangStore(defaults: UserDefaults(suiteName: "board-\(UUID().uuidString)")!)
+        let all = VoiceHolePipeline.answer(.init(tipo: "match"), match: m, currentHole: 14, slang: slang)
+        #expect(all.hasPrefix("Al hoyo ") && all.contains("match:") && !all.contains("pesos") && all.contains("Mejor "))
+        let one = VoiceHolePipeline.answer(.init(tipo: "match", jugador: "yo", oponente: "Roberto"), match: m, currentHole: 14, slang: slang)
+        #expect(one.contains("contra Roberto") && !one.contains("contra Ricardo") && !one.contains("Mejor "))
+        let why = VoiceHolePipeline.answer(.init(tipo: "explicar", jugador: "yo", oponente: "Roberto"), match: m, currentHole: 14, slang: slang)
+        #expect(why.contains("ganaste") && why.contains("perdiste") && why.contains("troke"))
     }
 }

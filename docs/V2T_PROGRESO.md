@@ -68,3 +68,7 @@
 - Decisión de Daniel: las reglas locales NO se conectan al apuntador todavía; primero se prueba qué contesta y con qué alcance. Las respuestas deben ser más cortas y como una película, no una foto: se pregunta sobre el último hoyo y se asume lo anterior.
 - Nuevo tipo `estatus`: el último hoyo jugado de cada match (individual y parejas): golpes brutos de cada lado, quién ganó, quién recibe stroke (o "sin strokes") y cómo va la vuelta. Con un jugador nombrado, "cómo voy / cómo vamos" ya no cae en el resumen general: lo clasifica el LLM (`ReadbackIntentV2.detect(names:)`).
 - La lectura breve de un hoyo contra el rival solo menciona "ventaja de X" cuando alguien tiene stroke en ese hoyo (si no, no dice nada); cuántos strokes recibe es otra pregunta.
+
+## Botones de lectura: solo conteos (24-oct)
+- **Vuelta, Presión, Match, F9, B9 y Cómo vamos** contestan solo con conteos: "Al hoyo 8, match: individuales contra Roberto 3 arriba; contra Ricardo 1 abajo. Parejas contrarias: … 2 abajo. Mejor contra Roberto, peor contra Ricardo." Si preguntan por un solo rival contesta uno, sin comparación. "Más detalle" da la lectura larga de antes (`scoreboardReadbackV2`).
+- **Por qué** (breve): por match, hoyos ganados / perdidos / empatados, cuántos hoyos adelante o atrás y en cuáles hay stroke y de quién (`whyBriefV2`). El detalle con dinero y conceptos sigue en "Más detalle".

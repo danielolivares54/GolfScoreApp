@@ -270,6 +270,7 @@ extension MatchManager {
         case "hoyo", "resultado_hoyo", "resultado":
             return holeResultsReadbackV2(alias: alias, opponent: opponent, from: hole, to: to, currentHole: currentHole, detail: detail)
         case "vuelta", "presion", "presión", "match":
+            if !detail { return scoreboardReadbackV2(kind: kind.lowercased().replacingOccurrences(of: "ó", with: "o"), alias: alias, opponent: opponent, segment: segment) }
             return betKindAnswerV2(kind.lowercased().replacingOccurrences(of: "ó", with: "o"), alias: alias, opponent: opponent)
         case "explicar", "porque", "por_que", "acumulado":
             return explainReadbackV2(alias: alias, opponent: opponent, detail: detail)
@@ -278,6 +279,7 @@ extension MatchManager {
         case "conteo", "cuenta":
             return countsReadbackV2(detail: detail)
         case "nueve", "resultados", "presiones", "strokes", "apuestas":
+            if !detail, kind.lowercased() == "nueve", segment != nil { return scoreboardReadbackV2(kind: "nueve", alias: alias, opponent: opponent, segment: segment) }
             return nineAnswerV2(kind.lowercased(), alias: alias, segment: segment, detail: detail)
         case "notas":
             let notes = unitEventsByHole.values.flatMap { $0 }

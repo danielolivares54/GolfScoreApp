@@ -39,6 +39,7 @@ extension MatchManager {
 
     /// Los conteos de cada match (F9, B9, match y presiones abiertas), sin dinero.
     func countsReadbackV2(detail: Bool = true) -> String {
+        if !detail { return scoreboardReadbackV2(kind: "match", alias: nil, opponent: nil, segment: nil) }
         let rows = resultadoRowsV2()
         guard !rows.isEmpty else { return "Todavía no hay matches en la ronda." }
         func line(_ row: ResultadoRowV2) -> String {
@@ -314,6 +315,102 @@ extension MatchManager {
         return lines.joined(separator: " ")
     }
 
+
+    // MARK: Marcador corto: solo conteos
+
+    /// "Al hoyo 8, match: contra Roberto 3 arriba; contra Ricardo 1 abajo." Individuales primero y luego parejas contrarias;
+    /// con varios individuales compara el mejor y el peor. Si preguntan por uno solo, contesta uno.
+    func scoreboardReadbackV2(kind: String, alias: String?, opponent: String?, segment: String?) -> String {
+        let rows = matchesFor(alias: alias, opponent: opponent)
+        guard !rows.isEmpty else { return "No encontré ese match." }
+        var held = Set<Int>()
+        for a in players.map(\.alias) where a != yoAlias {
+            for n in ["F9", "B9"] { individualZoomRows(opponentAlias: a, segmentOverride: n).forEach { held.insert($0.hole) } }
+        }
+        let last = playOrder().last { held.contains($0) }
+        let nine = segment?.uppercased() ?? last.map(nineOf) ?? "F9"
+        let label: String
+        switch kind {
+        case "presion": label = "presiones \(nine)"
+        case "vuelta", "nueve": label = "vuelta \(nine)"
+        default: label = "match"
+        }
+        var values: [(row: ResultadoRowV2, value: Int, text: String)] = []
+        for row in rows {
+            let sign = signFor(row, alias: alias)
+            switch kind {
+            case "presion":
+                let open = (nine == "B9" ? row.b9Presiones : row.f9Presiones)
+                let mine = open.filter { $0 * sign > 0 }.count, theirs = open.filter { $0 * sign < 0 }.count
+                let words = open.isEmpty ? "ninguna abierta" : [mine > 0 ? "\(mine) a favor" : nil, theirs > 0 ? "\(theirs) en contra" : nil].compactMap { $0 }.joined(separator: " y ")
+                values.append((row, mine - theirs, "\(matchName(row)) \(words)"))
+            case "vuelta", "nueve":
+                let v = (nine == "B9" ? row.b9Net : row.f9Net) * sign
+                values.append((row, v, "\(matchName(row)) \(countWords(v))"))
+            default:
+                let v = (row.f9Net + row.b9Net) * sign
+                values.append((row, v, "\(matchName(row)) \(countWords(v))"))
+            }
+        }
+        let singles = values.filter { !$0.row.isPair }, pairs = values.filter { $0.row.isPair }
+        var text = (last.map { "Al hoyo \($0), " } ?? "") + label + ": "
+        var parts: [String] = []
+        if !singles.isEmpty { parts.append((pairs.isEmpty ? "" : "individuales ") + singles.map(\.text).joined(separator: "; ")) }
+        if !pairs.isEmpty { parts.append((singles.isEmpty ? "" : "parejas contrarias ") + pairs.map(\.text).joined(separator: "; ")) }
+        text += parts.joined(separator: ". ") + "."
+        if kind != "presion", singles.count > 1, let best = singles.max(by: { $0.value < $1.value }), let worst = singles.min(by: { $0.value < $1.value }),
+           best.value != worst.value {
+            text += " Mejor \(matchName(best.row)), peor \(matchName(worst.row))."
+        }
+        if let n = pairsNoticeV2() { text += " Ojo: " + pairsNoticeTextV2(n) }
+        return text
+    }
+
+    /// "Por qué" corto: cuántos hoyos se ganaron y perdieron en cada match y en cuáles hay stroke.
+    func whyBriefV2(alias: String?, opponent: String?) -> String {
+        let rows = matchesFor(alias: alias, opponent: opponent)
+        guard !rows.isEmpty else { return "No encontré ese match." }
+        func holesList(_ h: [Int]) -> String { h.count == 1 ? "el \(h[0])" : "los " + spokenList(h.map(String.init)) }
+        let lines = rows.map { row -> String in
+            let sign = signFor(row, alias: alias)
+            let total = (row.f9Net + row.b9Net) * sign
+            var results: [Int] = []
+            var strokesMine: [Int] = [], strokesTheirs: [Int] = [], strokesAny: [Int] = []
+            switch row.kind {
+            case .individual(let opp):
+                for nine in ["F9", "B9"] {
+                    for r in individualZoomRows(opponentAlias: opp, segmentOverride: nine) {
+                        results.append(r.result * sign)
+                        let mine = sign == 1 ? r.yoStrokes : r.oppStrokes, his = sign == 1 ? r.oppStrokes : r.yoStrokes
+                        if mine > 0 { strokesMine.append(r.hole) } else if his > 0 { strokesTheirs.append(r.hole) }
+                    }
+                }
+            case .pair(let id):
+                for nine in ["F9", "B9"] {
+                    for r in pairZoomRows(laneId: id, segmentOverride: nine) {
+                        results.append(r.result * sign)
+                        if (r.basePlayers + r.oppPlayers).contains(where: { $0.laneStrokes > 0 }) { strokesAny.append(r.hole) }
+                    }
+                }
+            }
+            let won = results.filter { $0 > 0 }.count, lost = results.filter { $0 < 0 }.count, tied = results.filter { $0 == 0 }.count
+            let isMe = sign == 1
+            var text = "\(matchName(row).prefix(1).uppercased() + matchName(row).dropFirst()): \(countWords(total)). "
+            if results.isEmpty { return text + "Todavía sin hoyos jugados." }
+            var counts = ["\(isMe ? "ganaste" : "ganó") \(won)", "\(isMe ? "perdiste" : "perdió") \(lost)"]
+            if tied > 0 { counts.append("empataron \(tied)") }
+            text += counts.joined(separator: ", ") + "."
+            if total != 0 { text += " \(abs(total)) hoyo\(abs(total) == 1 ? "" : "s") \(total > 0 ? "adelante" : "atrás")." }
+            var strokes: [String] = []
+            if !strokesMine.isEmpty { strokes.append("\(isMe ? "tienes" : "tiene") stroke en \(holesList(strokesMine))") }
+            if !strokesTheirs.isEmpty { strokes.append("el rival tiene stroke en \(holesList(strokesTheirs))") }
+            if !strokesAny.isEmpty { strokes.append("hay stroke en \(holesList(strokesAny))") }
+            text += strokes.isEmpty ? " Sin strokes." : " " + strokes.joined(separator: "; ").prefix(1).uppercased() + strokes.joined(separator: "; ").dropFirst() + "."
+            return text
+        }
+        return lines.joined(separator: " ")
+    }
+
     // MARK: El acumulado y por qué resultó
 
     /// Explica cómo se llegó al resultado de cada match: hoyos ganados y perdidos, vuelta, presiones, match, strokes y unidades,
@@ -321,16 +418,12 @@ extension MatchManager {
     func explainReadbackV2(alias: String?, opponent: String?, detail: Bool = true) -> String {
         let rows = matchesFor(alias: alias, opponent: opponent)
         guard !rows.isEmpty else { return "No encontré ese match." }
+        if !detail { return whyBriefV2(alias: alias, opponent: opponent) }
         let blocks = rows.compactMap { row -> String? in
             guard let r = matchResumenV2(for: row.target) else { return nil }
             let sign = signFor(row, alias: alias)
             let me = sign == 1 && (alias == nil || alias == yoAlias || { if case .pair = row.kind { return true } else { return false } }())
             let money = row.money * sign
-            if !detail {
-                let counts = "F9 \(countWords(row.f9Net * sign)), B9 \(countWords(row.b9Net * sign)), match \(countWords((row.f9Net + row.b9Net) * sign))"
-                let units = r.unidades.monto == 0 ? "" : ", unidades \(r.unidades.monto * sign > 0 ? "a favor" : "en contra")"
-                return "\(matchName(row).prefix(1).uppercased() + matchName(row).dropFirst()), \(moneyWords(money)): \(counts)\(units)."
-            }
             var parts: [String] = []
             func concept(_ name: String, _ c: ConceptoMatch, nine: String?) {
                 var text = name + ": "
