@@ -19,6 +19,9 @@ extension MatchManager {
     /// "2 arriba" / "1 abajo" / "parejos".
     func countWords(_ n: Int) -> String { n > 0 ? "\(n) arriba" : n < 0 ? "\(-n) abajo" : "parejos" }
 
+    /// Número con signo desde el lado del usuario: "más 3", "menos 2", "cero" (más = va ganando).
+    func signedWords(_ n: Int) -> String { n > 0 ? "más \(n)" : n < 0 ? "menos \(-n)" : "cero" }
+
     private func strokesWords(_ amount: Double) -> String {
         let whole = Int(amount)
         return abs(amount - Double(whole)) > 0.01 ? (whole == 0 ? "medio" : "\(whole) y medio") : "\(whole)"
@@ -137,9 +140,7 @@ extension MatchManager {
 
 
     private func presionWords(_ open: [Int], sign: Int) -> String {
-        let net = open.reduce(0) { $0 + ($1 * sign > 0 ? 1 : $1 * sign < 0 ? -1 : 0) }
-        if open.isEmpty { return "sin presión" }
-        return net > 0 ? "\(net) presión\(net == 1 ? "" : "es") a favor" : net < 0 ? "\(-net) presión\(net == -1 ? "" : "es") en contra" : "presiones parejas"
+        "presión " + signedWords(open.reduce(0) { $0 + ($1 * sign > 0 ? 1 : $1 * sign < 0 ? -1 : 0) })
     }
 
     /// El match en ese hoyo: la vuelta de su nueve hasta ahí más la del otro nueve si ya se había jugado antes.
@@ -197,7 +198,7 @@ extension MatchManager {
             let ba = beforeAfter(prev.map { ($0.0, $0.1) }, (r.vueltaAccum, r.openPressures), sign: sign, nine: nine)
             if holes.count <= 3 && !detail {
                 let briefStroke = myStroke > 0 ? ", ventaja de \(myName)" : hisStroke > 0 ? ", ventaja de \(hisName)" : ""
-                lines.append("Hoyo \(hole): \(myGross) contra \(hisGross), \(outcomeWords(r.result * sign, myName))\(briefStroke). Vuelta \(nine) \(countWords(r.vueltaAccum * sign))\(totals ? ", " + presionWords(r.openPressures, sign: sign) + ", match " + countWords(matchAsOf(hole, nineRows: rows, otherNine: nine == "F9" ? "B9" : "F9", sign: sign, target: .individual(opp))) : "").")
+                lines.append("Hoyo \(hole): \(myGross) contra \(hisGross), \(outcomeWords(r.result * sign, myName))\(briefStroke). Vuelta \(nine) \(signedWords(r.vueltaAccum * sign))\(totals ? ", " + presionWords(r.openPressures, sign: sign) + ", match " + signedWords(matchAsOf(hole, nineRows: rows, otherNine: nine == "F9" ? "B9" : "F9", sign: sign, target: .individual(opp))) : "").")
             } else if holes.count <= 3 {
                 lines.append("Hoyo \(hole): \(myName) tiró \(myGross) y \(hisName) \(hisGross). \(strokeText). \(outcomeWords(r.result * sign, myName).prefix(1).uppercased() + outcomeWords(r.result * sign, myName).dropFirst()). \(ba)")
             } else {
@@ -242,7 +243,7 @@ extension MatchManager {
                 let advNames = (r.basePlayers + r.oppPlayers).filter { $0.laneStrokes > 0 }.map { spokenName($0.alias) }
                 let briefAdv = advNames.isEmpty ? "" : ", ventaja de " + spokenList(advNames)
                 let briefBalls = "\(myBalls.map(ball).joined(separator: " y ")) contra \(hisBalls.map(ball).joined(separator: " y "))"
-                lines.append("Hoyo \(hole): \(briefBalls), \(word)\(briefAdv). Vuelta \(nine) \(countWords(r.vueltaAccum * sign))\(totals ? ", " + presionWords(r.openPressures, sign: sign) + ", match " + countWords(matchAsOf(hole, nineRows: rows, otherNine: nine == "F9" ? "B9" : "F9", sign: sign, target: .pair(lane.id))) : "").")
+                lines.append("Hoyo \(hole): \(briefBalls), \(word)\(briefAdv). Vuelta \(nine) \(signedWords(r.vueltaAccum * sign))\(totals ? ", " + presionWords(r.openPressures, sign: sign) + ", match " + signedWords(matchAsOf(hole, nineRows: rows, otherNine: nine == "F9" ? "B9" : "F9", sign: sign, target: .pair(lane.id))) : "").")
             } else if holes.count <= 3 {
                 lines.append("Hoyo \(hole): tiraron \(spokenList(myBalls.map(ball))) contra \(spokenList(hisBalls.map(ball))). \(stroke). \(word.prefix(1).uppercased() + word.dropFirst()). \(ba)")
             } else {
@@ -368,24 +369,23 @@ extension MatchManager {
             case "presion":
                 let open = (nine == "B9" ? row.b9Presiones : row.f9Presiones)
                 let mine = open.filter { $0 * sign > 0 }.count, theirs = open.filter { $0 * sign < 0 }.count
-                let words = open.isEmpty ? "ninguna abierta" : [mine > 0 ? "\(mine) a favor" : nil, theirs > 0 ? "\(theirs) en contra" : nil].compactMap { $0 }.joined(separator: " y ")
-                values.append((row, mine - theirs, "\(matchName(row)) \(words)"))
+                values.append((row, mine - theirs, "\(matchName(row)) presión \(signedWords(mine - theirs))"))
             case "vuelta", "nueve":
                 let v = (nine == "B9" ? row.b9Net : row.f9Net) * sign
-                values.append((row, v, "\(matchName(row)) \(countWords(v))"))
+                values.append((row, v, "\(matchName(row)) \(signedWords(v))"))
             case "resumen":
                 // Cada número como se dice: vuelta, presión, match y unidades.
                 let v = (nine == "B9" ? row.b9Net : row.f9Net) * sign
                 let open = nine == "B9" ? row.b9Presiones : row.f9Presiones
                 let net = open.reduce(0) { $0 + ($1 * sign > 0 ? 1 : $1 * sign < 0 ? -1 : 0) }
-                let pres = open.isEmpty ? "sin presión" : net > 0 ? "\(net) presión\(net == 1 ? "" : "es") a favor" : net < 0 ? "\(-net) presión\(net == -1 ? "" : "es") en contra" : "presiones parejas"
+                let pres = "presión " + signedWords(net)
                 let m = (row.f9Net + row.b9Net) * sign
                 let u = (matchResumenV2(for: row.target)?.unidades.chips.first).flatMap { Int($0.replacingOccurrences(of: "+", with: "")) }.map { $0 * sign } ?? 0
-                let units = u == 0 ? "sin unidades" : "unidades \(countWords(u))"
-                values.append((row, m, "\(matchName(row)): vuelta \(countWords(v)), \(pres), match \(countWords(m)), \(units)"))
+                let units = "unidades \(signedWords(u))"
+                values.append((row, m, "\(matchName(row)): vuelta \(signedWords(v)), \(pres), match \(signedWords(m)), \(units)"))
             default:
                 let v = (row.f9Net + row.b9Net) * sign
-                values.append((row, v, "\(matchName(row)) \(countWords(v))"))
+                values.append((row, v, "\(matchName(row)) \(signedWords(v))"))
             }
         }
         let singles = values.filter { !$0.row.isPair }, pairs = values.filter { $0.row.isPair }
@@ -431,12 +431,12 @@ extension MatchManager {
             }
             let won = results.filter { $0 > 0 }.count, lost = results.filter { $0 < 0 }.count, tied = results.filter { $0 == 0 }.count
             let isMe = sign == 1
-            var text = "\(matchName(row).prefix(1).uppercased() + matchName(row).dropFirst()): \(countWords(total)). "
+            var text = "\(matchName(row).prefix(1).uppercased() + matchName(row).dropFirst()): \(signedWords(total)). "
             if results.isEmpty { return text + "Todavía sin hoyos jugados." }
             var counts = ["\(isMe ? "ganaste" : "ganó") \(won)", "\(isMe ? "perdiste" : "perdió") \(lost)"]
             if tied > 0 { counts.append("empataron \(tied)") }
             text += counts.joined(separator: ", ") + "."
-            if total != 0 { text += " \(abs(total)) hoyo\(abs(total) == 1 ? "" : "s") \(total > 0 ? "adelante" : "atrás")." }
+            
             var strokes: [String] = []
             if !strokesMine.isEmpty { strokes.append("\(isMe ? "tienes" : "tiene") stroke en \(holesList(strokesMine))") }
             if !strokesTheirs.isEmpty { strokes.append("el rival tiene stroke en \(holesList(strokesTheirs))") }

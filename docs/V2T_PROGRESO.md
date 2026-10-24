@@ -78,3 +78,4 @@
 ## Contrastar con stepper y estatus a un hoyo (24-oct)
 - En **Contrastar tarjeta** cada fila ya no trae el altavoz (18 íconos): lleva **− / +** para subir o bajar los golpes del hoyo directo (conserva putts y 3P/4P) y el lápiz para el resto; "Leer F9/B9/18" queda arriba (`setGrossV2`).
 - **"¿Cómo van Jorge y Roberto al hoyo 15?"** (tipo `estatus` con hoyo): una línea por match como si vieras la tarjeta en ese hoyo: golpes de cada uno, quién ganó, ventaja si hay, y vuelta, presión y match a ese hoyo. Individuales primero y parejas contrarias después.
+- **Números con signo (24-oct):** las lecturas breves dan el dato completo, siempre desde el lado del usuario: "vuelta más 3, presión menos 1, match más 2, unidades cero" (más = va ganando, menos = va perdiendo). Ya no dicen arriba/abajo en el estatus, el marcador ni el "por qué" breve; el detalle largo sí conserva arriba/abajo (`signedWords`).
