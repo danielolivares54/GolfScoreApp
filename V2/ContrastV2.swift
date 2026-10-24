@@ -130,6 +130,19 @@ extension MatchManager {
     }
 }
 
+extension MatchManager {
+    /// Cambia los golpes de un jugador en un hoyo conservando los putts y los 3P/4P ya marcados (misma escritura que la hoja de corrección).
+    func setGrossV2(alias: String, hole: Int, gross: Int, putts: Int?) {
+        let events = unitEventsByHole[hole]
+        let preserved3P = events?.first { $0.alias == alias && $0.code == "3P" }
+        let preserved4P = events?.first { $0.alias == alias && $0.code == "4P" }
+        applyHoleEntry(HoleEntryData(hole_number: hole, player_alias: alias, strokes: gross, putts: putts, units: nil, tags: nil))
+        if let e = preserved3P { upsertUnitEvent(hole: hole, alias: alias, code: "3P", units: e.units, note: e.note) }
+        if let e = preserved4P { upsertUnitEvent(hole: hole, alias: alias, code: "4P", units: e.units, note: e.note) }
+        _ = ScoreManager.shared.saveScore(record: GolfScoreRecord(player: alias, hole: hole, strokes: gross, putts: putts ?? 0))
+    }
+}
+
 // MARK: - Pantalla
 
 struct ContrastSheetV2: View {
@@ -214,8 +227,12 @@ struct ContrastSheetV2: View {
                 Text("par \(line.par)").font(.v2Label).foregroundStyle(CSV2.secondary)
             }
             .frame(width: 56, alignment: .leading)
-            ScoreMarkV2(gross: line.gross, par: line.par, size: 36,
-                        strokeDots: line.lost ? 0 : (line.strokes.map(\.amount).max() ?? 0), lostHole: line.lost)
+            HStack(spacing: 2) {
+                stepButton("minus.circle", "Quitar un golpe en el hoyo \(line.hole)", disabled: (line.gross ?? 0) <= 1) { bump(line, -1) }
+                ScoreMarkV2(gross: line.gross, par: line.par, size: 36,
+                            strokeDots: line.lost ? 0 : (line.strokes.map(\.amount).max() ?? 0), lostHole: line.lost)
+                stepButton("plus.circle", "Agregar un golpe en el hoyo \(line.hole)", disabled: false) { bump(line, 1) }
+            }
             VStack(alignment: .leading, spacing: 2) {
                 Text(line.putts.map { "\($0) putts" } ?? (line.gross == nil ? "sin anotar" : "sin putts"))
                     .font(.v2Body).foregroundStyle(line.gross == nil || line.putts == nil ? CSV2.warning : CSV2.ink)
@@ -226,10 +243,6 @@ struct ContrastSheetV2: View {
                 }
             }
             Spacer(minLength: 4)
-            Button { speech.speak(matchManager.playerHoleSpokenV2(line)) } label: {
-                Image(systemName: "speaker.wave.2").frame(width: CSV2.minTap, height: CSV2.minTap).foregroundStyle(CSV2.green)
-            }
-            .buttonStyle(.plain).accessibilityLabel("Leer el hoyo \(line.hole)")
             Button { openCorrection(line) } label: {
                 Image(systemName: "pencil").frame(width: CSV2.minTap, height: CSV2.minTap).foregroundStyle(CSV2.ink)
             }
@@ -248,6 +261,18 @@ struct ContrastSheetV2: View {
                 .font(.v2Label).foregroundStyle(CSV2.secondary)
         }
         .padding(CSV2.s2).frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func stepButton(_ symbol: String, _ label: String, disabled: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: symbol).font(.system(.title3)).frame(width: 36, height: CSV2.minTap).foregroundStyle(disabled ? CSV2.secondary : CSV2.green)
+        }
+        .buttonStyle(.plain).disabled(disabled).accessibilityLabel(label)
+    }
+
+    /// Un golpe más o menos en ese hoyo, sin abrir la hoja de corrección (sin golpes anotados arranca del par).
+    private func bump(_ line: PlayerHoleLineV2, _ delta: Int) {
+        matchManager.setGrossV2(alias: alias, hole: line.hole, gross: max(1, (line.gross ?? line.par) + delta), putts: line.putts)
     }
 
     private func openCorrection(_ line: PlayerHoleLineV2) {

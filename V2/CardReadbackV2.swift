@@ -266,7 +266,7 @@ extension MatchManager {
         case "tarjeta", "golpes_nueve", "contrastar":
             return playerCardAnswerV2(alias: alias, segment: segment, from: hole, to: to, currentHole: currentHole, detail: detail)
         case "estatus", "status", "como_voy":
-            return statusReadbackV2(alias: alias, opponent: opponent)
+            return statusReadbackV2(alias: alias, opponent: opponent, hole: hole)
         case "hoyo", "resultado_hoyo", "resultado":
             return holeResultsReadbackV2(alias: alias, opponent: opponent, from: hole, to: to, currentHole: currentHole, detail: detail)
         case "vuelta", "presion", "presión", "match":

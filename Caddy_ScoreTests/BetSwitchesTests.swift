@@ -785,4 +785,18 @@ struct CorrectionRouteTests {
         let todos = VoiceHolePipeline.answer(.init(tipo: "match", jugador: "todos"), match: m, currentHole: 14, slang: slang)
         #expect(!todos.hasPrefix("No encontré"))
     }
+
+    @Test func statusAtAHoleGivesTheHoleVueltaPresionAndMatch() {
+        let m = DemoFixture.make()
+        let slang = VoiceSlangStore(defaults: UserDefaults(suiteName: "athole-\(UUID().uuidString)")!)
+        let text = VoiceHolePipeline.answer(.init(tipo: "estatus", jugador: "yo", oponente: "Roberto", hoyo: 15), match: m, currentHole: 14, slang: slang)
+        #expect(text.contains("Hoyo 15:") && text.contains("Vuelta B9") && text.contains("presi") && text.contains(", match "))
+    }
+
+    @Test func theStepperChangesTheGrossAndKeepsThePutts() {
+        let m = DemoFixture.make()
+        let before = m.getScore(hole: 3, player: "DAN"), putts = m.getPutts(hole: 3, player: "DAN")
+        m.setGrossV2(alias: "DAN", hole: 3, gross: before + 1, putts: putts > 0 ? putts : nil)
+        #expect(m.getScore(hole: 3, player: "DAN") == before + 1 && m.getPutts(hole: 3, player: "DAN") == putts)
+    }
 }

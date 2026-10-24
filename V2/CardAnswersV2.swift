@@ -110,7 +110,7 @@ extension MatchManager {
     }
 
     /// "¿Cómo voy contra Ricardo?": el último hoyo jugado de cada match (quién ganó, golpes brutos, strokes) y cómo va la vuelta. Siempre breve.
-    func statusReadbackV2(alias: String?, opponent: String?) -> String {
+    func statusReadbackV2(alias: String?, opponent: String?, hole: Int? = nil) -> String {
         let me = yoAlias
         let p = alias ?? me
         let order = playOrder()
@@ -120,12 +120,12 @@ extension MatchManager {
             guard p == me || p == opp else { continue }
             if let opponent, opponent != (p == me ? opp : me) { continue }
             let held = Set(["F9", "B9"].flatMap { individualZoomRows(opponentAlias: opp, segmentOverride: $0).map(\.hole) })
-            if let h = lastHole(held), let b = individualHoleBlock(perspective: p, opponent: opp, holes: [h], detail: false) { singles.append(b) }
+            if let h = hole ?? lastHole(held), let b = individualHoleBlock(perspective: p, opponent: opp, holes: [h], detail: false, totals: true) { singles.append(b) }
         }
         for lane in activeLanes where lane.base.contains(p) || lane.opp.contains(p) {
             if let opponent, !((lane.base.contains(p) ? lane.opp : lane.base).contains(opponent)) { continue }
             let held = Set(["F9", "B9"].flatMap { pairZoomRows(laneId: lane.id, segmentOverride: $0).map(\.hole) })
-            if let h = lastHole(held), let b = pairHoleBlock(perspective: p, lane: lane, holes: [h], detail: false) { pairs.append(b) }
+            if let h = hole ?? lastHole(held), let b = pairHoleBlock(perspective: p, lane: lane, holes: [h], detail: false, totals: true) { pairs.append(b) }
         }
         guard !(singles + pairs).isEmpty else { return "Todavía no hay hoyos completos para ese match." }
         // Primero los individuales y luego las parejas contrarias.
@@ -133,6 +133,31 @@ extension MatchManager {
         if !singles.isEmpty { out.append((pairs.isEmpty ? "" : "Individuales. ") + singles.joined(separator: " ")) }
         if !pairs.isEmpty { out.append((singles.isEmpty ? "" : "Parejas contrarias. ") + pairs.joined(separator: " ")) }
         return out.joined(separator: " ")
+    }
+
+
+    private func presionWords(_ open: [Int], sign: Int) -> String {
+        let net = open.reduce(0) { $0 + ($1 * sign > 0 ? 1 : $1 * sign < 0 ? -1 : 0) }
+        if open.isEmpty { return "sin presión" }
+        return net > 0 ? "\(net) presión\(net == 1 ? "" : "es") a favor" : net < 0 ? "\(-net) presión\(net == -1 ? "" : "es") en contra" : "presiones parejas"
+    }
+
+    /// El match en ese hoyo: la vuelta de su nueve hasta ahí más la del otro nueve si ya se había jugado antes.
+    private func matchAsOf<R>(_ hole: Int, nineRows: [R], otherNine: String, sign: Int, target: UnitLogTarget) -> Int {
+        let order = playOrder()
+        let idx = order.firstIndex(of: hole) ?? 0
+        let current: Int
+        let other: [(hole: Int, accum: Int)]
+        switch target {
+        case .individual(let opp):
+            current = (nineRows as? [IndividualZoomRow])?.first { $0.hole == hole }?.vueltaAccum ?? 0
+            other = individualZoomRows(opponentAlias: opp, segmentOverride: otherNine).map { ($0.hole, $0.vueltaAccum) }
+        case .pair(let id):
+            current = (nineRows as? [PairZoomRow])?.first { $0.hole == hole }?.vueltaAccum ?? 0
+            other = pairZoomRows(laneId: id, segmentOverride: otherNine).map { ($0.hole, $0.vueltaAccum) }
+        }
+        let before = other.last { (order.firstIndex(of: $0.hole) ?? Int.max) < idx }?.accum ?? 0
+        return (current + before) * sign
     }
 
     private func outcomeWords(_ r: Int, _ name: String) -> String { r > 0 ? "gana \(name)" : r < 0 ? "pierde \(name)" : "empatan" }
@@ -145,7 +170,7 @@ extension MatchManager {
             "Presiones abiertas: antes \(beforeP), ahora \(afterP)."
     }
 
-    private func individualHoleBlock(perspective p: String, opponent opp: String, holes: [Int], detail: Bool = true) -> String? {
+    private func individualHoleBlock(perspective p: String, opponent opp: String, holes: [Int], detail: Bool = true, totals: Bool = false) -> String? {
         let me = yoAlias
         let sign = p == me ? 1 : -1
         let other = p == me ? opp : me
@@ -172,7 +197,7 @@ extension MatchManager {
             let ba = beforeAfter(prev.map { ($0.0, $0.1) }, (r.vueltaAccum, r.openPressures), sign: sign, nine: nine)
             if holes.count <= 3 && !detail {
                 let briefStroke = myStroke > 0 ? ", ventaja de \(myName)" : hisStroke > 0 ? ", ventaja de \(hisName)" : ""
-                lines.append("Hoyo \(hole): \(myGross) contra \(hisGross), \(outcomeWords(r.result * sign, myName))\(briefStroke). Vuelta \(nine) \(countWords(r.vueltaAccum * sign)).")
+                lines.append("Hoyo \(hole): \(myGross) contra \(hisGross), \(outcomeWords(r.result * sign, myName))\(briefStroke). Vuelta \(nine) \(countWords(r.vueltaAccum * sign))\(totals ? ", " + presionWords(r.openPressures, sign: sign) + ", match " + countWords(matchAsOf(hole, nineRows: rows, otherNine: nine == "F9" ? "B9" : "F9", sign: sign, target: .individual(opp))) : "").")
             } else if holes.count <= 3 {
                 lines.append("Hoyo \(hole): \(myName) tiró \(myGross) y \(hisName) \(hisGross). \(strokeText). \(outcomeWords(r.result * sign, myName).prefix(1).uppercased() + outcomeWords(r.result * sign, myName).dropFirst()). \(ba)")
             } else {
@@ -190,7 +215,7 @@ extension MatchManager {
         return head + " " + lines.joined(separator: "; ") + ". " + tail.joined(separator: ". ") + "."
     }
 
-    private func pairHoleBlock(perspective p: String, lane: LaneModel, holes: [Int], detail: Bool = true) -> String? {
+    private func pairHoleBlock(perspective p: String, lane: LaneModel, holes: [Int], detail: Bool = true, totals: Bool = false) -> String? {
         let mine = lane.base.contains(p)
         let sign = mine ? 1 : -1
         let mySide = mine ? lane.base : lane.opp, hisSide = mine ? lane.opp : lane.base
@@ -217,7 +242,7 @@ extension MatchManager {
                 let advNames = (r.basePlayers + r.oppPlayers).filter { $0.laneStrokes > 0 }.map { spokenName($0.alias) }
                 let briefAdv = advNames.isEmpty ? "" : ", ventaja de " + spokenList(advNames)
                 let briefBalls = "\(myBalls.map(ball).joined(separator: " y ")) contra \(hisBalls.map(ball).joined(separator: " y "))"
-                lines.append("Hoyo \(hole): \(briefBalls), \(word)\(briefAdv). Vuelta \(nine) \(countWords(r.vueltaAccum * sign)).")
+                lines.append("Hoyo \(hole): \(briefBalls), \(word)\(briefAdv). Vuelta \(nine) \(countWords(r.vueltaAccum * sign))\(totals ? ", " + presionWords(r.openPressures, sign: sign) + ", match " + countWords(matchAsOf(hole, nineRows: rows, otherNine: nine == "F9" ? "B9" : "F9", sign: sign, target: .pair(lane.id))) : "").")
             } else if holes.count <= 3 {
                 lines.append("Hoyo \(hole): tiraron \(spokenList(myBalls.map(ball))) contra \(spokenList(hisBalls.map(ball))). \(stroke). \(word.prefix(1).uppercased() + word.dropFirst()). \(ba)")
             } else {
