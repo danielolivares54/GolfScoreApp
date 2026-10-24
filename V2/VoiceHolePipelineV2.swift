@@ -560,15 +560,20 @@ enum VoiceHolePipeline {
 
     /// El jugador de la pregunta se resuelve igual que al dictar ("yo" = USER_NAME, apodos, nombres aproximados).
     /// Por defecto responde un resumen corto; con `detail` (o si el usuario lo pidió) da el detalle.
+    /// "Los demás", "todos", "el resto": no es un jugador, es no filtrar (todos los matches).
+    private static func isEveryone(_ who: String, slang: VoiceSlangStore) -> Bool {
+        ["demas", "los demas", "resto", "el resto", "otros", "los otros", "todos", "todo el mundo", "los rivales", "rivales"].contains(slang.normalize(who))
+    }
+
     static func answer(_ q: ReadbackQueryV2, match: MatchManager, currentHole: Int, slang: VoiceSlangStore = .shared, detail: Bool = false) -> String {
         var alias: String?
-        if let who = q.jugador?.trimmingCharacters(in: .whitespacesAndNewlines), !who.isEmpty {
+        if let who = q.jugador?.trimmingCharacters(in: .whitespacesAndNewlines), !who.isEmpty, !isEveryone(who, slang: slang) {
             let r = resolveSpoken(who, match: match, slang: slang)
             guard r.known else { return "No encontré a \"\(who)\" entre los jugadores." }
             alias = r.alias
         }
         var opponent: String?
-        if let who = q.oponente?.trimmingCharacters(in: .whitespacesAndNewlines), !who.isEmpty {
+        if let who = q.oponente?.trimmingCharacters(in: .whitespacesAndNewlines), !who.isEmpty, !isEveryone(who, slang: slang) {
             let r = resolveSpoken(who, match: match, slang: slang)
             guard r.known else { return "No encontré a \"\(who)\" entre los jugadores." }
             opponent = r.alias

@@ -277,6 +277,7 @@ extension MatchManager {
         case "dinero", "money":
             return moneyReadbackV2(detail: detail)
         case "conteo", "cuenta":
+            if !detail { return scoreboardReadbackV2(kind: "resumen", alias: alias, opponent: opponent, segment: segment) }
             return countsReadbackV2(detail: detail)
         case "nueve", "resultados", "presiones", "strokes", "apuestas":
             if !detail, kind.lowercased() == "nueve", segment != nil { return scoreboardReadbackV2(kind: "nueve", alias: alias, opponent: opponent, segment: segment) }

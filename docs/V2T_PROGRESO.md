@@ -72,3 +72,5 @@
 ## Botones de lectura: solo conteos (24-oct)
 - **Vuelta, Presión, Match, F9, B9 y Cómo vamos** contestan solo con conteos: "Al hoyo 8, match: individuales contra Roberto 3 arriba; contra Ricardo 1 abajo. Parejas contrarias: … 2 abajo. Mejor contra Roberto, peor contra Ricardo." Si preguntan por un solo rival contesta uno, sin comparación. "Más detalle" da la lectura larga de antes (`scoreboardReadbackV2`).
 - **Por qué** (breve): por match, hoyos ganados / perdidos / empatados, cuántos hoyos adelante o atrás y en cuáles hay stroke y de quién (`whyBriefV2`). El detalle con dinero y conceptos sigue en "Más detalle".
+- **Cómo vamos / conteo** (24-oct): una línea por rival con los cuatro números: "contra Roberto: vuelta F9 2 arriba, 1 presión a favor, match 3 arriba, unidades 2 arriba" (o "sin presión", "sin unidades").
+- **"Los demás", "todos", "el resto"** en una pregunta ya no se buscan como jugador: se toman como sin filtro (todos los matches), también en el prompt del LLM.

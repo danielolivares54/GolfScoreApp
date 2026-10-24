@@ -39,7 +39,7 @@ extension MatchManager {
 
     /// Los conteos de cada match (F9, B9, match y presiones abiertas), sin dinero.
     func countsReadbackV2(detail: Bool = true) -> String {
-        if !detail { return scoreboardReadbackV2(kind: "match", alias: nil, opponent: nil, segment: nil) }
+        if !detail { return scoreboardReadbackV2(kind: "resumen", alias: nil, opponent: nil, segment: nil) }
         let rows = resultadoRowsV2()
         guard !rows.isEmpty else { return "Todavía no hay matches en la ronda." }
         func line(_ row: ResultadoRowV2) -> String {
@@ -333,6 +333,7 @@ extension MatchManager {
         switch kind {
         case "presion": label = "presiones \(nine)"
         case "vuelta", "nueve": label = "vuelta \(nine)"
+        case "resumen": label = "vuelta \(nine), presión, match y unidades"
         default: label = "match"
         }
         var values: [(row: ResultadoRowV2, value: Int, text: String)] = []
@@ -347,6 +348,16 @@ extension MatchManager {
             case "vuelta", "nueve":
                 let v = (nine == "B9" ? row.b9Net : row.f9Net) * sign
                 values.append((row, v, "\(matchName(row)) \(countWords(v))"))
+            case "resumen":
+                // Cada número como se dice: vuelta, presión, match y unidades.
+                let v = (nine == "B9" ? row.b9Net : row.f9Net) * sign
+                let open = nine == "B9" ? row.b9Presiones : row.f9Presiones
+                let net = open.reduce(0) { $0 + ($1 * sign > 0 ? 1 : $1 * sign < 0 ? -1 : 0) }
+                let pres = open.isEmpty ? "sin presión" : net > 0 ? "\(net) presión\(net == 1 ? "" : "es") a favor" : net < 0 ? "\(-net) presión\(net == -1 ? "" : "es") en contra" : "presiones parejas"
+                let m = (row.f9Net + row.b9Net) * sign
+                let u = (matchResumenV2(for: row.target)?.unidades.chips.first).flatMap { Int($0.replacingOccurrences(of: "+", with: "")) }.map { $0 * sign } ?? 0
+                let units = u == 0 ? "sin unidades" : "unidades \(countWords(u))"
+                values.append((row, m, "\(matchName(row)): vuelta \(countWords(v)), \(pres), match \(countWords(m)), \(units)"))
             default:
                 let v = (row.f9Net + row.b9Net) * sign
                 values.append((row, v, "\(matchName(row)) \(countWords(v))"))
@@ -358,7 +369,7 @@ extension MatchManager {
         if !singles.isEmpty { parts.append((pairs.isEmpty ? "" : "individuales ") + singles.map(\.text).joined(separator: "; ")) }
         if !pairs.isEmpty { parts.append((singles.isEmpty ? "" : "parejas contrarias ") + pairs.map(\.text).joined(separator: "; ")) }
         text += parts.joined(separator: ". ") + "."
-        if kind != "presion", singles.count > 1, let best = singles.max(by: { $0.value < $1.value }), let worst = singles.min(by: { $0.value < $1.value }),
+        if kind != "presion", kind != "resumen", singles.count > 1, let best = singles.max(by: { $0.value < $1.value }), let worst = singles.min(by: { $0.value < $1.value }),
            best.value != worst.value {
             text += " Mejor \(matchName(best.row)), peor \(matchName(worst.row))."
         }

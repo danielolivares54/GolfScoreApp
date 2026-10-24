@@ -663,7 +663,7 @@ struct ContrastAndBriefTests {
 
         let round = m.roundReadbackV2(detail: false), roundFull = m.roundReadbackV2(detail: true)
         #expect(round.count < roundFull.count)
-        #expect(round.contains("match:") && round.contains("Dinero."))
+        #expect(round.contains("vuelta ") && round.contains("match ") && round.contains("Dinero."))
 
         let explain = brief(m, .init(tipo: "explicar", jugador: "yo", oponente: "Roberto"))
         let explainFull = full(m, .init(tipo: "explicar", jugador: "yo", oponente: "Roberto"))
@@ -774,5 +774,15 @@ struct CorrectionRouteTests {
         #expect(one.contains("contra Roberto") && !one.contains("contra Ricardo") && !one.contains("Mejor "))
         let why = VoiceHolePipeline.answer(.init(tipo: "explicar", jugador: "yo", oponente: "Roberto"), match: m, currentHole: 14, slang: slang)
         #expect(why.contains("ganaste") && why.contains("perdiste") && why.contains("troke"))
+    }
+
+    @Test func theRoundSummarySaysVueltaPresionMatchAndUnitsAndEveryoneMeansNoFilter() {
+        let m = DemoFixture.make()
+        let slang = VoiceSlangStore(defaults: UserDefaults(suiteName: "resumen-\(UUID().uuidString)")!)
+        let text = VoiceHolePipeline.answer(.init(tipo: "conteo", jugador: "yo", oponente: "los demás"), match: m, currentHole: 14, slang: slang)
+        #expect(text.contains("vuelta ") && text.contains("match ") && text.contains("unidades") || text.contains("sin unidades"))
+        #expect(text.contains("contra Roberto") && text.contains("contra Ricardo"))
+        let todos = VoiceHolePipeline.answer(.init(tipo: "match", jugador: "todos"), match: m, currentHole: 14, slang: slang)
+        #expect(!todos.hasPrefix("No encontré"))
     }
 }
