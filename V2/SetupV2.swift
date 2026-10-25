@@ -18,6 +18,7 @@ struct SetupV2: View {
 
     @State private var stepIndex: Int
     @State private var newPlayerName = ""
+    @FocusState private var nameFocused: Bool
     @State private var pendingDirectoryMatch: PlayerDirectoryEntry?
     @State private var showDirectory = false
     @State private var showHistory = false
@@ -226,9 +227,15 @@ struct SetupV2: View {
                 // El campo siempre abre el teclado; con 5 jugadores se avisa debajo y Agregar queda apagado.
                 TextField("Nombre del jugador", text: $newPlayerName)
                     .font(.v2Body)
+                    .focused($nameFocused)
+                    .textInputAutocapitalization(.words).autocorrectionDisabled()
+                    .submitLabel(.done)
+                    .onSubmit { if canAdd { model.addPlayer(newPlayerName, directoryMatch: pendingDirectoryMatch); newPlayerName = ""; pendingDirectoryMatch = nil } }
                     .padding(.horizontal, 14).frame(minHeight: CSV2.minTap)
                     .background(CSV2.surface, in: RoundedRectangle(cornerRadius: 12))
                     .overlay(RoundedRectangle(cornerRadius: 12).stroke(CSV2.line))
+                    .contentShape(RoundedRectangle(cornerRadius: 12))
+                    .onTapGesture { nameFocused = true }   // cualquier toque en la caja pide el teclado
                 Button {
                     model.addPlayer(newPlayerName, directoryMatch: pendingDirectoryMatch)
                     newPlayerName = ""; pendingDirectoryMatch = nil
