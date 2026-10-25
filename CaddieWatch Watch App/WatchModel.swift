@@ -20,12 +20,23 @@ final class WatchModel: NSObject, WCSessionDelegate {
     private var recorder: AVAudioRecorder?
     private var recordingURL: URL?
     private var revisionAtSend = -1
+    private var timeout: Task<Void, Never>?
+    private var staleProcessing: Task<Void, Never>?
 
     override init() {
         super.init()
         guard WCSession.isSupported() else { return }
         WCSession.default.delegate = self
         WCSession.default.activate()
+        // Audios viejos que no se llegaron a entregar no deben procesarse después.
+        WCSession.default.outstandingFileTransfers.forEach { $0.cancel() }
+        // Mientras no haya contexto del iPhone, se vuelve a pedir cada pocos segundos.
+        Task {
+            while true {
+                if self.context == nil { self.requestState() }
+                try? await Task.sleep(for: .seconds(4))
+            }
+        }
     }
 
     // MARK: Lo que se ve
@@ -75,6 +86,14 @@ final class WatchModel: NSObject, WCSessionDelegate {
         phase = .sending
         WCSession.default.transferFile(url, metadata: nil)
         WKInterfaceDevice.current().play(.stop)
+        // Si el iPhone no contesta no se queda "Interpretando…" para siempre.
+        timeout?.cancel()
+        timeout = Task { [revision = card.revision] in
+            try? await Task.sleep(for: .seconds(30))
+            guard !Task.isCancelled, self.phase == .sending, self.card.revision == revision else { return }
+            self.phase = .failed("El iPhone no respondió. Abre Caddie Score en el iPhone y vuelve a dictar.")
+            WKInterfaceDevice.current().play(.failure)
+        }
     }
 
     func cancelRecording() {
@@ -108,7 +127,7 @@ final class WatchModel: NSObject, WCSessionDelegate {
         let ctx = session.receivedApplicationContext
         Task { @MainActor in
             self.reachable = session.isReachable
-            self.absorb(ctx)
+            self.absorb(ctx, fromLaunch: true)
             self.requestState()
         }
     }
@@ -124,13 +143,25 @@ final class WatchModel: NSObject, WCSessionDelegate {
         Task { @MainActor in self.absorb(applicationContext) }
     }
 
-    private func absorb(_ ctx: [String: Any]) {
+    /// `fromLaunch`: el contexto guardado de antes de abrir la app puede traer "procesando" de una dictada que ya terminó o murió;
+    /// al abrir no se muestra. Durante la sesión, "procesando" caduca a los 60 s si el iPhone no manda nada más.
+    private func absorb(_ ctx: [String: Any], fromLaunch: Bool = false) {
         let decoder = JSONDecoder()
         if let data = ctx[WatchKey.context] as? Data, let c = try? decoder.decode(WatchContextDTO.self, from: data) { context = c }
         if let data = ctx[WatchKey.card] as? Data, let c = try? decoder.decode(WatchCardDTO.self, from: data) {
             let previous = card
+            var c = c
+            if fromLaunch { c.processing = false }
             card = c
-            if phase == .sending, c.revision != revisionAtSend, !c.processing { phase = .idle }
+            staleProcessing?.cancel()
+            if c.processing {
+                staleProcessing = Task { [revision = c.revision] in
+                    try? await Task.sleep(for: .seconds(60))
+                    guard !Task.isCancelled, self.card.revision == revision, self.card.processing else { return }
+                    self.card.processing = false
+                }
+            }
+            if phase == .sending, c.revision != revisionAtSend, !c.processing { phase = .idle; timeout?.cancel() }
             if c.error != nil, !c.processing { phase = .idle; WKInterfaceDevice.current().play(.failure) }
             if previous.applied == nil, c.applied != nil { WKInterfaceDevice.current().play(.success) }
         }

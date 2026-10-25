@@ -55,16 +55,29 @@ final class WatchBridgeV2: NSObject, WCSessionDelegate {
         Task { @MainActor in self.push() }
     }
 
-    /// El reloj pide el estado actual (al abrirse).
+    /// El reloj pide el estado actual (al abrirse). WatchConnectivity entrega a una u otra versión según si el reloj
+    /// pidió respuesta o no: hay que atender las dos.
+    func session(_ session: WCSession, didReceiveMessage message: [String: Any]) {
+        Task { @MainActor in self.push() }
+    }
+
     func session(_ session: WCSession, didReceiveMessage message: [String: Any], replyHandler: @escaping ([String: Any]) -> Void) {
         replyHandler([:])
         Task { @MainActor in self.push() }
     }
 
     /// Órdenes: lápiz, goma, Anotar, Deshacer.
+    func session(_ session: WCSession, didReceiveMessageData messageData: Data) {
+        handle(messageData)
+    }
+
     func session(_ session: WCSession, didReceiveMessageData messageData: Data, replyHandler: @escaping (Data) -> Void) {
         replyHandler(Data())
-        guard let command = try? JSONDecoder().decode(WatchCommand.self, from: messageData) else { return }
+        handle(messageData)
+    }
+
+    private func handle(_ data: Data) {
+        guard let command = try? JSONDecoder().decode(WatchCommand.self, from: data) else { return }
         Task { @MainActor in self.coordinator?.handle(command) }
     }
 

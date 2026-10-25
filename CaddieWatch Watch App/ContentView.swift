@@ -36,6 +36,7 @@ private struct HomeView: View {
     @Bindable var model: WatchModel
 
     var body: some View {
+        ScrollView {
         VStack(spacing: 8) {
             if let ctx = model.context {
                 Text("HOYO \(ctx.hole) · PAR \(ctx.par)").font(.wCaps).foregroundStyle(CSW.secondary)
@@ -51,6 +52,7 @@ private struct HomeView: View {
             }
         }
         .padding(.horizontal, 6)
+        }
     }
 
     private var failure: String? {

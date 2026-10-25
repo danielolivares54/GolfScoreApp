@@ -25,6 +25,8 @@ final class WatchCardCoordinator {
     private var processing = false
     private var recordIds: [String] = []
     private(set) var revision = 0
+    private var generation = 0
+    private var current: Task<VoiceHoleDraft, Error>?
 
     /// Se llama cada vez que la tarjeta cambia (el puente la manda al reloj).
     var onChange: (() -> Void)?
@@ -47,34 +49,60 @@ final class WatchCardCoordinator {
     // MARK: Audio → borrador
 
     /// Llega la grabación del reloj: se transcribe y se suma al borrador (lo más reciente gana en cada celda).
-    func receiveAudio(_ url: URL) async {
+    /// Una dictada más nueva cancela a la anterior, y ninguna tarda más de `maxSeconds`: el reloj nunca se queda esperando.
+    func receiveAudio(_ url: URL, maxSeconds: Double = 45) async {
+        generation += 1
+        let mine = generation
+        current?.cancel()
         if applied != nil { draft = VoiceHoleDraft(); recordIds = []; undo = nil }   // otra dictada = otro hoyo
         applied = nil
         error = nil
         processing = true
         changed()
-        defer { processing = false; changed() }
         guard hasKey() else {
             error = "Falta la clave de OpenAI en el iPhone."
+            processing = false
+            changed()
             return
         }
-        do {
-            let text = try await transcriber(url, match)
-            // Las preguntas y lecturas todavía no se contestan en el reloj.
-            if ReadbackIntentV2.detect(text, names: match.players.flatMap { [$0.alias, $0.name.split(separator: " ").first.map(String.init) ?? $0.name] }) != nil {
-                error = "Las preguntas todavía no están en el reloj. Pregunta en el iPhone."
-                return
-            }
-            recordIds.append(VoiceRecordStore.shared.record(audio: url, transcript: text, roundId: match.roundId, hole: draft.hole))
-            draft = try await VoiceHolePipeline.propose(transcript: text, match: match, draft: draft, defaultHole: currentHole(),
-                                                        slang: slang, extractor: extractor)
-        } catch VoiceHoleError.query {
-            error = "Las preguntas todavía no están en el reloj. Pregunta en el iPhone."
-        } catch let e as VoiceHoleError {
-            error = e.message
-        } catch {
-            self.error = "No se pudo procesar: \(error.localizedDescription)"
+        let work = Task { try await self.interpret(url) }
+        current = work
+        let timer = Task {
+            try? await Task.sleep(for: .seconds(maxSeconds))
+            if !Task.isCancelled { work.cancel() }
         }
+        let outcome = await work.result
+        timer.cancel()
+        guard mine == generation else { return }   // llegó otra dictada: esa manda
+        switch outcome {
+        case .success(let new):
+            draft = new
+        case .failure(let failure):
+            if failure is VoiceHoleError {
+                switch failure as! VoiceHoleError {
+                case .query: error = "Las preguntas todavía no están en el reloj. Pregunta en el iPhone."
+                case .notUnderstood(let text): error = text
+                default: error = (failure as! VoiceHoleError).message
+                }
+            } else if failure is CancellationError || (failure as? URLError)?.code == .cancelled {
+                error = "Tardó demasiado en interpretar. Intenta de nuevo."
+            } else {
+                error = "No se pudo procesar: \(failure.localizedDescription)"
+            }
+        }
+        processing = false
+        changed()
+    }
+
+    private func interpret(_ url: URL) async throws -> VoiceHoleDraft {
+        let text = try await transcriber(url, match)
+        // Las preguntas y lecturas todavía no se contestan en el reloj.
+        if ReadbackIntentV2.detect(text, names: match.players.flatMap { [$0.alias, $0.name.split(separator: " ").first.map(String.init) ?? $0.name] }) != nil {
+            throw VoiceHoleError.query(ReadbackQueryV2(tipo: "otro"))
+        }
+        recordIds.append(VoiceRecordStore.shared.record(audio: url, transcript: text, roundId: match.roundId, hole: draft.hole))
+        return try await VoiceHolePipeline.propose(transcript: text, match: match, draft: draft, defaultHole: currentHole(),
+                                                   slang: slang, extractor: extractor)
     }
 
     // MARK: Órdenes del reloj

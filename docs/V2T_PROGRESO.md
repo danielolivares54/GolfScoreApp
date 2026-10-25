@@ -91,3 +91,4 @@
 - Compartido: `WatchShared/WatchShared.swift` (tarjeta y órdenes), en los dos targets.
 - Reglas: lo dudoso bloquea Anotar hasta tocar ✎; la corona solo desplaza (no aplica ni edita); Anotar es un botón; Deshacer sale tras anotar. Unidades y oyes salen como fichas con goma (sin lápiz todavía).
 - Pendiente: probar en un reloj real, doble toque para Anotar, preguntas/lecturas en el reloj, cola sin iPhone.
+- **Corrección tras probar en simulador (25-oct):** el puente del iPhone solo atendía mensajes del reloj *con* respuesta; WatchConnectivity descarta los demás, así que el iPhone nunca veía "dame el estado" ni las órdenes (Anotar, lápiz, goma). Ahora atiende las dos variantes. El reloj reintenta pedir el estado cada 4 s mientras no lo tenga, cancela audios viejos sin entregar, ignora un "procesando" guardado de antes de abrir y caduca a los 30 s si el iPhone no contesta. El iPhone cancela una dictada vieja si llega otra y no pasa de 45 s.
