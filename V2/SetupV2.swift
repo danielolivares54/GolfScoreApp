@@ -223,8 +223,9 @@ struct SetupV2: View {
     private var addPlayerCard: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 8) {
-                TextField(atCap ? "Máximo de 5 jugadores alcanzado" : "Nombre del jugador", text: $newPlayerName)
-                    .font(.v2Body).disabled(atCap)
+                // El campo siempre abre el teclado; con 5 jugadores se avisa debajo y Agregar queda apagado.
+                TextField("Nombre del jugador", text: $newPlayerName)
+                    .font(.v2Body)
                     .padding(.horizontal, 14).frame(minHeight: CSV2.minTap)
                     .background(CSV2.surface, in: RoundedRectangle(cornerRadius: 12))
                     .overlay(RoundedRectangle(cornerRadius: 12).stroke(CSV2.line))
@@ -238,6 +239,12 @@ struct SetupV2: View {
                 }
                 .buttonStyle(.plain).disabled(!canAdd)
             }
+            if atCap {
+                Text("Ya son 5 jugadores. Quita uno con el bote de basura para agregar a otro.")
+                    .font(.v2Label).foregroundStyle(CSV2.warning)
+            }
+            // Sin teclear nada, el directorio se ve de una vez: un toque agrega al jugador con sus strokes y su plantilla.
+            if newPlayerName.trimmingCharacters(in: .whitespaces).isEmpty { directoryQuickPick }
             // Mini-búsqueda del directorio: tocar una sugerencia precarga sus strokes y su plantilla.
             let matches = PlayerDirectoryStore.shared.search(newPlayerName)
             if !matches.isEmpty {
@@ -259,6 +266,36 @@ struct SetupV2: View {
                                 .contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// Los jugadores del directorio que todavía no están en el match, los usados más recientemente primero.
+    @ViewBuilder private var directoryQuickPick: some View {
+        let inMatch = Set(model.playerNames.map { $0.lowercased() })
+        let candidates = PlayerDirectoryStore.shared.entries
+            .filter { $0.active && !inMatch.contains($0.name.lowercased()) }
+            .sorted { $0.lastUsedAt > $1.lastUsedAt }
+            .prefix(10)
+        if !candidates.isEmpty {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Del directorio").font(.v2Caps).textCase(.uppercase).foregroundStyle(CSV2.secondary)
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(Array(candidates), id: \.id) { entry in
+                            Button {
+                                model.addPlayer(entry.name, directoryMatch: entry)
+                            } label: {
+                                Text(entry.name).font(.v2Body).foregroundStyle(atCap ? CSV2.secondary : CSV2.green)
+                                    .padding(.horizontal, 14).frame(minHeight: CSV2.minTap)
+                                    .background(CSV2.surface, in: Capsule())
+                                    .overlay(Capsule().stroke(CSV2.line))
+                            }
+                            .buttonStyle(.plain).disabled(atCap)
+                            .accessibilityLabel("Agregar a \(entry.name) del directorio")
                         }
                     }
                 }

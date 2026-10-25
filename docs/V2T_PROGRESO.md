@@ -104,3 +104,7 @@
 - El detalle completo (dinero, listas de hoyos, antes/ahora) sigue en "Más detalle".
 - **Instalación en el reloj (25-oct):** "unable to install" por versiones distintas: la app del reloj era 1.0 (1) y la del iPhone 1.0.2 (3). Una app de reloj embebida debe llevar la **misma versión y build** que la del iPhone; el target del reloj ahora usa MARKETING_VERSION 1.0.2 y CURRENT_PROJECT_VERSION 3. Si se sube la versión del iPhone, subir también la del reloj.
 - **Ícono del reloj (25-oct):** la app del reloj no tenía ícono (catálogo vacío, sin `Assets.car` ni `CFBundleIcons`) y salía como un círculo gris en la app Watch del iPhone. Ahora usa el mismo de 1024 px que el iPhone (pelota con bandera CGM).
+
+## Setup v2: agregar jugadores (25-oct)
+- Con una app limpia (o sin match guardado) se siembra un match con los 5 jugadores de `match_meta.json`; con 5 jugadores el campo de nombre estaba desactivado y no abría el teclado. Ahora el campo siempre abre el teclado y, con 5, avisa debajo que hay que quitar uno.
+- El directorio se ve sin teclear: fila **"Del directorio"** con los jugadores que aún no están en el match (los más usados primero); un toque agrega al jugador con sus strokes y su plantilla.
