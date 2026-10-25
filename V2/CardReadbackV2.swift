@@ -197,12 +197,20 @@ extension MatchManager {
             let h = hole ?? currentHole
             let gross = getScore(hole: h, player: alias)
             guard gross > 0 else { return "\(name) no tiene score en el hoyo \(h)." }
+            if !detail {
+                // Puntual: lo que diría la tarjeta.
+                let putts = getPutts(hole: h, player: alias)
+                let lost = cellOverride(alias: alias, hole: h) == .lostHole
+                return "\(name), hoyo \(h): " + (lost ? "se levantó" : "\(gross)") + (putts > 0 ? ", \(putts) putt\(putts == 1 ? "" : "s")" : "") + "."
+            }
             let par = getHole(h)?.par ?? 4
             var text = "\(name) hizo \(gross) en el hoyo \(h), \(relativeWord(gross - par))"
             let putts = getPutts(hole: h, player: alias)
             if putts > 0 { text += ", con \(putts) putt\(putts == 1 ? "" : "s")" }
             if cellOverride(alias: alias, hole: h) == .lostHole { text += ". Se levantó: hoyo perdido" }
             return text + "."
+        case "neto", "net":
+            return netAnswerV2(alias: alias, opponent: opponent, hole: hole ?? currentHole)
         case "total":
             guard let alias, let name else { return roundReadbackV2(detail: detail) }
             let holes = order.filter { getScore(hole: $0, player: alias) > 0 }

@@ -615,7 +615,7 @@ enum VoiceHolePipeline {
         func nine(_ h: Int) -> String { match.segmentForHole(h) }
         let hole = q.hoyo.flatMap { (1...18).contains($0) ? $0 : nil }
         switch q.tipo.lowercased() {
-        case "score", "golpes", "putts", "oyes", "unidades", "notas":
+        case "score", "golpes", "putts", "oyes", "unidades", "notas", "neto":
             if let alias { return .player(alias: alias, segment: nine(hole ?? currentHole), focusHole: hole) }
             return .hole(hole ?? currentHole)
         case "hoyo", "resultado_hoyo", "resultado", "total":

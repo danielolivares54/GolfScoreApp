@@ -92,17 +92,8 @@ extension MatchManager {
         let lines = playerHolesV2(alias: alias, holes: holes)
         let t = playerTotalsV2(lines)
         if !detail {
-            // Resumen: los golpes en fila, el total y en qué hoyos recibe stroke.
-            let row = lines.map { $0.gross.map(String.init) ?? "sin anotar" }.joined(separator: ", ")
-            var short = "\(spokenName(alias)), \(label): \(row)."
-            if t.holes > 0 {
-                short += " Total \(t.gross) golpes, " + (t.versusPar == 0 ? "par del campo" : t.versusPar > 0 ? "\(t.versusPar) sobre par" : "\(-t.versusPar) bajo par")
-                if t.putts > 0 { short += ", \(t.putts) putts" }
-                short += "."
-            }
-            let strokeHoles = lines.filter { !$0.strokes.isEmpty && !$0.lost }.map(\.hole)
-            if !strokeHoles.isEmpty { short += " Recibe stroke en " + (strokeHoles.count == 1 ? "el hoyo \(strokeHoles[0])" : "los hoyos " + spokenList(strokeHoles.map(String.init))) + "." }
-            return short
+            // Puntual, como mirar la tarjeta: solo los golpes en fila (los totales y los strokes salen con "Más detalle").
+            return "\(spokenName(alias)), \(label): " + lines.map { $0.lost ? "se levantó" : $0.gross.map(String.init) ?? "sin anotar" }.joined(separator: ", ") + "."
         }
         var parts = ["\(spokenName(alias)), \(label)."] + lines.map(playerHoleSpokenV2)
         if t.holes == 0 { parts.append("Todavía no hay golpes anotados.") }
@@ -114,6 +105,19 @@ extension MatchManager {
             parts.append(total + ".")
         }
         return parts.joined(separator: " ")
+    }
+
+    /// "Neto de Daniel en el 15": golpes menos el stroke que recibe (de un rival si se dijo, de todos si no). Puntual.
+    func netAnswerV2(alias: String?, opponent: String?, hole: Int) -> String {
+        let a = alias ?? yoAlias
+        guard let line = playerHolesV2(alias: a, holes: [hole]).first, let g = line.gross else {
+            return "\(spokenName(a)) no tiene score en el hoyo \(hole)."
+        }
+        if line.lost { return "\(spokenName(a)) se levantó en el hoyo \(hole)." }
+        let rivals = line.strokes.filter { opponent == nil || $0.from == opponent }
+        func n(_ v: Double) -> String { v.truncatingRemainder(dividingBy: 1) == 0 ? String(Int(v)) : String(format: "%.1f", v) }
+        if rivals.isEmpty { return "\(spokenName(a)), hoyo \(hole): neto \(g), sin stroke." }
+        return "\(spokenName(a)), hoyo \(hole): " + spokenList(rivals.map { "neto \(n(Double(g) - $0.amount)) contra \(spokenName($0.from))" }) + ", bruto \(g)."
     }
 
     /// Pregunta hablada o de botón: de quién, de qué nueve o qué hoyos.

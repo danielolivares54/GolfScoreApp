@@ -799,4 +799,15 @@ struct CorrectionRouteTests {
         m.setGrossV2(alias: "DAN", hole: 3, gross: before + 1, putts: putts > 0 ? putts : nil)
         #expect(m.getScore(hole: 3, player: "DAN") == before + 1 && m.getPutts(hole: 3, player: "DAN") == putts)
     }
+
+    @Test func netAndCardReadingsAreExact() {
+        let m = DemoFixture.make()
+        let slang = VoiceSlangStore(defaults: UserDefaults(suiteName: "neto-\(UUID().uuidString)")!)
+        let net = VoiceHolePipeline.answer(.init(tipo: "neto", jugador: "Roberto", hoyo: 8), match: m, currentHole: 14, slang: slang)
+        #expect(net.hasPrefix("Roberto, hoyo 8: neto "))
+        let score = VoiceHolePipeline.answer(.init(tipo: "score", jugador: "Roberto", hoyo: 8), match: m, currentHole: 14, slang: slang)
+        #expect(score.hasPrefix("Roberto, hoyo 8: ") && !score.contains("bogey") && !score.contains("par"))
+        let card = VoiceHolePipeline.answer(.init(tipo: "tarjeta", jugador: "Daniel", segmento: "F9"), match: m, currentHole: 14, slang: slang)
+        #expect(card.hasPrefix("Daniel, F9: ") && !card.contains("Total") && !card.contains("stroke"))
+    }
 }
