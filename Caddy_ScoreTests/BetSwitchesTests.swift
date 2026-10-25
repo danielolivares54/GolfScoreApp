@@ -781,8 +781,8 @@ struct CorrectionRouteTests {
         let slang = VoiceSlangStore(defaults: UserDefaults(suiteName: "resumen-\(UUID().uuidString)")!)
         let text = VoiceHolePipeline.answer(.init(tipo: "conteo", jugador: "yo", oponente: "los demás"), match: m, currentHole: 14, slang: slang)
         // Hoyo y vuelta, el orden de los números una vez, y por rival solo nombre y números (sin unidades ni dinero).
-        #expect(text.hasPrefix("Hoyo ") && text.contains("(vuelta, presión,") && text.contains("match)"))
-        #expect(text.contains("Roberto ") && text.contains("Ricardo ") && !text.contains("unidades") && !text.contains("pesos") && !text.contains("contra Roberto,") && text.contains("pareja con "))
+        #expect(text.hasPrefix("Hoyo ") && text.contains("vuelta ") && text.contains("presión ") && text.contains("match "))
+        #expect(text.contains("Roberto ") && text.contains("Ricardo ") && !text.contains("unidades") && !text.contains("pesos") && !text.contains("contra Roberto:") && text.contains("Roberto: vuelta ") && text.contains("pareja con "))
         let todos = VoiceHolePipeline.answer(.init(tipo: "match", jugador: "todos"), match: m, currentHole: 14, slang: slang)
         #expect(!todos.hasPrefix("No encontré"))
     }

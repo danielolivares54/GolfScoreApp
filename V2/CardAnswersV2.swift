@@ -407,21 +407,21 @@ extension MatchManager {
     /// (vuelta, presión, carry, match), siempre desde el lado de quien pregunta: más = va ganando, menos = va perdiendo.
     /// Sin hoyos completos, unidades ni dinero (eso tiene sus propios botones).
     func compactStandingsV2(rows: [ResultadoRowV2], alias: String?, nine: String, hole: Int?) -> String {
-        func chipValue(_ chip: String?) -> Int { chip.flatMap { Int($0.replacingOccurrences(of: "+", with: "")) } ?? 0 }
-        let withCarry = rows.contains { matchResumenV2(for: $0.target)?.carryActivo == true }
-        var line: [(isPair: Bool, text: String)] = []
+        func chipValues(_ chips: [String]) -> [Int] { chips.compactMap { Int($0.replacingOccurrences(of: "+", with: "")) } }
+        func list(_ values: [Int]) -> String { values.map(signedWords).joined(separator: " y ") }
+        var line: [String] = []
         for row in rows {
             let sign = signFor(row, alias: alias)
             let v = (nine == "B9" ? row.b9Net : row.f9Net) * sign
-            let open = nine == "B9" ? row.b9Presiones : row.f9Presiones
-            let pres = open.reduce(0) { $0 + ($1 * sign > 0 ? 1 : $1 * sign < 0 ? -1 : 0) }
+            // Cada presión abierta con su propio valor ("más 3 y más 1"); sin presiones abiertas se dice.
+            let open = (nine == "B9" ? row.b9Presiones : row.f9Presiones).map { $0 * sign }
             let m = (row.f9Net + row.b9Net) * sign
-            var numbers = [signedWords(v), signedWords(pres)]
-            if withCarry {
-                let r = matchResumenV2(for: row.target)
-                numbers.append(r?.carryActivo == true ? signedWords(chipValue(r?.carry.chips.first) * sign) : "sin")
+            var parts = ["vuelta " + signedWords(v), open.isEmpty ? "sin presión" : "presión " + list(open)]
+            if let r = matchResumenV2(for: row.target), r.carryActivo {
+                let carry = chipValues(r.carry.chips).map { $0 * sign }
+                if let first = carry.first { parts.append("carry " + signedWords(first) + (carry.count > 1 ? ", presión del carry " + list(Array(carry.dropFirst())) : "")) }
             }
-            numbers.append(signedWords(m))
+            parts.append("match " + signedWords(m))
             let name: String
             switch row.kind {
             case .individual(let a): name = spokenName(a)
@@ -434,11 +434,9 @@ extension MatchManager {
                 }
                 name = "pareja " + names(row.title) + (row.rivalsText.map { " contra " + names($0) } ?? "")
             }
-            line.append((row.isPair, name + " " + numbers.joined(separator: ", ")))
+            line.append(name + ": " + parts.joined(separator: ", "))
         }
-        let order = withCarry ? "vuelta, presión, carry, match" : "vuelta, presión, match"
-        var text = (hole.map { "Hoyo \($0), " } ?? "") + nine + " (" + order + "). "
-        text += line.map(\.text).joined(separator: ". ") + "."
+        var text = (hole.map { "Hoyo \($0), " } ?? "") + nine + ". " + line.joined(separator: ". ") + "."
         if let n = pairsNoticeV2() { text += " Ojo: " + pairsNoticeTextV2(n) }
         return text
     }
