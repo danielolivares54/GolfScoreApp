@@ -130,6 +130,7 @@ extension MatchManager {
     /// Cómo va la ronda: hoyos completos, PRIMERO el conteo de las apuestas y DESPUÉS el dinero (total, individuales, parejas).
     func roundReadbackV2(detail: Bool = true) -> String {
         guard !resultadoRowsV2().isEmpty else { return "Todavía no hay matches en la ronda." }
+        if !detail { return countsReadbackV2(detail: false) }   // directo: solo los números a este hoyo; el dinero tiene su botón
         let done = completedHolesCountV2()
         return "Llevas \(done) hoyo\(done == 1 ? "" : "s") completo\(done == 1 ? "" : "s"). " + countsReadbackV2(detail: detail) + " " + moneyReadbackV2(detail: detail)
     }

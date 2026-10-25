@@ -355,6 +355,7 @@ extension MatchManager {
         }
         let last = playOrder().last { held.contains($0) }
         let nine = segment?.uppercased() ?? last.map(nineOf) ?? "F9"
+        if kind == "resumen" { return compactStandingsV2(rows: rows, alias: alias, nine: nine, hole: last) }
         let label: String
         switch kind {
         case "presion": label = "presiones \(nine)"
@@ -398,6 +399,46 @@ extension MatchManager {
            best.value != worst.value {
             text += " Mejor \(matchName(best.row)), peor \(matchName(worst.row))."
         }
+        if let n = pairsNoticeV2() { text += " Ojo: " + pairsNoticeTextV2(n) }
+        return text
+    }
+
+    /// "Cómo vamos" directo: el hoyo y la vuelta, y por jugador y pareja solo los números en un orden fijo
+    /// (vuelta, presión, carry, match), siempre desde el lado de quien pregunta: más = va ganando, menos = va perdiendo.
+    /// Sin hoyos completos, unidades ni dinero (eso tiene sus propios botones).
+    func compactStandingsV2(rows: [ResultadoRowV2], alias: String?, nine: String, hole: Int?) -> String {
+        func chipValue(_ chip: String?) -> Int { chip.flatMap { Int($0.replacingOccurrences(of: "+", with: "")) } ?? 0 }
+        let withCarry = rows.contains { matchResumenV2(for: $0.target)?.carryActivo == true }
+        var line: [(isPair: Bool, text: String)] = []
+        for row in rows {
+            let sign = signFor(row, alias: alias)
+            let v = (nine == "B9" ? row.b9Net : row.f9Net) * sign
+            let open = nine == "B9" ? row.b9Presiones : row.f9Presiones
+            let pres = open.reduce(0) { $0 + ($1 * sign > 0 ? 1 : $1 * sign < 0 ? -1 : 0) }
+            let m = (row.f9Net + row.b9Net) * sign
+            var numbers = [signedWords(v), signedWords(pres)]
+            if withCarry {
+                let r = matchResumenV2(for: row.target)
+                numbers.append(r?.carryActivo == true ? signedWords(chipValue(r?.carry.chips.first) * sign) : "sin")
+            }
+            numbers.append(signedWords(m))
+            let name: String
+            switch row.kind {
+            case .individual(let a): name = spokenName(a)
+            case .pair:
+                // Con quién y contra quién, para que el signo se lea desde tu lado: "pareja con Fernando contra Roberto y Ricardo".
+                func names(_ text: String) -> String {
+                    text.replacingOccurrences(of: " – ", with: " y ").split(separator: " ").map { w in
+                        players.contains { $0.alias == String(w) } ? spokenName(String(w)) : String(w)
+                    }.joined(separator: " ")
+                }
+                name = "pareja " + names(row.title) + (row.rivalsText.map { " contra " + names($0) } ?? "")
+            }
+            line.append((row.isPair, name + " " + numbers.joined(separator: ", ")))
+        }
+        let order = withCarry ? "vuelta, presión, carry, match" : "vuelta, presión, match"
+        var text = (hole.map { "Hoyo \($0), " } ?? "") + nine + " (" + order + "). "
+        text += line.map(\.text).joined(separator: ". ") + "."
         if let n = pairsNoticeV2() { text += " Ojo: " + pairsNoticeTextV2(n) }
         return text
     }

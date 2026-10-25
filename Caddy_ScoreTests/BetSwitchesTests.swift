@@ -663,7 +663,7 @@ struct ContrastAndBriefTests {
 
         let round = m.roundReadbackV2(detail: false), roundFull = m.roundReadbackV2(detail: true)
         #expect(round.count < roundFull.count)
-        #expect(round.contains("vuelta ") && round.contains("match ") && round.contains("Dinero."))
+        #expect(round.contains("vuelta") && round.contains("match") && !round.contains("Dinero.") && !round.contains("Llevas"))
 
         let explain = brief(m, .init(tipo: "explicar", jugador: "yo", oponente: "Roberto"))
         let explainFull = full(m, .init(tipo: "explicar", jugador: "yo", oponente: "Roberto"))
@@ -776,12 +776,13 @@ struct CorrectionRouteTests {
         #expect(why.contains("ganaste") && why.contains("perdiste") && why.contains("troke"))
     }
 
-    @Test func theRoundSummarySaysVueltaPresionMatchAndUnitsAndEveryoneMeansNoFilter() {
+    @Test func theRoundSummaryIsJustNamesAndNumbersAndEveryoneMeansNoFilter() {
         let m = DemoFixture.make()
         let slang = VoiceSlangStore(defaults: UserDefaults(suiteName: "resumen-\(UUID().uuidString)")!)
         let text = VoiceHolePipeline.answer(.init(tipo: "conteo", jugador: "yo", oponente: "los demás"), match: m, currentHole: 14, slang: slang)
-        #expect(text.contains("vuelta ") && text.contains("match ") && text.contains("unidades") || text.contains("sin unidades"))
-        #expect(text.contains("contra Roberto") && text.contains("contra Ricardo"))
+        // Hoyo y vuelta, el orden de los números una vez, y por rival solo nombre y números (sin unidades ni dinero).
+        #expect(text.hasPrefix("Hoyo ") && text.contains("(vuelta, presión,") && text.contains("match)"))
+        #expect(text.contains("Roberto ") && text.contains("Ricardo ") && !text.contains("unidades") && !text.contains("pesos") && !text.contains("contra Roberto,") && text.contains("pareja con "))
         let todos = VoiceHolePipeline.answer(.init(tipo: "match", jugador: "todos"), match: m, currentHole: 14, slang: slang)
         #expect(!todos.hasPrefix("No encontré"))
     }
