@@ -634,12 +634,12 @@ struct ContrastAndBriefTests {
         #expect(text.contains("recibe") && text.contains("de Roberto"))
     }
 
-    @Test func theBriefReadingIsOneLineWithTheStrokeHoles() {
+    @Test func theBriefReadingIsOnlyTheRowOfScores() {
         let m = DemoFixture.make()
         let text = brief(m, .init(tipo: "tarjeta", jugador: "Daniel", segmento: "F9"))
         let row = (1...9).map { String(m.getScore(hole: $0, player: "DAN")) }.joined(separator: ", ")
         #expect(text.hasPrefix("Daniel, F9: \(row)."))
-        #expect(text.contains("Total ") && text.contains("Recibe stroke en los hoyos"))
+        #expect(!text.contains("Total ") && !text.contains("stroke"))   // totales y strokes salen con "Más detalle"
         #expect(!text.contains("Hoyo 1, par"))
         // Sin jugador es yo; un grupo de hoyos con detalle, y "más detalle" lo da completo.
         #expect(brief(m, .init(tipo: "tarjeta", segmento: "B9")).hasPrefix("Daniel, B9:"))
@@ -809,5 +809,34 @@ struct CorrectionRouteTests {
         #expect(score.hasPrefix("Roberto, hoyo 8: ") && !score.contains("bogey") && !score.contains("par"))
         let card = VoiceHolePipeline.answer(.init(tipo: "tarjeta", jugador: "Daniel", segmento: "F9"), match: m, currentHole: 14, slang: slang)
         #expect(card.hasPrefix("Daniel, F9: ") && !card.contains("Total") && !card.contains("stroke"))
+    }
+}
+
+@MainActor
+struct PuttsBetTests {
+    @Test func putts_bet_pays_units_only_with_complete_data() {
+        let m = DemoFixture.make()
+        let opp = m.players.map(\.alias).first { $0 != m.yoAlias }!
+        let order = m.playOrder()
+        let f9 = Array(order.prefix(9)), b9 = Array(order.suffix(9))
+        m.puttsBetUnits = 2
+        m.puttsBetMode = .byRound
+        func put(_ h: Int, _ a: String, _ n: Int) {
+            m.applyHoleEntry(HoleEntryData(hole_number: h, player_alias: a, strokes: m.getScore(hole: h, player: a), putts: n, units: nil, tags: nil))
+        }
+        for h in order { put(h, m.yoAlias, 2); put(h, opp, 2) }
+        #expect(m.puttsBetPoints(opponentAlias: opp, f9Holes: f9, b9Holes: b9) == 0)
+        // Yo con menos putts en F9: gano F9 y el total (B9 empata).
+        put(f9[0], opp, 4)
+        #expect(m.puttsBetPoints(opponentAlias: opp, f9Holes: f9, b9Holes: b9) == 4)
+        m.puttsBetMode = .b9
+        #expect(m.puttsBetPoints(opponentAlias: opp, f9Holes: f9, b9Holes: b9) == 0)
+        // Falta un dato en F9: ese tramo no se calcula.
+        m.puttsBetMode = .f9
+        put(f9[3], opp, 0)
+        #expect(m.puttsBetPoints(opponentAlias: opp, f9Holes: f9, b9Holes: b9) == 0)
+        m.puttsBetUnits = 0
+        m.puttsBetMode = .hole18
+        #expect(m.puttsBetPoints(opponentAlias: opp, f9Holes: f9, b9Holes: b9) == 0)
     }
 }

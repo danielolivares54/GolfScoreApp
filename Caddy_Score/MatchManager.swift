@@ -666,6 +666,33 @@ class MatchManager: ObservableObject {
         puttsBetMode = def.puttsScope ?? .hole18
     }
 
+    /// Apuesta de putts contra un rival individual, en unidades (se paga con el valor de unidad del rival).
+    /// En cada tramo gana quien tenga menos putts (el empate no paga) y vale `puttsBetUnits`.
+    /// Solo se calcula si el tramo está completo: los 9 o 18 hoyos con putts de los dos; si falta
+    /// un dato, ese tramo no cuenta todavía. Alcance "Por vuelta" = F9, B9 y el total a 18, tres apuestas.
+    func puttsBetPoints(opponentAlias opp: String, f9Holes: [Int], b9Holes: [Int]) -> Int {
+        guard puttsBetActive else { return 0 }
+        func net(_ holes: [Int]) -> Int {
+            var me = 0, rival = 0
+            for h in holes {
+                let a = getPutts(hole: h, player: yoAlias), b = getPutts(hole: h, player: opp)
+                guard a > 0, b > 0 else { return 0 }
+                me += a
+                rival += b
+            }
+            return rival > me ? 1 : (rival < me ? -1 : 0)
+        }
+        let f9 = net(f9Holes), b9 = net(b9Holes), all = net(f9Holes + b9Holes)
+        let sign: Int
+        switch puttsBetMode {
+        case .f9: sign = f9
+        case .b9: sign = b9
+        case .hole18: sign = all
+        case .byRound: sign = f9 + b9 + all
+        }
+        return sign * puttsBetUnits
+    }
+
     func setPuttsBet(mode: PuttsBetMode, units: Int) {
         puttsBetMode = mode
         puttsBetUnits = max(0, units)
@@ -2624,13 +2651,14 @@ class MatchManager: ObservableObject {
             let doublePressActive = isIndividualDoublePressActive(opponentAlias: opp)
             let unitsPts = unitStakeForIndividual(opponentAlias: opp, segmentOverride: "F9")
                 + unitStakeForIndividual(opponentAlias: opp, segmentOverride: "B9")
+            let puttsPts = puttsBetPoints(opponentAlias: opp, f9Holes: f9Holes, b9Holes: b9Holes)
 
             let vPts = switches.vuelta ? vueltaPts : 0
             let pPts = switches.presion ? presionPts : 0
             let cPts = (switches.carry && carryActive) ? carryPts : 0
             let aPts = (switches.adjust50 && adjust50Active) ? adjust50Pts : 0
             let mPts = switches.match ? matchPts : 0
-            let uPts = switches.units ? unitsPts : 0
+            let uPts = (switches.units ? unitsPts : 0) + puttsPts
 
             // Cada oponente usa su propia plantilla/valor — no el global de la ronda (ese es solo para parejas).
             let ov = betValues(forOpponent: opp)
