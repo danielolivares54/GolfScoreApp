@@ -81,8 +81,9 @@ extension MatchManager {
     func holeReadbackV2(_ hole: Int, detail: Bool = true) -> CardReadbackV2 {
         let par = getHole(hole)?.par ?? 4
         let order = players.map(\.alias)
-        var parts: [String] = ["Hoyo \(hole), par \(par)."]
+        var parts: [String] = [detail ? "Hoyo \(hole), par \(par)." : "Hoyo \(hole), par \(par):"]
         var missing: [String] = []
+        var briefScores: [String] = []
 
         // Scores y putts
         let scored = order.filter { getScore(hole: hole, player: $0) > 0 }
@@ -91,9 +92,10 @@ extension MatchManager {
             let putts = getPutts(hole: hole, player: alias)
             var line = "\(spokenName(alias)) \(gross)"
             if detail, putts > 0 { line += ", \(putts) putt\(putts == 1 ? "" : "s")" }
-            if cellOverride(alias: alias, hole: hole) == .lostHole { line += ", se levantó, hoyo perdido" }
-            parts.append(line + ".")
+            if cellOverride(alias: alias, hole: hole) == .lostHole { line += detail ? ", se levantó, hoyo perdido" : " (se levantó)" }
+            if detail { parts.append(line + ".") } else { briefScores.append(line) }
         }
+        if !detail, !briefScores.isEmpty { parts.append(briefScores.joined(separator: ", ") + ".") }
         if scored.isEmpty { return .init(text: "El hoyo \(hole) todavía no tiene nada anotado.", missing: ["los scores del hoyo"]) }
 
         // Oyes (solo par 3 con Oyes activo)
@@ -101,7 +103,8 @@ extension MatchManager {
             let ranks = oyesRanksByHole[hole] ?? [:]
             let ranked = order.filter { ranks[$0] != nil }.sorted { ranks[$0]! < ranks[$1]! }
             if !ranked.isEmpty {
-                parts.append("Oyes: " + spokenList(ranked.map { "\(spokenOrdinal(ranks[$0]!)) \(spokenName($0))" }) + ".")
+                parts.append(detail ? "Oyes: " + spokenList(ranked.map { "\(spokenOrdinal(ranks[$0]!)) \(spokenName($0))" }) + "."
+                                    : "Oyes " + ranked.map { "\(ranks[$0]!) \(spokenName($0))" }.joined(separator: ", ") + ".")
             }
             let unranked = scored.filter { ranks[$0] == nil }
             if ranked.isEmpty { missing.append("el orden de oyes") }
@@ -123,7 +126,7 @@ extension MatchManager {
         let noPutts = scored.filter { tracksPutts(alias: $0) && getPutts(hole: hole, player: $0) <= 0 }
         if !noPutts.isEmpty { missing.append("los putts de " + spokenList(noPutts.map(spokenName))) }
 
-        parts.append(missing.isEmpty ? "Está completo." : "Falta " + spokenList(missing) + ".")
+        parts.append(missing.isEmpty ? (detail ? "Está completo." : "Completo.") : "Falta " + spokenList(missing) + ".")
         return .init(text: parts.joined(separator: " "), missing: missing)
     }
 
@@ -338,6 +341,29 @@ extension MatchManager {
             }
         }
         guard !rows.isEmpty else { return "No encontré ese match." }
+        if !detail {
+            // Breve: una línea corta por match, con nombres y números con signo; sin dinero ni frases de relleno.
+            func pres(_ v: [Int]) -> String { v.isEmpty ? "sin presión" : "presión " + v.map(signedWords).joined(separator: " y ") }
+            var out: [String] = []
+            for row in rows {
+                let label = briefLabelV2(row)
+                var bits: [String] = []
+                switch kind {
+                case "presiones":
+                    if !onlyB9 { bits.append("F9 " + pres(row.f9Presiones)) }
+                    if !onlyF9 { bits.append("B9 " + pres(row.b9Presiones)) }
+                case "strokes":
+                    guard let receiver = row.strokesReceiver, row.strokesAmount > 0 else { continue }
+                    bits.append("\(spokenName(receiver)) recibe \(strokesWord(row.strokesAmount))")
+                default:
+                    if !onlyB9 { bits.append("F9 " + signedWords(row.f9Net)) }
+                    if !onlyF9 { bits.append("B9 " + signedWords(row.b9Net)) }
+                    if !onlyF9 && !onlyB9 { bits.append("match " + signedWords(row.f9Net + row.b9Net)) }
+                }
+                out.append(label + ": " + bits.joined(separator: ", "))
+            }
+            return out.isEmpty ? "Sin strokes." : out.joined(separator: ". ") + "."
+        }
         let wantsResults = kind != "presiones" && kind != "strokes"
         // Resumen corto: solo el conteo de cada nueve, el match y el dinero. Las presiones y los strokes salen con "detalle"
         // o cuando se pregunta directo por ellos.

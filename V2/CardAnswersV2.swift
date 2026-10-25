@@ -133,8 +133,8 @@ extension MatchManager {
         guard !(singles + pairs).isEmpty else { return "Todavía no hay hoyos completos para ese match." }
         // Primero los individuales y luego las parejas contrarias.
         var out: [String] = []
-        if !singles.isEmpty { out.append((pairs.isEmpty ? "" : "Individuales. ") + singles.joined(separator: " ")) }
-        if !pairs.isEmpty { out.append((singles.isEmpty ? "" : "Parejas contrarias. ") + pairs.joined(separator: " ")) }
+        if !singles.isEmpty { out.append(singles.joined(separator: " ")) }
+        if !pairs.isEmpty { out.append(pairs.joined(separator: " ")) }
         return out.joined(separator: " ")
     }
 
@@ -205,7 +205,7 @@ extension MatchManager {
                 lines.append("hoyo \(hole), \(myGross) contra \(hisGross), \(outcomeWords(r.result * sign, myName))")
             }
         }
-        let head = "\(spokenName(p)) contra \(spokenName(other))."
+        let head = detail || holes.count > 3 ? "\(spokenName(p)) contra \(spokenName(other))." : "\(spokenName(other)):"
         if holes.count <= 3 { return head + " " + lines.joined(separator: " ") }
         // Grupo de hoyos: una línea por hoyo y cómo queda la vuelta de cada nueve al final.
         var tail: [String] = []
@@ -220,7 +220,8 @@ extension MatchManager {
         let mine = lane.base.contains(p)
         let sign = mine ? 1 : -1
         let mySide = mine ? lane.base : lane.opp, hisSide = mine ? lane.opp : lane.base
-        let head = "Pareja \(mySide.map(spokenName).joined(separator: " y ")) contra \(hisSide.map(spokenName).joined(separator: " y "))."
+        let fullHead = "Pareja \(mySide.map(spokenName).joined(separator: " y ")) contra \(hisSide.map(spokenName).joined(separator: " y "))."
+        let head = detail || holes.count > 3 ? fullHead : ""
         var lines: [String] = []
         for hole in holes {
             let nine = nineOf(hole)
@@ -250,7 +251,7 @@ extension MatchManager {
                 lines.append("hoyo \(hole), \(word)")
             }
         }
-        return head + " " + lines.joined(separator: holes.count <= 3 ? " " : "; ") + (holes.count <= 3 ? "" : ".")
+        return (head.isEmpty ? "" : head + " ") + lines.joined(separator: holes.count <= 3 ? " " : "; ") + (holes.count <= 3 ? "" : ".")
     }
 }
 
@@ -302,6 +303,20 @@ extension MatchManager {
         switch row.kind {
         case .individual: return -1
         case .pair(let id): return lanes.first { $0.id == id }.map { $0.base.contains(alias) == $0.base.contains(yoAlias) ? 1 : -1 } ?? 1
+        }
+    }
+
+    /// Etiqueta corta de un match, con nombres y no alias: "Roberto" o "con Fernando vs Roberto y Ricardo".
+    func briefLabelV2(_ row: ResultadoRowV2) -> String {
+        switch row.kind {
+        case .individual(let a): return spokenName(a)
+        case .pair:
+            func names(_ text: String) -> String {
+                text.replacingOccurrences(of: " – ", with: " y ").split(separator: " ").map { w in
+                    players.contains { $0.alias == String(w) } ? spokenName(String(w)) : String(w)
+                }.joined(separator: " ")
+            }
+            return names(row.title) + (row.rivalsText.map { " vs " + names($0) } ?? "")
         }
     }
 
@@ -370,10 +385,10 @@ extension MatchManager {
             case "presion":
                 let open = (nine == "B9" ? row.b9Presiones : row.f9Presiones)
                 let mine = open.filter { $0 * sign > 0 }.count, theirs = open.filter { $0 * sign < 0 }.count
-                values.append((row, mine - theirs, "\(matchName(row)) presión \(signedWords(mine - theirs))"))
+                values.append((row, mine - theirs, "\(briefLabelV2(row)) presión \(signedWords(mine - theirs))"))
             case "vuelta", "nueve":
                 let v = (nine == "B9" ? row.b9Net : row.f9Net) * sign
-                values.append((row, v, "\(matchName(row)) \(signedWords(v))"))
+                values.append((row, v, "\(briefLabelV2(row)) \(signedWords(v))"))
             case "resumen":
                 // Cada número como se dice: vuelta, presión, match y unidades.
                 let v = (nine == "B9" ? row.b9Net : row.f9Net) * sign
@@ -383,22 +398,18 @@ extension MatchManager {
                 let m = (row.f9Net + row.b9Net) * sign
                 let u = (matchResumenV2(for: row.target)?.unidades.chips.first).flatMap { Int($0.replacingOccurrences(of: "+", with: "")) }.map { $0 * sign } ?? 0
                 let units = "unidades \(signedWords(u))"
-                values.append((row, m, "\(matchName(row)): vuelta \(signedWords(v)), \(pres), match \(signedWords(m)), \(units)"))
+                values.append((row, m, "\(briefLabelV2(row)): vuelta \(signedWords(v)), \(pres), match \(signedWords(m)), \(units)"))
             default:
                 let v = (row.f9Net + row.b9Net) * sign
-                values.append((row, v, "\(matchName(row)) \(signedWords(v))"))
+                values.append((row, v, "\(briefLabelV2(row)) \(signedWords(v))"))
             }
         }
         let singles = values.filter { !$0.row.isPair }, pairs = values.filter { $0.row.isPair }
-        var text = (last.map { "Al hoyo \($0), " } ?? "") + label + ": "
+        var text = (last.map { "Hoyo \($0), " } ?? "") + label + ": "
         var parts: [String] = []
-        if !singles.isEmpty { parts.append((pairs.isEmpty ? "" : "individuales ") + singles.map(\.text).joined(separator: "; ")) }
-        if !pairs.isEmpty { parts.append((singles.isEmpty ? "" : "parejas contrarias ") + pairs.map(\.text).joined(separator: "; ")) }
+        if !singles.isEmpty { parts.append(singles.map(\.text).joined(separator: "; ")) }
+        if !pairs.isEmpty { parts.append("Parejas: " + pairs.map(\.text).joined(separator: "; ")) }
         text += parts.joined(separator: ". ") + "."
-        if kind != "presion", kind != "resumen", singles.count > 1, let best = singles.max(by: { $0.value < $1.value }), let worst = singles.min(by: { $0.value < $1.value }),
-           best.value != worst.value {
-            text += " Mejor \(matchName(best.row)), peor \(matchName(worst.row))."
-        }
         if let n = pairsNoticeV2() { text += " Ojo: " + pairsNoticeTextV2(n) }
         return text
     }
@@ -422,18 +433,7 @@ extension MatchManager {
                 if let first = carry.first { parts.append("carry " + signedWords(first) + (carry.count > 1 ? ", presión del carry " + list(Array(carry.dropFirst())) : "")) }
             }
             parts.append("match " + signedWords(m))
-            let name: String
-            switch row.kind {
-            case .individual(let a): name = spokenName(a)
-            case .pair:
-                // Con quién y contra quién, para que el signo se lea desde tu lado: "pareja con Fernando contra Roberto y Ricardo".
-                func names(_ text: String) -> String {
-                    text.replacingOccurrences(of: " – ", with: " y ").split(separator: " ").map { w in
-                        players.contains { $0.alias == String(w) } ? spokenName(String(w)) : String(w)
-                    }.joined(separator: " ")
-                }
-                name = "pareja " + names(row.title) + (row.rivalsText.map { " contra " + names($0) } ?? "")
-            }
+            let name = briefLabelV2(row)
             line.append(name + ": " + parts.joined(separator: ", "))
         }
         var text = (hole.map { "Hoyo \($0), " } ?? "") + nine + ". " + line.joined(separator: ". ") + "."
@@ -470,17 +470,16 @@ extension MatchManager {
             }
             let won = results.filter { $0 > 0 }.count, lost = results.filter { $0 < 0 }.count, tied = results.filter { $0 == 0 }.count
             let isMe = sign == 1
-            var text = "\(matchName(row).prefix(1).uppercased() + matchName(row).dropFirst()): \(signedWords(total)). "
+            var text = "\(briefLabelV2(row).prefix(1).uppercased() + briefLabelV2(row).dropFirst()): \(signedWords(total)). "
             if results.isEmpty { return text + "Todavía sin hoyos jugados." }
             var counts = ["\(isMe ? "ganaste" : "ganó") \(won)", "\(isMe ? "perdiste" : "perdió") \(lost)"]
             if tied > 0 { counts.append("empataron \(tied)") }
             text += counts.joined(separator: ", ") + "."
             
-            var strokes: [String] = []
-            if !strokesMine.isEmpty { strokes.append("\(isMe ? "tienes" : "tiene") stroke en \(holesList(strokesMine))") }
-            if !strokesTheirs.isEmpty { strokes.append("el rival tiene stroke en \(holesList(strokesTheirs))") }
-            if !strokesAny.isEmpty { strokes.append("hay stroke en \(holesList(strokesAny))") }
-            text += strokes.isEmpty ? " Sin strokes." : " " + strokes.joined(separator: "; ").prefix(1).uppercased() + strokes.joined(separator: "; ").dropFirst() + "."
+            // Solo cuántos hoyos con stroke y de quién; los hoyos exactos salen con "Más detalle".
+            if !strokesMine.isEmpty { text += " \(isMe ? "Tienes" : "Tiene") stroke en \(strokesMine.count)." }
+            if !strokesTheirs.isEmpty { text += " Él tiene stroke en \(strokesTheirs.count)." }
+            if !strokesAny.isEmpty { text += " Hay stroke en \(strokesAny.count)." }
             return text
         }
         return lines.joined(separator: " ")

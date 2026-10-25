@@ -96,3 +96,9 @@
 ## Cómo vamos, directo (25-oct)
 - La lectura breve de **Cómo vamos** y del conteo da el hoyo y la vuelta y, por jugador y pareja, el **resultado de cada concepto**: vuelta, **cada presión abierta con su propio valor**, carry (con su presión) y match, siempre desde el lado de quien pregunta (más = va ganando, menos = va perdiendo). Sin "Llevas N hoyos", unidades ni dinero: eso tiene sus botones y "Más detalle".
 - Ejemplo (demo): "Roberto: vuelta más 4, presión más 2, carry más 3, presión del carry más 1, match más 6. Ricardo: vuelta menos 2, sin presión, match más 1. … pareja con Fernando contra Roberto y Ricardo: vuelta más 5, presión más 2, match más 11." Sin carry activo no se dice carry (`compactStandingsV2`).
+
+## Todo breve por defecto (25-oct)
+- Regla: toda lectura es breve; lo largo solo con "Más detalle". Nombres (no alias) y números con signo; sin dinero ni frases de relleno en lo breve.
+- Etiqueta corta de cada match (`briefLabelV2`): "Roberto" o "con Fernando vs Roberto y Ricardo".
+- Recortes: **nueve** ("Roberto: F9 más 2, B9 más 4, match más 6"), **presiones** ("B9 presión más 4 y más 1"), **strokes** (solo quien recibe y cuántos), **vuelta/presión/match** (sin "contra", sin "Mejor/peor"; "Parejas: …"), **hoyo y estatus** (sin encabezados largos), **por qué** (cuántos hoyos con stroke, no cuáles), **leer el hoyo** ("Hoyo 14, par 3: Daniel 3, Fernando 2, … Oyes 1 Fernando, 2 Roberto…").
+- El detalle completo (dinero, listas de hoyos, antes/ahora) sigue en "Más detalle".

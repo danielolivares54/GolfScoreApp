@@ -668,10 +668,10 @@ struct ContrastAndBriefTests {
         let explain = brief(m, .init(tipo: "explicar", jugador: "yo", oponente: "Roberto"))
         let explainFull = full(m, .init(tipo: "explicar", jugador: "yo", oponente: "Roberto"))
         #expect(explain.count < explainFull.count)
-        #expect(explain.hasPrefix("Contra Roberto: ") && explain.contains("ganaste") && !explain.contains("Strokes:"))
+        #expect(explain.hasPrefix("Roberto: ") && explain.contains("ganaste") && !explain.contains("Strokes:"))
 
         let nine = brief(m, .init(tipo: "nueve", jugador: "yo", oponente: "Roberto"))
-        #expect(nine.contains("F9: ") && nine.contains("Dinero:") && !nine.contains("Strokes:") && !nine.contains("presion"))
+        #expect(nine.contains("F9 ") && nine.contains("B9 ") && nine.contains("match ") && !nine.contains("Dinero") && !nine.contains("Strokes:") && !nine.contains("presion"))
         #expect(full(m, .init(tipo: "nueve", jugador: "yo", oponente: "Roberto")).contains("Strokes:"))
     }
 
@@ -691,7 +691,7 @@ struct ContrastAndBriefTests {
         let short = m.holeReadbackV2(14, detail: false).text, long = m.holeReadbackV2(14, detail: true).text
         #expect(short.count < long.count)
         #expect(!short.contains("hole out") && long.contains("hole out"))
-        #expect(short.hasPrefix("Hoyo 14, par 3."))
+        #expect(short.hasPrefix("Hoyo 14, par 3:"))
     }
 
     @Test func askingForTheDetailIsRecognized() {
@@ -761,7 +761,7 @@ struct CorrectionRouteTests {
         let m = DemoFixture.make()
         let text = VoiceHolePipeline.answer(.init(tipo: "estatus", jugador: "yo", oponente: "Roberto"), match: m, currentHole: 14,
                                             slang: VoiceSlangStore(defaults: UserDefaults(suiteName: "status-\(UUID().uuidString)")!))
-        #expect((text.hasPrefix("Daniel contra Roberto.") || text.hasPrefix("Individuales. Daniel contra Roberto.")) && text.contains(" contra ") && text.contains("Vuelta "))
+        #expect(text.hasPrefix("Roberto:") && text.contains(" contra ") && text.contains("Vuelta "))
         #expect(!text.contains("Presiones abiertas"))
     }
 
@@ -769,9 +769,9 @@ struct CorrectionRouteTests {
         let m = DemoFixture.make()
         let slang = VoiceSlangStore(defaults: UserDefaults(suiteName: "board-\(UUID().uuidString)")!)
         let all = VoiceHolePipeline.answer(.init(tipo: "match"), match: m, currentHole: 14, slang: slang)
-        #expect(all.hasPrefix("Al hoyo ") && all.contains("match:") && !all.contains("pesos") && all.contains("Mejor "))
+        #expect(all.hasPrefix("Hoyo ") && all.contains("match:") && !all.contains("pesos") && !all.contains("Mejor ") && all.contains("Parejas: "))
         let one = VoiceHolePipeline.answer(.init(tipo: "match", jugador: "yo", oponente: "Roberto"), match: m, currentHole: 14, slang: slang)
-        #expect(one.contains("contra Roberto") && !one.contains("contra Ricardo") && !one.contains("Mejor "))
+        #expect(one.contains("Roberto") && !one.contains("; Ricardo ") && !one.contains(": Ricardo ") && !one.contains("Mejor "))   // la pareja contra Roberto y Ricardo sí puede nombrarlo
         let why = VoiceHolePipeline.answer(.init(tipo: "explicar", jugador: "yo", oponente: "Roberto"), match: m, currentHole: 14, slang: slang)
         #expect(why.contains("ganaste") && why.contains("perdiste") && why.contains("troke"))
     }
@@ -782,7 +782,7 @@ struct CorrectionRouteTests {
         let text = VoiceHolePipeline.answer(.init(tipo: "conteo", jugador: "yo", oponente: "los demás"), match: m, currentHole: 14, slang: slang)
         // Hoyo y vuelta, el orden de los números una vez, y por rival solo nombre y números (sin unidades ni dinero).
         #expect(text.hasPrefix("Hoyo ") && text.contains("vuelta ") && text.contains("presión ") && text.contains("match "))
-        #expect(text.contains("Roberto ") && text.contains("Ricardo ") && !text.contains("unidades") && !text.contains("pesos") && !text.contains("contra Roberto:") && text.contains("Roberto: vuelta ") && text.contains("pareja con "))
+        #expect(text.contains("Roberto ") && text.contains("Ricardo ") && !text.contains("unidades") && !text.contains("pesos") && text.contains("Roberto: vuelta ") && text.contains(" vs "))
         let todos = VoiceHolePipeline.answer(.init(tipo: "match", jugador: "todos"), match: m, currentHole: 14, slang: slang)
         #expect(!todos.hasPrefix("No encontré"))
     }
