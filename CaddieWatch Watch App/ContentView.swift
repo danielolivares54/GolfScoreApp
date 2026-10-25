@@ -39,7 +39,13 @@ private struct HomeView: View {
         ScrollView {
         VStack(spacing: 8) {
             if let ctx = model.context {
-                Text("HOYO \(ctx.hole) · PAR \(ctx.par)").font(.wCaps).foregroundStyle(CSW.secondary)
+                VStack(spacing: 0) {
+                    Text("ESPERANDO").font(.wCaps).foregroundStyle(CSW.secondary)
+                    Text("HOYO \(ctx.hole)").font(.system(.title2, weight: .heavy).monospacedDigit()).foregroundStyle(CSW.ink)
+                    Text("PAR \(ctx.par)").font(.wCaps).foregroundStyle(CSW.secondary)
+                }
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel("Esperando el hoyo \(ctx.hole), par \(ctx.par)")
             } else {
                 Text("Abre Caddie Score en el iPhone").font(.wBody).foregroundStyle(CSW.secondary).multilineTextAlignment(.center)
             }
@@ -69,6 +75,7 @@ private struct RecordingView: View {
     var body: some View {
         VStack(spacing: 10) {
             Label("Escuchando…", systemImage: "waveform").font(.wName).foregroundStyle(CSW.red)
+            if let ctx = model.context { Text("HOYO \(ctx.hole) · PAR \(ctx.par)").font(.wCaps).foregroundStyle(CSW.ink) }
             Text("Di el hoyo completo: golpes, putts, oyes y unidades.").font(.wCaps).foregroundStyle(CSW.secondary).multilineTextAlignment(.center)
             WatchPrimaryButton(title: "Terminar") { model.stopAndSend() }
             Button("Cancelar") { model.cancelRecording() }.font(.wCaps).foregroundStyle(CSW.secondary)
