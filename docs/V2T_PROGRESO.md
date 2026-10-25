@@ -84,3 +84,10 @@
 - Es una apuesta de **unidades**, solo individual (parejas no la llevan; eso se controla con el tag PUTTS del catálogo). En cada tramo gana quien tenga menos putts, el empate no paga y vale `puttsBetUnits` unidades al valor de unidad de ese rival. Entra en las unidades del match (`unitsPoints`/`unitsMoney`) y no depende del interruptor Unidades.
 - **Solo se calcula con todos los datos**: los 9 hoyos del tramo (o 18) con putts de los dos; si falta uno, ese tramo no paga todavía.
 - Alcances: F9, B9, 18 y **Vuelta = tres apuestas** (F9, B9 y total a 18). `MatchManager.puttsBetPoints`.
+
+## Watch v1 (25-oct): dictar, tarjeta con lápiz y goma, Anotar
+- Target `CaddieWatch Watch App` (embebido, `comDOG.Caddy-Score.watchkitapp`). El reloj graba el hoyo (m4a), lo manda al iPhone (`transferFile`) y pinta la tarjeta que recibe por `applicationContext`; no interpreta nada.
+- iPhone: `WatchCardCoordinator` (borrador, lápiz = `edit`, goma = `clear`/`removeChip`, `apply`, `undo`; pruebas en `WatchCardCoordinatorTests`) y `WatchBridgeV2` (WatchConnectivity). Se arranca en `RootView`.
+- Compartido: `WatchShared/WatchShared.swift` (tarjeta y órdenes), en los dos targets.
+- Reglas: lo dudoso bloquea Anotar hasta tocar ✎; la corona solo desplaza (no aplica ni edita); Anotar es un botón; Deshacer sale tras anotar. Unidades y oyes salen como fichas con goma (sin lápiz todavía).
+- Pendiente: probar en un reloj real, doble toque para Anotar, preguntas/lecturas en el reloj, cola sin iPhone.

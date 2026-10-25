@@ -68,6 +68,9 @@
 		F8A1001F2F43000100A1B2C3 /* Caddy_Score/EventModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8A100152F43000100A1B2C3 /* Caddy_Score/EventModels.swift */; };
 		F8A100202F43000100A1B2C3 /* Caddy_Score/Persistence.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8A100162F43000100A1B2C3 /* Caddy_Score/Persistence.swift */; };
 		F8A100342F43000100A1B2C3 /* Caddy_Score/Interpreter.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8A100332F43000100A1B2C3 /* Caddy_Score/Interpreter.swift */; };
+		F8E6BFC6308E9ED5002CB995 /* CaddieWatch Watch App.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = F8E6BFBC308E9ED4002CB995 /* CaddieWatch Watch App.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		F8E6C0033090A0030000AAA1 /* WatchCardCoordinatorV2.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8E6C0023090A0020000AAA1 /* WatchCardCoordinatorV2.swift */; };
+		F8E6C0033090A0030000AAA2 /* WatchBridgeV2.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8E6C0023090A0020000AAA2 /* WatchBridgeV2.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXBuildRule section */
@@ -83,6 +86,30 @@
 			script = "# Type a script or drag a script file from your workspace to insert its path.\n";
 		};
 /* End PBXBuildRule section */
+
+/* Begin PBXContainerItemProxy section */
+		F8E6BFC4308E9ED5002CB995 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = F8667F512F413A6400F2F850 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = F8E6BFBB308E9ED4002CB995;
+			remoteInfo = "CaddieWatch Watch App";
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		F8E6BFC7308E9ED5002CB995 /* Embed Watch Content */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "$(CONTENTS_FOLDER_PATH)/Watch";
+			dstSubfolderSpec = 16;
+			files = (
+				F8E6BFC6308E9ED5002CB995 /* CaddieWatch Watch App.app in Embed Watch Content */,
+			);
+			name = "Embed Watch Content";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		F8057681308BED7100AE2B4F /* VoiceSheetV2.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceSheetV2.swift; sourceTree = "<group>"; };
@@ -123,6 +150,9 @@
 		F8A100152F43000100A1B2C3 /* Caddy_Score/EventModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Caddy_Score/EventModels.swift; sourceTree = "<group>"; };
 		F8A100162F43000100A1B2C3 /* Caddy_Score/Persistence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Caddy_Score/Persistence.swift; sourceTree = "<group>"; };
 		F8A100332F43000100A1B2C3 /* Caddy_Score/Interpreter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Caddy_Score/Interpreter.swift; sourceTree = "<group>"; };
+		F8E6BFBC308E9ED4002CB995 /* CaddieWatch Watch App.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "CaddieWatch Watch App.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		F8E6C0023090A0020000AAA1 /* WatchCardCoordinatorV2.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchCardCoordinatorV2.swift; sourceTree = "<group>"; };
+		F8E6C0023090A0020000AAA2 /* WatchBridgeV2.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchBridgeV2.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -172,6 +202,16 @@
 			path = como;
 			sourceTree = "<group>";
 		};
+		F8E6BFBD308E9ED4002CB995 /* CaddieWatch Watch App */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = "CaddieWatch Watch App";
+			sourceTree = "<group>";
+		};
+		F8E6C0013090A0010000AAAA /* WatchShared */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = WatchShared;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -187,6 +227,13 @@
 			buildActionMask = 2147483647;
 			files = (
 				F88434FE3082E0F80079F3EB /* Algorithms in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		F8E6BFB9308E9ED4002CB995 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -220,6 +267,8 @@
 				F8057692308C085E00AE2B4F /* CardAnswersV2.swift */,
 				F8057695308C0F4100AE2B4F /* PairsNoticeV2.swift */,
 				F8057698308C1D2000AE2B4F /* ContrastV2.swift */,
+				F8E6C0023090A0020000AAA1 /* WatchCardCoordinatorV2.swift */,
+				F8E6C0023090A0020000AAA2 /* WatchBridgeV2.swift */,
 			);
 			path = V2;
 			sourceTree = "<group>";
@@ -231,6 +280,8 @@
 				F82AA8AE304F4871004066B3 /* ScoreManager.swift */,
 				F8667F5B2F413A6400F2F850 /* Caddy_Score */,
 				F808CACB308953AD00CAB58C /* Caddy_ScoreTests */,
+				F8E6BFBD308E9ED4002CB995 /* CaddieWatch Watch App */,
+				F8E6C0013090A0010000AAAA /* WatchShared */,
 				F8667F5A2F413A6400F2F850 /* Products */,
 				F8EE8C7B2F43D23900EA096F /* Recovered References */,
 				F82AA8DF304F5E7B004066B3 /* SiriMatchManager.swift */,
@@ -245,6 +296,7 @@
 			children = (
 				F8667F592F413A6400F2F850 /* Caddy_Score.app */,
 				F808CACA308953AD00CAB58C /* Caddy_ScoreTests.xctest */,
+				F8E6BFBC308E9ED4002CB995 /* CaddieWatch Watch App.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -296,14 +348,17 @@
 				F8667F692F413A6400F2F850 /* Sources */,
 				F8667F562F413A6400F2F850 /* Frameworks */,
 				F8114BC8307ABC13000A38E7 /* Resources */,
+				F8E6BFC7308E9ED5002CB995 /* Embed Watch Content */,
 			);
 			buildRules = (
 				F846F7DF302161FC0037E6A1 /* PBXBuildRule */,
 			);
 			dependencies = (
+				F8E6BFC5308E9ED5002CB995 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				F87EB7273086B047004EBE88 /* como */,
+				F8E6C0013090A0010000AAAA /* WatchShared */,
 			);
 			name = Caddy_Score;
 			packageProductDependencies = (
@@ -311,6 +366,29 @@
 			);
 			productName = Caddy_Score;
 			productReference = F8667F592F413A6400F2F850 /* Caddy_Score.app */;
+			productType = "com.apple.product-type.application";
+		};
+		F8E6BFBB308E9ED4002CB995 /* CaddieWatch Watch App */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = F8E6BFCA308E9ED5002CB995 /* Build configuration list for PBXNativeTarget "CaddieWatch Watch App" */;
+			buildPhases = (
+				F8E6BFB8308E9ED4002CB995 /* Sources */,
+				F8E6BFB9308E9ED4002CB995 /* Frameworks */,
+				F8E6BFBA308E9ED4002CB995 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				F8E6BFBD308E9ED4002CB995 /* CaddieWatch Watch App */,
+				F8E6C0013090A0010000AAAA /* WatchShared */,
+			);
+			name = "CaddieWatch Watch App";
+			packageProductDependencies = (
+			);
+			productName = "CaddieWatch Watch App";
+			productReference = F8E6BFBC308E9ED4002CB995 /* CaddieWatch Watch App.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -328,6 +406,9 @@
 					};
 					F8667F582F413A6400F2F850 = {
 						CreatedOnToolsVersion = 26.2;
+					};
+					F8E6BFBB308E9ED4002CB995 = {
+						CreatedOnToolsVersion = 27.1;
 					};
 				};
 			};
@@ -350,6 +431,7 @@
 			targets = (
 				F8667F582F413A6400F2F850 /* Caddy_Score */,
 				F808CAC9308953AD00CAB58C /* Caddy_ScoreTests */,
+				F8E6BFBB308E9ED4002CB995 /* CaddieWatch Watch App */,
 			);
 		};
 /* End PBXProject section */
@@ -367,6 +449,13 @@
 			buildActionMask = 2147483647;
 			files = (
 				F87EB6933085278E004EBE88 /* Resumen_CaddyScore_y_Correccion.txt in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		F8E6BFBA308E9ED4002CB995 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -408,6 +497,8 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				F8E6C0033090A0030000AAA2 /* WatchBridgeV2.swift in Sources */,
+				F8E6C0033090A0030000AAA1 /* WatchCardCoordinatorV2.swift in Sources */,
 				F8A1001A2F43000100A1B2C3 /* Caddy_Score/Caddy_ScoreApp.swift in Sources */,
 				F808CAEE3089691C00CAB58C /* TarjetaV2.swift in Sources */,
 				F808CAF5308971AE00CAB58C /* MatchDetailV2.swift in Sources */,
@@ -446,7 +537,22 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		F8E6BFB8308E9ED4002CB995 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		F8E6BFC5308E9ED5002CB995 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = F8E6BFBB308E9ED4002CB995 /* CaddieWatch Watch App */;
+			targetProxy = F8E6BFC4308E9ED5002CB995 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		F808CACE308953AD00CAB58C /* Debug */ = {
@@ -728,6 +834,76 @@
 			};
 			name = Release;
 		};
+		F8E6BFC8308E9ED5002CB995 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = RYLP3WV2WQ;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = CaddieWatch;
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Necesitamos el micrófono para dictar el hoyo.";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
+				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = "comDOG.Caddy-Score";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "comDOG.Caddy-Score.watchkitapp";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 4;
+				WATCHOS_DEPLOYMENT_TARGET = 27.0;
+			};
+			name = Debug;
+		};
+		F8E6BFC9308E9ED5002CB995 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = RYLP3WV2WQ;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = CaddieWatch;
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Necesitamos el micrófono para dictar el hoyo.";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
+				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = "comDOG.Caddy-Score";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "comDOG.Caddy-Score.watchkitapp";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 4;
+				WATCHOS_DEPLOYMENT_TARGET = 27.0;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -754,6 +930,15 @@
 			buildConfigurations = (
 				F8667F812F413A6400F2F850 /* Debug */,
 				F8667F822F413A6400F2F850 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		F8E6BFCA308E9ED5002CB995 /* Build configuration list for PBXNativeTarget "CaddieWatch Watch App" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				F8E6BFC8308E9ED5002CB995 /* Debug */,
+				F8E6BFC9308E9ED5002CB995 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
