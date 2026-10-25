@@ -23,6 +23,8 @@ struct WatchContextDTO: Codable, Equatable {
     var par: Int
     var course: String
     var hasKey: Bool
+    /// Distancia del hoyo desde el tee de salida. Por ahora fija (ver `WatchCardCoordinator.placeholderTeeDistance`); luego sale de la tarjeta del campo.
+    var teeDistance: Int? = nil
 }
 
 /// La tarjeta del hoyo tal como se va a anotar. Todo se calcula en el iPhone.

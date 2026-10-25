@@ -42,10 +42,10 @@ private struct HomeView: View {
                 VStack(spacing: 0) {
                     Text("ESPERANDO").font(.wCaps).foregroundStyle(CSW.secondary)
                     Text("HOYO \(ctx.hole)").font(.system(.title2, weight: .heavy).monospacedDigit()).foregroundStyle(CSW.ink)
-                    Text("PAR \(ctx.par)").font(.wCaps).foregroundStyle(CSW.secondary)
+                    Text("PAR \(ctx.par)" + (ctx.teeDistance.map { " · \($0)" } ?? "")).font(.wCaps).foregroundStyle(CSW.secondary)
                 }
                 .accessibilityElement(children: .combine)
-                .accessibilityLabel("Esperando el hoyo \(ctx.hole), par \(ctx.par)")
+                .accessibilityLabel("Esperando el hoyo \(ctx.hole), par \(ctx.par)" + (ctx.teeDistance.map { ", \($0) de distancia" } ?? ""))
             } else {
                 Text("Abre Caddie Score en el iPhone").font(.wBody).foregroundStyle(CSW.secondary).multilineTextAlignment(.center)
             }

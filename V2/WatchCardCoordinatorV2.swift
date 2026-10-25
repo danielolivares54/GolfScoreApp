@@ -206,9 +206,13 @@ final class WatchCardCoordinator {
                             error: error, processing: processing, applied: applied, revision: revision)
     }
 
+    /// Distancia desde el tee de salida mientras no se lea de la tarjeta del campo.
+    static let placeholderTeeDistance = 350
+
     func context(course: String) -> WatchContextDTO {
         let hole = currentHole()
-        return WatchContextDTO(hole: hole, par: match.getHole(hole)?.par ?? 4, course: course, hasKey: AppConfig.hasOpenAIKey)
+        return WatchContextDTO(hole: hole, par: match.getHole(hole)?.par ?? 4, course: course, hasKey: hasKey(),
+                               teeDistance: Self.placeholderTeeDistance)
     }
 
     private func changed() {
