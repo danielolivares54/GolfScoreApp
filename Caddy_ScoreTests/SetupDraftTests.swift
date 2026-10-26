@@ -176,3 +176,38 @@ struct SetupDraftTests {
         #expect(m.strokeHolesText(total: 0, startHole: 1) == nil)
     }
 }
+
+@MainActor
+struct UserIsAlwaysPlayerOneTests {
+    @Test func theUserCannotBeRemovedAndStaysFirst() {
+        let m = DemoFixture.make()
+        let model = SetupDraftModel(manager: m)
+        model.load()
+        let user = model.playerNames[0]
+        #expect(model.isUserName(user) || model.playerNames.count > 0)
+        model.removePlayer(at: 0)                                   // el jugador 1 no se quita
+        #expect(model.playerNames.first == user)
+        let before = model.playerNames.count
+        model.removePlayer(at: before - 1)                          // los demás sí
+        #expect(model.playerNames.count == before - 1)
+    }
+
+    @Test func aMissingUserIsPutFirstAndAnotherCopyIsNotAdded() {
+        let m = DemoFixture.make()
+        let model = SetupDraftModel(manager: m)
+        model.load()
+        let user = model.userName
+        model.playerNames = ["Zeta", "Yuri"]                        // sin el usuario
+        model.ensureUserFirst()
+        #expect(model.playerNames.first.map(model.isUserName) == true && model.playerNames.count == 3)
+        model.playerNames = ["Zeta", user, "Yuri"]                  // el usuario en otro lugar sube al primero
+        model.ensureUserFirst()
+        #expect(model.playerNames.first.map(model.isUserName) == true && model.playerNames == [user, "Zeta", "Yuri"])
+        model.addPlayer(user, directoryMatch: nil)                  // no se duplica
+        #expect(model.playerNames.count == 3)
+        model.playerNames = [user, "A", "B", "C", "D"]
+        model.playerNames.removeAll(); model.playerNames = ["A", "B", "C", "D", "E"]
+        model.ensureUserFirst()                                     // con 5 llenos, entra el usuario y sale el último
+        #expect(model.playerNames.count == 5 && model.isUserName(model.playerNames[0]) && !model.playerNames.contains("E"))
+    }
+}

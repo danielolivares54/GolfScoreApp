@@ -4284,6 +4284,7 @@ final class SetupDraftModel: ObservableObject {
         courseId = manager.courseId.isEmpty ? CourseCatalog.default.id : manager.courseId
         startHole = manager.startHole
         playerNames = manager.players.map { $0.name }
+        ensureUserFirst()
         syncStrokes()
         // Restaura la pareja base real del match; si no hay (match nuevo), caen los dos primeros.
         let live = Set(manager.players.map { $0.alias })
@@ -4340,7 +4341,7 @@ final class SetupDraftModel: ObservableObject {
     /// Agrega un jugador (máximo 5). Si viene del directorio, toma sus strokes y plantilla.
     func addPlayer(_ rawName: String, directoryMatch: PlayerDirectoryEntry?) {
         let clean = rawName.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !clean.isEmpty, playerNames.count < 5 else { return }
+        guard !clean.isEmpty, playerNames.count < 5, !isUserName(clean) else { return }
         let match = directoryMatch ?? PlayerDirectoryStore.shared.entries.first(where: {
             $0.name.caseInsensitiveCompare(clean) == .orderedSame
         })
@@ -4353,8 +4354,30 @@ final class SetupDraftModel: ObservableObject {
         }
     }
 
+    /// El usuario (Dan) es siempre el jugador 1: `yoAlias` es el primero de la lista, así que no se quita ni se mueve.
+    var userName: String {
+        let fromEnv = AppConfig.userName?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let fromEnv, !fromEnv.isEmpty { return fromEnv }
+        return manager.players.first(where: { $0.alias == manager.yoAlias })?.name ?? "Daniel"
+    }
+
+    func isUserName(_ name: String) -> Bool {
+        let a = name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(), b = userName.lowercased()
+        return !a.isEmpty && (a == b || a.hasPrefix(b + " ") || b.hasPrefix(a + " "))
+    }
+
+    /// Deja al usuario como jugador 1: si está en otro lugar lo sube; si falta lo agrega al principio (máximo 5).
+    func ensureUserFirst() {
+        if let i = playerNames.firstIndex(where: isUserName) {
+            if i != 0 { playerNames.insert(playerNames.remove(at: i), at: 0) }
+        } else {
+            playerNames.insert(userName, at: 0)
+            if playerNames.count > 5 { playerNames.removeLast() }
+        }
+    }
+
     func removePlayer(at index: Int) {
-        guard playerNames.indices.contains(index) else { return }
+        guard index > 0, playerNames.indices.contains(index) else { return }   // el jugador 1 (el usuario) no se quita
         playerNames.remove(at: index)
         syncStrokes(); syncBaseDefaults(); syncLanes()
     }

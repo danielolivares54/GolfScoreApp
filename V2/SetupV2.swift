@@ -321,19 +321,25 @@ struct SetupV2: View {
                             HStack(spacing: 12) {
                                 Text(player.alias).font(.v2Label).bold().foregroundStyle(.white)
                                     .frame(width: 44, height: 44)
-                                    .background(index < 2 ? CSV2.green : CSV2.secondary, in: Circle())
+                                    .background((index == 0 || player.alias == model.base1 || player.alias == model.base2) ? CSV2.green : CSV2.secondary, in: Circle())
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(player.name).font(.v2Body).foregroundStyle(CSV2.ink)
-                                    Text(index == 0 ? "Pareja base 1" : index == 1 ? "Pareja base 2" : "Oponente")
+                                    // El dueño de la app va siempre primero; la pareja base se elige en Parejas, no depende del lugar.
+                                    Text(index == 0 ? "Tú · dueño de la app" : (player.alias == model.base1 || player.alias == model.base2) ? "Pareja base" : "Oponente")
                                         .font(.v2Label).foregroundStyle(CSV2.secondary)
                                 }
                                 Spacer()
-                                Button { model.removePlayer(at: index) } label: {
-                                    Image(systemName: "trash").font(.system(.body)).foregroundStyle(CSV2.red)
-                                        .frame(width: CSV2.minTap, height: CSV2.minTap)
+                                if index == 0 {
+                                    Text("Tú").font(.v2Label).foregroundStyle(CSV2.secondary)
+                                        .frame(width: CSV2.minTap, height: CSV2.minTap)   // el jugador 1 es siempre el usuario
+                                } else {
+                                    Button { model.removePlayer(at: index) } label: {
+                                        Image(systemName: "trash").font(.system(.body)).foregroundStyle(CSV2.red)
+                                            .frame(width: CSV2.minTap, height: CSV2.minTap)
+                                    }
+                                    .buttonStyle(.plain)
+                                    .accessibilityLabel("Quitar a \(player.name)")
                                 }
-                                .buttonStyle(.plain)
-                                .accessibilityLabel("Quitar a \(player.name)")
                             }
                             .padding(.horizontal, 12).padding(.vertical, 6)
                         }
