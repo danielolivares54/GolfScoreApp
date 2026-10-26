@@ -217,6 +217,24 @@ struct VoiceHolePipelineTests {
         }
     }
 
+    @Test func playersAlreadyAnnotatedAreNotReportedAsMissingWhenOnlyOneIsDictated() async throws {
+        let m = DemoFixture.make()
+        for p in m.players { m.applyHoleEntry(HoleEntryData(hole_number: 8, player_alias: p.alias, strokes: 4, putts: 2, units: nil, tags: nil)) }
+        let draft = try await VoiceHolePipeline.propose(
+            transcript: "hoyo 8 roberto seis", match: m, defaultHole: 8, slang: slang(),
+            extractor: extractor(extraction(hole: 8, scores: [("ROB", 6, nil)])))
+        let report = VoiceHolePipeline.report(draft, match: m)
+        #expect(report.missing.isEmpty)                                  // nadie "falta": los demás ya estaban anotados y ROB conserva sus putts
+        #expect(report.understood.contains { $0.hasPrefix("ROB 6") })
+        // En un hoyo vacío, en cambio, sí faltan los demás.
+        let empty = DemoFixture.make()
+        for i in empty.players.indices { empty.players[i].scores[8] = nil }
+        let d2 = try await VoiceHolePipeline.propose(
+            transcript: "hoyo 8 roberto seis", match: empty, defaultHole: 8, slang: slang(),
+            extractor: extractor(extraction(hole: 8, scores: [("ROB", 6, nil)])))
+        #expect(VoiceHolePipeline.report(d2, match: empty).missing.contains { $0.hasPrefix("score de ") })
+    }
+
     @Test func aPartialOyesDoesNotEraseTheOrderThatWasRight() async throws {
         let m = setup()
         for p in m.players { m.applyHoleEntry(HoleEntryData(hole_number: 14, player_alias: p.alias, strokes: 3, putts: 2, units: nil, tags: nil)) }

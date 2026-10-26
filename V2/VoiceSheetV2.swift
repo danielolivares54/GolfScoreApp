@@ -258,17 +258,25 @@ struct VoiceSheetV2: View {
     private func playerRow(_ alias: String) -> some View {
         let cell = draft.cells[alias]
         let isKnown = matchManager.players.contains { $0.alias == alias }
+        let savedGross = matchManager.getScore(hole: draft.hole ?? hole, player: alias)
+        let savedPutts = matchManager.getPutts(hole: draft.hole ?? hole, player: alias)
         return VStack(alignment: .leading, spacing: 4) {
             HStack {
                 Text(alias).font(.v2Name).foregroundStyle(isKnown ? CSV2.ink : CSV2.warning)
                 Spacer()
                 if let g = cell?.gross {
                     Text("\(g)").font(.v2Name).foregroundStyle(CSV2.ink)
+                } else if savedGross > 0 {
+                    Text("\(savedGross)").font(.v2Name).foregroundStyle(CSV2.secondary)   // ya estaba anotado: no falta
+                    Text("ya anotado").font(.v2Label).foregroundStyle(CSV2.secondary)
                 } else {
                     Text("falta").font(.v2Label).foregroundStyle(CSV2.warning)
                 }
-                Text(cell?.putts.map { "\($0) putts" } ?? (cell?.gross == nil ? "" : "sin putts"))
-                    .font(.v2Label).foregroundStyle(cell?.putts == nil ? CSV2.warning : CSV2.secondary)
+                if cell?.gross != nil {
+                    let shown = cell?.putts ?? (savedPutts > 0 ? savedPutts : nil)
+                    Text(shown.map { "\($0) putts" } ?? "sin putts")
+                        .font(.v2Label).foregroundStyle(shown == nil ? CSV2.warning : CSV2.secondary)
+                }
                 if let rank = draft.oyes[alias] {
                     Text("oyes \(rank)°").font(.v2Label).foregroundStyle(CSV2.green)
                 }

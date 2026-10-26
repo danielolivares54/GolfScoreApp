@@ -162,14 +162,14 @@ private struct RowView: View {
                 Text(row.name).font(.wName).foregroundStyle(CSW.ink).lineLimit(1)
                 Spacer(minLength: 2)
                 if let gross = row.gross {
-                    Text("\(gross)").font(.wScore).foregroundStyle(CSW.ink)
+                    Text("\(gross)").font(.wScore).foregroundStyle(row.state == .saved ? CSW.secondary : CSW.ink)
                     if let putts = row.putts { Text("·\(putts)p").font(.wBody).foregroundStyle(CSW.secondary) }
                 } else {
                     Text("falta").font(.wBody).foregroundStyle(CSW.warning)
                 }
                 Button(action: edit) { Image(systemName: "pencil") }.buttonStyle(.plain).foregroundStyle(CSW.green)
                     .accessibilityLabel("Editar \(row.name)")
-                if row.gross != nil {
+                if row.gross != nil, row.state != .saved {   // lo ya anotado no se "borra" desde un borrador
                     Button(action: clear) { Image(systemName: "eraser") }.buttonStyle(.plain).foregroundStyle(CSW.red)
                         .accessibilityLabel("Quitar \(row.name)")
                 }
@@ -183,10 +183,10 @@ private struct RowView: View {
     }
 
     private var icon: String {
-        switch row.state { case .ok: "checkmark.circle.fill"; case .doubt: "questionmark.circle.fill"; case .missing: "minus.circle" }
+        switch row.state { case .ok: "checkmark.circle.fill"; case .doubt: "questionmark.circle.fill"; case .missing: "minus.circle"; case .saved: "checkmark.circle" }
     }
     private var color: Color {
-        switch row.state { case .ok: CSW.green; case .doubt: CSW.warning; case .missing: CSW.secondary }
+        switch row.state { case .ok: CSW.green; case .doubt: CSW.warning; case .missing, .saved: CSW.secondary }
     }
 }
 

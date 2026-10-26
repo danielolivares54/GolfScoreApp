@@ -25,7 +25,7 @@ struct WatchCardCoordinatorTests {
         #expect(card.hole == 6 && card.rows.count == m.players.count)
         #expect(card.rows.first { $0.alias == "DAN" }?.gross == 4 && card.rows.first { $0.alias == "DAN" }?.putts == 2)
         #expect(card.rows.first { $0.alias == "ROB" }?.state == .ok)
-        #expect(card.rows.filter { $0.state == .missing }.count == m.players.count - 2)
+        #expect(card.rows.filter { $0.state == .saved }.count == m.players.count - 2)   // el hoyo 6 del demo ya tenía a todos: no "faltan"
         #expect(card.error == nil && !card.processing)
     }
 
@@ -39,7 +39,7 @@ struct WatchCardCoordinatorTests {
         c.handle(.edit(alias: "DAN", gross: 5, putts: 2))             // lápiz: confirma
         #expect(c.card().rows.first { $0.alias == "DAN" }?.state == .ok && c.card().canApply)
         c.handle(.clear(alias: "ROB"))                                // goma
-        #expect(c.card().rows.first { $0.alias == "ROB" }?.state == .missing)
+        #expect(c.card().rows.first { $0.alias == "ROB" }?.state == .saved)   // borrar lo dictado deja lo que ya estaba anotado
     }
 
     @Test func anUnknownNameIsDroppedWithANoticeAndTheSetupIsUntouched() async {
@@ -52,6 +52,21 @@ struct WatchCardCoordinatorTests {
         #expect(card.notice?.contains("Anselmito") == true && card.canApply)
         c.handle(.apply)
         #expect(m.players.map(\.alias) == roster && m.getScore(hole: 6, player: "DAN") == 4)
+    }
+
+    @Test func playersAlreadyAnnotatedShowAsSavedNotAsMissing() async {
+        let m = DemoFixture.make()   // el hoyo 6 ya tiene los scores de todos
+        let before = Dictionary(uniqueKeysWithValues: m.players.map { ($0.alias, m.getScore(hole: 6, player: $0.alias)) })
+        let c = make(m, VoiceHoleExtraction(scores: [.init(jugador: "ROB", gross: 7, putts: nil)]))
+        await c.receiveAudio(audio)
+        let rows = c.card().rows
+        #expect(rows.first { $0.alias == "ROB" }?.state == .ok && rows.first { $0.alias == "ROB" }?.gross == 7)
+        for r in rows where r.alias != "ROB" {
+            #expect(r.state == .saved && r.gross == before[r.alias])        // se ve su score, no "falta"
+        }
+        #expect(c.card().canApply)
+        c.handle(.apply)
+        for p in m.players where p.alias != "ROB" { #expect(m.getScore(hole: 6, player: p.alias) == before[p.alias]) }
     }
 
     @Test func applyWritesTheHoleAndUndoRestoresIt() async {

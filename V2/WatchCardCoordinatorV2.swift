@@ -173,9 +173,16 @@ final class WatchCardCoordinator {
         var rows: [WatchCardDTO.Row] = []
         for p in match.players {
             let cell = draft.cells[p.alias]
-            let state: WatchCardDTO.State = draft.doubts[p.alias] != nil ? .doubt : (cell?.gross == nil ? .missing : .ok)
+            // Lo que el hoyo ya tiene anotado se ve como "ya anotado", no como "falta".
+            let savedGross = hole.map { match.getScore(hole: $0, player: p.alias) } ?? 0
+            let savedPutts = hole.map { match.getPutts(hole: $0, player: p.alias) } ?? 0
+            let state: WatchCardDTO.State = draft.doubts[p.alias] != nil ? .doubt
+                : (cell?.gross != nil ? .ok : (savedGross > 0 && applied == nil ? .saved : .missing))
+            let showSaved = state == .saved
             rows.append(.init(alias: p.alias, name: p.name.split(separator: " ").first.map(String.init) ?? p.name,
-                              gross: cell?.gross, putts: cell?.putts, state: state, note: draft.doubts[p.alias]))
+                              gross: showSaved ? savedGross : cell?.gross,
+                              putts: showSaved ? (savedPutts > 0 ? savedPutts : nil) : (cell?.putts ?? (cell?.gross != nil && savedPutts > 0 ? savedPutts : nil)),
+                              state: state, note: draft.doubts[p.alias]))
         }
         // Alias que no están en el roster (nombre mal oído): dudosos hasta reasignarlos en el iPhone o quitarlos con la goma.
         for alias in draft.cells.keys.filter({ !order.contains($0) }).sorted() {

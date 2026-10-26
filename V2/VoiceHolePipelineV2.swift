@@ -658,21 +658,27 @@ enum VoiceHolePipeline {
             guard let c = draft.cells[alias] else { continue }
             if let g = c.gross { understood.append("\(alias) \(g)" + (c.putts.map { " (\($0) putts)" } ?? "")) }
         }
-        let noScore = order.filter { draft.cells[$0]?.gross == nil }
+        // Lo que el hoyo ya tiene anotado cuenta: al corregir a un solo jugador, los demás NO "faltan".
+        func saved(_ alias: String) -> Int { draft.hole.map { match.getScore(hole: $0, player: alias) } ?? 0 }
+        func savedPutts(_ alias: String) -> Int { draft.hole.map { match.getPutts(hole: $0, player: alias) } ?? 0 }
+        let noScore = order.filter { draft.cells[$0]?.gross == nil && saved($0) <= 0 }
         if !noScore.isEmpty { missing.append("score de \(noScore.joined(separator: ", "))") }
-        let noPutts = order.filter { draft.cells[$0]?.gross != nil && draft.cells[$0]?.putts == nil }
+        let noPutts = order.filter { draft.cells[$0]?.gross != nil && draft.cells[$0]?.putts == nil && savedPutts($0) <= 0 }
         if !noPutts.isEmpty { missing.append("putts de \(noPutts.joined(separator: ", "))") }
 
         let par = draft.hole.flatMap { match.getHole($0)?.par }
         if par == 3, match.isOyesEnabled {
-            let ranked = order.filter { draft.oyes[$0] != nil }
-            if !ranked.isEmpty {
-                understood.append("oyes " + ranked.sorted { draft.oyes[$0]! < draft.oyes[$1]! }
+            let existingRanks = draft.hole.flatMap { match.oyesRanksByHole[$0] } ?? [:]
+            let effective = draft.oyes.isEmpty ? existingRanks : draft.oyes   // sin oyes nuevos vale el orden que ya estaba
+            let ranked = order.filter { effective[$0] != nil }
+            if !draft.oyes.isEmpty {
+                let said = order.filter { draft.oyes[$0] != nil }
+                understood.append("oyes " + said.sorted { draft.oyes[$0]! < draft.oyes[$1]! }
                     .map { "\(draft.oyes[$0]!)° \($0)" }.joined(separator: ", "))
             }
-            let withScore = order.filter { draft.cells[$0]?.gross != nil }
+            let withScore = order.filter { draft.cells[$0]?.gross != nil || saved($0) > 0 }
             let contenders = withScore.isEmpty ? order : withScore
-            let unranked = contenders.filter { draft.oyes[$0] == nil }
+            let unranked = contenders.filter { effective[$0] == nil }
             if ranked.isEmpty { missing.append("orden de oyes (hoyo par 3)") }
             else if !unranked.isEmpty { missing.append("lugar de oyes de \(unranked.joined(separator: ", "))") }
         }

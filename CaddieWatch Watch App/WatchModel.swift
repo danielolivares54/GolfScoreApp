@@ -41,7 +41,8 @@ final class WatchModel: NSObject, WCSessionDelegate {
 
     // MARK: Lo que se ve
 
-    var hasDraft: Bool { card.rows.contains { $0.state != .missing } || !card.chips.isEmpty }
+    /// Hay algo dictado por revisar (lo ya anotado de antes no cuenta).
+    var hasDraft: Bool { card.rows.contains { $0.state == .ok || $0.state == .doubt } || !card.chips.isEmpty }
     var isWorking: Bool { phase == .sending || card.processing }
 
     // MARK: Grabar y mandar

@@ -29,7 +29,8 @@ struct WatchContextDTO: Codable, Equatable {
 
 /// La tarjeta del hoyo tal como se va a anotar. Todo se calcula en el iPhone.
 struct WatchCardDTO: Codable, Equatable {
-    enum State: String, Codable { case ok, doubt, missing }
+    /// `saved` = el hoyo ya tenía ese score anotado y la dictada no lo toca.
+    enum State: String, Codable { case ok, doubt, missing, saved }
 
     struct Row: Codable, Equatable, Identifiable {
         var alias: String
