@@ -63,6 +63,8 @@ struct WatchCardDTO: Codable, Equatable {
     var rows: [Row]
     var chips: [Chip]
     var heard: String
+    /// Aviso sin bloquear (p. ej. nombres que no se entendieron y se descartaron).
+    var notice: String? = nil
     var canApply: Bool
     /// Mensaje del iPhone cuando algo no salió ("No entendí datos del hoyo…", "Falta la clave de OpenAI…").
     var error: String?

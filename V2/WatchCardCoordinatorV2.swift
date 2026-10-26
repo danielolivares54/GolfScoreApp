@@ -202,6 +202,7 @@ final class WatchCardCoordinator {
         let replaces = hole.map { h in draft.cells.keys.contains { match.getScore(hole: h, player: $0) > 0 } } ?? false
         return WatchCardDTO(hole: hole, par: par, replaces: replaces, rows: rows, chips: chips,
                             heard: draft.transcripts.last ?? "",
+                            notice: draft.ignored.isEmpty ? nil : "No entendí a " + draft.ignored.map { "«\($0)»" }.joined(separator: ", ") + "; no lo agregué.",
                             canApply: VoiceHolePipeline.canApply(draft, match: match),
                             error: error, processing: processing, applied: applied, revision: revision)
     }

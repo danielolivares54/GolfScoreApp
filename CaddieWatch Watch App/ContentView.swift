@@ -122,6 +122,9 @@ private struct CardView: View {
                 if let error = card.error {
                     Text(error).font(.wCaps).foregroundStyle(CSW.red)
                 }
+                if let notice = card.notice {
+                    Text(notice).font(.wCaps).foregroundStyle(CSW.warning)
+                }
 
                 WatchPrimaryButton(title: "Anotar") { model.send(.apply) }
                     .disabled(!card.canApply)

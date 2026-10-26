@@ -49,7 +49,7 @@ struct VoiceSheetV2: View {
                     }
                     holeBanner
                     if let readbackText { readbackCard(readbackText) }
-                    if !draft.isEmpty { reviewCard }
+                    if !draft.isEmpty || !draft.ignored.isEmpty { reviewCard }
                     controls
                     learningLine
                 }

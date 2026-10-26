@@ -31,16 +31,27 @@ struct WatchCardCoordinatorTests {
 
     @Test func pencilConfirmsADoubtAndEraserRemovesAValue() async {
         let m = DemoFixture.make()
+        // Dos scores distintos para el mismo jugador: duda que bloquea Anotar hasta confirmarla con el lápiz.
+        let c = make(m, VoiceHoleExtraction(scores: [.init(jugador: "DAN", gross: 4, putts: nil), .init(jugador: "DAN", gross: 5, putts: nil),
+                                                      .init(jugador: "ROB", gross: 6, putts: nil)]))
+        await c.receiveAudio(audio)
+        #expect(c.card().rows.first { $0.alias == "DAN" }?.state == .doubt && !c.card().canApply)
+        c.handle(.edit(alias: "DAN", gross: 5, putts: 2))             // lápiz: confirma
+        #expect(c.card().rows.first { $0.alias == "DAN" }?.state == .ok && c.card().canApply)
+        c.handle(.clear(alias: "ROB"))                                // goma
+        #expect(c.card().rows.first { $0.alias == "ROB" }?.state == .missing)
+    }
+
+    @Test func anUnknownNameIsDroppedWithANoticeAndTheSetupIsUntouched() async {
+        let m = DemoFixture.make()
+        let roster = m.players.map(\.alias)
         let c = make(m, VoiceHoleExtraction(scores: [.init(jugador: "DAN", gross: 4, putts: nil), .init(jugador: "Anselmito", gross: 5, putts: nil)]))
         await c.receiveAudio(audio)
-        #expect(!c.card().canApply)   // un jugador que no está en el grupo es dudoso y bloquea Anotar
-        let unknown = c.card().rows.first { $0.state == .doubt }
-        #expect(unknown != nil)
-        c.handle(.clear(alias: unknown!.alias))                       // goma
-        #expect(c.card().canApply)
-        c.handle(.edit(alias: "ROB", gross: 6, putts: 2))             // lápiz
-        let rob = c.card().rows.first { $0.alias == "ROB" }
-        #expect(rob?.gross == 6 && rob?.putts == 2 && rob?.state == .ok)
+        let card = c.card()
+        #expect(card.rows.map(\.alias) == roster)                     // ninguna fila nueva
+        #expect(card.notice?.contains("Anselmito") == true && card.canApply)
+        c.handle(.apply)
+        #expect(m.players.map(\.alias) == roster && m.getScore(hole: 6, player: "DAN") == 4)
     }
 
     @Test func applyWritesTheHoleAndUndoRestoresIt() async {
@@ -60,7 +71,7 @@ struct WatchCardCoordinatorTests {
 
     @Test func applyIsBlockedWhileThereAreDoubts() async {
         let m = DemoFixture.make()
-        let c = make(m, VoiceHoleExtraction(scores: [.init(jugador: "Anselmito", gross: 5, putts: nil)]))
+        let c = make(m, VoiceHoleExtraction(scores: [.init(jugador: "DAN", gross: 4, putts: nil), .init(jugador: "DAN", gross: 9, putts: nil)]))
         await c.receiveAudio(audio)
         let before = m.getScore(hole: 6, player: "DAN")
         c.handle(.apply)

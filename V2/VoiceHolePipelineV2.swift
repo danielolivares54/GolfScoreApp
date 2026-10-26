@@ -92,6 +92,8 @@ struct VoiceHoleDraft: Equatable {
     var doubts: [String: String] = [:]
     /// Todo lo dictado para este hoyo, en orden (para mostrarlo y para guardarlo con la grabación).
     var transcripts: [String] = []
+    /// Nombres que no se entendieron en la última dictada: NO se agregan (ni al borrador ni al Setup), solo se avisan.
+    var ignored: [String] = []
 
     var isEmpty: Bool { cells.isEmpty && oyes.isEmpty && units.isEmpty && notes.isEmpty && edits.isEmpty && unknownUnits.isEmpty }
 }
@@ -101,6 +103,8 @@ struct VoiceHoleReport: Equatable {
     var understood: [String]
     var missing: [String]
     var doubts: [String]
+    /// Nombres que no se entendieron y se descartaron (no cambian el Setup).
+    var ignored: [String] = []
 
     var isComplete: Bool { missing.isEmpty && doubts.isEmpty }
 
@@ -112,6 +116,7 @@ struct VoiceHoleReport: Equatable {
         if !doubts.isEmpty { parts.append("Revisa: " + doubts.joined(separator: " · ") + ".") }
         if missing.isEmpty { if doubts.isEmpty { parts.append("Está completo.") } }
         else { parts.append("Falta: " + missing.joined(separator: " · ") + ".") }
+        if !ignored.isEmpty { parts.append("No entendí a " + ignored.map { "«\($0)»" }.joined(separator: ", ") + "; no lo agregué.") }
         return parts.joined(separator: " ")
     }
 }
@@ -352,7 +357,18 @@ enum VoiceHolePipeline {
                         match: MatchManager, slang: VoiceSlangStore = .shared) -> VoiceHoleDraft {
         var out = draft
         out.transcripts.append(transcript)
+        out.ignored = []
         let spoken = slang.normalize(transcript)
+        /// Un nombre que no está en el grupo ni se parece a nadie NO se agrega: se descarta y se avisa. El Setup no se toca por voz.
+        func resolveKnown(_ name: String) -> (alias: String, known: Bool, fuzzy: Bool)? {
+            let who = resolveSpoken(name, match: match, slang: slang)
+            guard who.known else {
+                let clean = name.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !clean.isEmpty, !out.ignored.contains(clean) { out.ignored.append(clean) }
+                return nil
+            }
+            return (who.alias, true, who.fuzzy)
+        }
         out.doubts.removeValue(forKey: "?")          // se vuelven a calcular con lo nuevo
         out.doubts = out.doubts.filter { !$0.key.hasPrefix("corrida:") }
         out.doubts.removeValue(forKey: "oyes-par")
@@ -375,7 +391,7 @@ enum VoiceHolePipeline {
                 out.doubts["?"] = "Falta el jugador: \"\(g)\(s.putts.map { " y \($0) putts" } ?? "")\" ¿de quién?"
                 continue
             }
-            let who = resolveSpoken(name, match: match, slang: slang)
+            guard let who = resolveKnown(name) else { continue }
             if let prev = explicit[who.alias]?.cell.gross, prev != g { conflicts[who.alias, default: [prev]].append(g) }
             explicit[who.alias] = (.init(gross: g, putts: s.putts ?? out.cells[who.alias]?.putts), who.known, who.fuzzy)
         }
@@ -397,7 +413,7 @@ enum VoiceHolePipeline {
         // Putts dictados sin golpes ("Rob dos putts") se suman a la celda si ya existe.
         for s in extraction.scores where s.gross == nil && s.relativo == nil {
             guard let p = s.putts, !s.jugador.trimmingCharacters(in: .whitespaces).isEmpty else { continue }
-            let who = resolveSpoken(s.jugador, match: match, slang: slang)
+            guard let who = resolveKnown(s.jugador) else { continue }
             var cell = out.cells[who.alias] ?? .init(gross: nil, putts: nil)
             cell.putts = p
             out.cells[who.alias] = cell
@@ -411,7 +427,7 @@ enum VoiceHolePipeline {
                 if sc.levanto == true, sc.jugador.trimmingCharacters(in: .whitespaces).isEmpty { out.doubts["?"] = "Falta el jugador: ¿quién se levantó?" }
                 continue
             }
-            let who = resolveSpoken(name, match: match, slang: slang)
+            guard let who = resolveKnown(name) else { continue }
             setEdit(&out, .init(alias: who.alias, hole: hole, gross: nil, putts: nil, pickup: true, reason: reasonText(sc.motivo)))
             markDoubts(&out, alias: who.alias, known: who.known, fuzzy: who.fuzzy)
         }
@@ -423,7 +439,7 @@ enum VoiceHolePipeline {
             let label = "corrida:\(name.uppercased()):\(run.desde)-\(run.hasta)"
             guard !holes.isEmpty else { out.doubts[label] = "No entendí los hoyos \(run.desde) al \(run.hasta)"; continue }
             guard !name.isEmpty else { out.doubts["?"] = "Falta el jugador de los hoyos \(run.desde) al \(run.hasta)"; continue }
-            let who = resolveSpoken(name, match: match, slang: slang)
+            guard let who = resolveKnown(name) else { continue }
             markDoubts(&out, alias: who.alias, known: who.known, fuzzy: who.fuzzy)
             // Un resultado por hoyo, o uno solo para todos; cualquier otra cuenta se pregunta, no se adivina.
             var results = run.resultados
@@ -451,7 +467,7 @@ enum VoiceHolePipeline {
                 out.doubts["oyes-par"] = "El hoyo \(out.hole.map(String.init) ?? "?") es par \(p): los oyes solo se juegan en par 3"
             } else {
                 for o in extraction.oyes where o.rank > 0 {
-                    let who = resolveSpoken(o.jugador, match: match, slang: slang)
+                    guard let who = resolveKnown(o.jugador) else { continue }
                     out.oyes[who.alias] = o.rank
                     markDoubts(&out, alias: who.alias, known: who.known, fuzzy: who.fuzzy)
                 }
@@ -467,7 +483,7 @@ enum VoiceHolePipeline {
 
         let valid = Set(dictatableUnits(match).map(\.tag))
         for u in extraction.unidades {
-            let who = resolveSpoken(u.jugador, match: match, slang: slang)
+            guard let who = resolveKnown(u.jugador) else { continue }
             var code = u.codigo.uppercased().trimmingCharacters(in: .whitespaces)
             // Una frase que ya se enseñó ("tripoteó" = 3 Putt) se resuelve sola.
             if !valid.contains(code), let learned = slang.target(for: u.codigo)?.uppercased(), valid.contains(learned) { code = learned }
@@ -483,7 +499,7 @@ enum VoiceHolePipeline {
         }
 
         for n in extraction.notas {
-            let who = resolveSpoken(n.jugador.isEmpty ? meAlias(match) : n.jugador, match: match, slang: slang)
+            guard let who = resolveKnown(n.jugador.isEmpty ? meAlias(match) : n.jugador) else { continue }
             let text = n.texto.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !text.isEmpty else { continue }
             out.notes.removeAll { $0.alias == who.alias }
@@ -661,6 +677,10 @@ enum VoiceHolePipeline {
             else if !unranked.isEmpty { missing.append("lugar de oyes de \(unranked.joined(separator: ", "))") }
         }
 
+        if let hole = draft.hole, !draft.oyes.isEmpty, let existing = match.oyesRanksByHole[hole], !existing.isEmpty,
+           !Set(existing.keys).isSubset(of: Set(draft.oyes.keys)) {
+            missing.append("el orden completo de oyes (ya había uno y no se cambia con uno parcial)")
+        }
         for u in draft.units { understood.append("\(u.alias) \(unitName(u.code, match: match))" + (u.units > 1 ? " ×\(u.units)" : "")) }
         for n in draft.notes { understood.append("nota de \(n.alias)") }
 
@@ -669,7 +689,7 @@ enum VoiceHolePipeline {
         understood += lines.understood
         missing += lines.missing
         return VoiceHoleReport(understood: understood, missing: missing,
-                               doubts: draft.doubts.keys.sorted().compactMap { draft.doubts[$0] })
+                               doubts: draft.doubts.keys.sorted().compactMap { draft.doubts[$0] }, ignored: draft.ignored)
     }
 
     /// Líneas de los cambios en uno o varios hoyos: lo entendido y lo que no se puede calcular todavía.
@@ -835,7 +855,13 @@ enum VoiceHolePipeline {
                 }
             }
         }
-        if !draft.oyes.isEmpty { match.setOyesRanks(hole: hole, ranksByAlias: draft.oyes) }
+        if !draft.oyes.isEmpty {
+            // Un orden parcial NO borra el que ya estaba bien: solo se reemplaza si cubre a todos los que ya tenían lugar.
+            let existing = match.oyesRanksByHole[hole] ?? [:]
+            if existing.isEmpty || Set(existing.keys).isSubset(of: Set(draft.oyes.keys)) {
+                match.setOyesRanks(hole: hole, ranksByAlias: draft.oyes)
+            }
+        }
         for u in draft.units { match.upsertUnitEvent(hole: hole, alias: u.alias, code: u.code, units: u.units) }
         for n in draft.notes { match.upsertUnitEvent(hole: hole, alias: n.alias, code: "NOTA", units: 0, note: n.text) }
         return token

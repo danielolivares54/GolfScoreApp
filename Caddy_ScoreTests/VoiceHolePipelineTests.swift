@@ -178,30 +178,63 @@ struct VoiceHolePipelineTests {
         #expect(draft.notes == [.init(alias: "DAN", text: "bola al agua")])
     }
 
-    @Test func aNicknameIsLearnedWhenYouFixItAndUsedNextTime() async throws {
+    @Test func anUnknownNameIsDroppedAndNeverAddedToTheSetup() async throws {
         let m = setup()
-        let s = slang()
-        var draft = try await VoiceHolePipeline.propose(
-            transcript: "el chino cuatro", match: m, defaultHole: 14, slang: s,
-            extractor: extractor(extraction(scores: [("Chino", 4, 2)])))
-        #expect(draft.cells["CHINO"]?.gross == 4)
-        #expect(!VoiceHolePipeline.canApply(draft, match: m))   // jugador no reconocido
-
-        draft = VoiceHolePipeline.reassign(draft, from: "CHINO", to: "ROB", spoken: "Chino", slang: s)
-        #expect(draft.cells["ROB"]?.gross == 4)
-        #expect(draft.cells["CHINO"] == nil)
-        #expect(VoiceHolePipeline.canApply(draft, match: m))
-        #expect(s.target(for: "chino") == "ROB")
-
-        // La siguiente vez "Chino" ya es ROB, sin preguntar.
-        let next = try await VoiceHolePipeline.propose(
-            transcript: "chino cinco", match: m, defaultHole: 14, slang: s,
-            extractor: extractor(extraction(scores: [("Chino", 5, nil)])))
-        #expect(next.cells["ROB"]?.gross == 5)
-        #expect(next.doubts.isEmpty)
+        let roster = m.players.map(\.alias)
+        let draft = try await VoiceHolePipeline.propose(
+            transcript: "el chino cuatro y yo tres", match: m, defaultHole: 14, slang: slang(),
+            extractor: extractor(extraction(scores: [("Chino", 4, 2), ("yo", 3, 1)])))
+        #expect(draft.cells["CHINO"] == nil && draft.cells["DAN"]?.gross == 3)   // el nombre no entendido no queda en el borrador
+        #expect(draft.ignored == ["Chino"] && draft.doubts.isEmpty)
+        #expect(VoiceHolePipeline.report(draft, match: m).message.contains("No entendí a «Chino»; no lo agregué."))
+        _ = VoiceHolePipeline.apply(draft, match: m)
+        #expect(m.players.map(\.alias) == roster)                                 // el Setup no cambia
+        #expect(m.getScore(hole: 14, player: "DAN") == 3)
     }
 
-    // MARK: Anotar y deshacer
+    @Test func aNicknameTaughtBeforeStillResolves() async throws {
+        let m = setup()
+        let s = slang()
+        s.learn("Chino", as: "ROB")
+        let draft = try await VoiceHolePipeline.propose(
+            transcript: "chino cinco", match: m, defaultHole: 14, slang: s,
+            extractor: extractor(extraction(scores: [("Chino", 5, nil)])))
+        #expect(draft.cells["ROB"]?.gross == 5 && draft.ignored.isEmpty)
+    }
+
+    @Test func reEditingOnePlayerLeavesEveryoneElseUntouched() async throws {
+        let m = DemoFixture.make()   // hoyo 8 completo con scores y putts de todos
+        for p in m.players { m.applyHoleEntry(HoleEntryData(hole_number: 8, player_alias: p.alias, strokes: 4, putts: 2, units: nil, tags: nil)) }
+        let before = Dictionary(uniqueKeysWithValues: m.players.map { ($0.alias, m.getScore(hole: 8, player: $0.alias)) })
+        let draft = try await VoiceHolePipeline.propose(
+            transcript: "hoyo 8 roberto seis", match: m, defaultHole: 8, slang: slang(),
+            extractor: extractor(extraction(hole: 8, scores: [("ROB", 6, nil)])))
+        _ = VoiceHolePipeline.apply(draft, match: m)
+        #expect(m.getScore(hole: 8, player: "ROB") == 6)
+        #expect(m.getPutts(hole: 8, player: "ROB") == 2)                            // sus putts siguen
+        for p in m.players where p.alias != "ROB" {
+            #expect(m.getScore(hole: 8, player: p.alias) == before[p.alias] && m.getPutts(hole: 8, player: p.alias) == 2)
+        }
+    }
+
+    @Test func aPartialOyesDoesNotEraseTheOrderThatWasRight() async throws {
+        let m = setup()
+        for p in m.players { m.applyHoleEntry(HoleEntryData(hole_number: 14, player_alias: p.alias, strokes: 3, putts: 2, units: nil, tags: nil)) }
+        let order = ["FER": 1, "ROB": 2, "DAN": 3, "RIC": 4, "ANS": 5]
+        m.setOyesRanks(hole: 14, ranksByAlias: order)
+        let draft = try await VoiceHolePipeline.propose(
+            transcript: "oyes primero roberto", match: m, defaultHole: 14, slang: slang(),
+            extractor: extractor(extraction(scores: [], oyes: [("ROB", 1)])))
+        #expect(VoiceHolePipeline.report(draft, match: m).missing.contains { $0.contains("orden completo de oyes") })
+        _ = VoiceHolePipeline.apply(draft, match: m)
+        #expect(m.oyesRanksByHole[14] == order)                                     // el orden anterior sigue igual
+        // Dicho completo, sí reemplaza.
+        let full = try await VoiceHolePipeline.propose(
+            transcript: "oyes primero roberto segundo fernando tercero daniel cuarto ricardo quinto anselmo", match: m, defaultHole: 14, slang: slang(),
+            extractor: extractor(extraction(scores: [], oyes: [("ROB", 1), ("FER", 2), ("DAN", 3), ("RIC", 4), ("ANS", 5)])))
+        _ = VoiceHolePipeline.apply(full, match: m)
+        #expect(m.oyesRanksByHole[14]?["ROB"] == 1 && m.oyesRanksByHole[14]?["FER"] == 2)
+    }
 
     @Test func applyWritesEverythingAndUndoRestoresTheWholeHole() async throws {
         let m = setup()
