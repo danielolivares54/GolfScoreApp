@@ -235,6 +235,60 @@ struct VoiceHolePipelineTests {
         #expect(VoiceHolePipeline.report(d2, match: empty).missing.contains { $0.hasPrefix("score de ") })
     }
 
+    // MARK: Oyes leídos del texto (sin depender del modelo) y eco del texto de ayuda
+
+    private func oyesFrom(_ transcript: String, hole: Int = 14) async throws -> VoiceHoleDraft {
+        let m = setup()
+        // El "modelo" no devuelve nada de oyes: todo sale de leer el texto.
+        return try await VoiceHolePipeline.propose(
+            transcript: transcript, match: m, defaultHole: hole, slang: slang(),
+            extractor: extractor(extraction(hole: hole, scores: [("DAN", 3, 2)])))
+    }
+
+    @Test func oyesAreReadFromTheTextWhenThePlaceComesFirst() async throws {
+        let d = try await oyesFrom("Hoyo catorce. Oyes primero Fernando, segundo Roberto, tercero Daniel, cuarto Ricardo, quinto Anselmo.")
+        #expect(d.oyes == ["FER": 1, "ROB": 2, "DAN": 3, "RIC": 4, "ANS": 5])
+    }
+
+    @Test func oyesAreReadFromTheTextWhenTheNameComesFirst() async throws {
+        let d = try await oyesFrom("Oyes rank: Fernando uno, Roberto dos, Daniel tres.")
+        #expect(d.oyes == ["FER": 1, "ROB": 2, "DAN": 3])
+        let d2 = try await oyesFrom("oyes rank uno Fernando, dos Roberto")
+        #expect(d2.oyes == ["FER": 1, "ROB": 2])
+        let d3 = try await oyesFrom("Roberto primero y Fernando segundo en los oyes")
+        #expect(d3.oyes.isEmpty)   // "oyes" llega al final: sin lugares después, no se adivina
+    }
+
+    @Test func justTheNamesInOrderAreTheOyesOrder() async throws {
+        let d = try await oyesFrom("oyes Fernando, Roberto, Daniel")
+        #expect(d.oyes == ["FER": 1, "ROB": 2, "DAN": 3])
+    }
+
+    @Test func scoresSpokenAfterTheOyesAreNotTakenAsPlaces() async throws {
+        let d = try await oyesFrom("Oyes primero Fernando, segundo Roberto. Daniel tres, Ricardo cuatro.")
+        #expect(d.oyes == ["FER": 1, "ROB": 2])
+    }
+
+    @Test func oyesOnAParFourAreStillRejectedWhenReadFromText() async throws {
+        let d = try await oyesFrom("oyes primero Fernando segundo Roberto", hole: 8)   // el hoyo 8 es par 4
+        #expect(d.oyes.isEmpty && d.doubts["oyes-par"] != nil)
+    }
+
+    @Test func theHelpTextReturnedByWhisperIsNotADictation() {
+        let m = setup()
+        let help = VoiceHolePipeline.transcriptionPrompt(match: m, slang: slang())
+        #expect(VoiceHolePipeline.isPromptEcho(help, prompt: help))
+        // Tal como lo devolvió Whisper con audio vacío (del archivo de dictados), con cambios de acento y de mayúsculas.
+        #expect(VoiceHolePipeline.isPromptEcho("hoyo, par, bogey, doble bogey, birdie, eagle, putts, strokes, oyes, presión, vuelta, match, carry, F9, B9, se levantó, bola equivocada, tripoteó. Unidades: Hole Out, 3 Putt, 4 Putt. Jugadores: Agustin (AGU), Daniel (DAN).", prompt: help))
+        // Dictados reales NO son eco, aunque usen las mismas palabras.
+        for real in ["Hoyo doce. Daniel tira cinco, los demás tiran doble bogey.",
+                     "Hoyo quince. Armando tira bogey, Agustín tira doble bogey, Alejandro tira birdie y yo tiro par.",
+                     "Daniel par, Armando bogey, Alex doble bogey, Agustín birdie, oyes primero Armando segundo Agustín",
+                     "Todos tiran par en este hoyo."] {
+            #expect(!VoiceHolePipeline.isPromptEcho(real, prompt: help))
+        }
+    }
+
     @Test func aPartialOyesDoesNotEraseTheOrderThatWasRight() async throws {
         let m = setup()
         for p in m.players { m.applyHoleEntry(HoleEntryData(hole_number: 14, player_alias: p.alias, strokes: 3, putts: 2, units: nil, tags: nil)) }

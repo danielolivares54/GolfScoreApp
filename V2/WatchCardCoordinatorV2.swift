@@ -96,6 +96,8 @@ final class WatchCardCoordinator {
 
     private func interpret(_ url: URL) async throws -> VoiceHoleDraft {
         let text = try await transcriber(url, match)
+        // Con audio vacío Whisper devuelve el texto de ayuda: no es una dictada.
+        if VoiceHolePipeline.isPromptEcho(text, prompt: VoiceHolePipeline.transcriptionPrompt(match: match, slang: slang)) { throw VoiceHoleError.emptyTranscript }
         // Las preguntas y lecturas todavía no se contestan en el reloj.
         if ReadbackIntentV2.detect(text, names: match.players.flatMap { [$0.alias, $0.name.split(separator: " ").first.map(String.init) ?? $0.name] }) != nil {
             throw VoiceHoleError.query(ReadbackQueryV2(tipo: "otro"))

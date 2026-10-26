@@ -326,6 +326,62 @@ enum VoiceHolePipeline {
         return parts.joined(separator: " ")
     }
 
+    // MARK: Eco del texto de ayuda
+
+    /// Con audio vacío o casi vacío, Whisper devuelve el texto de ayuda (vocabulario, unidades, jugadores) como si se hubiera dicho.
+    /// Se detecta porque repite seguidas 6 palabras del texto de ayuda en el mismo orden, algo que nadie dice hablando.
+    static func isPromptEcho(_ transcript: String, prompt: String) -> Bool {
+        func words(_ t: String) -> [String] {
+            t.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .init(identifier: "es_MX"))
+                .components(separatedBy: CharacterSet.alphanumerics.inverted).filter { !$0.isEmpty }
+        }
+        let t = words(transcript), p = words(prompt)
+        let n = 6
+        guard t.count >= n, p.count >= n else { return false }
+        var windows = Set<[String]>()
+        for i in 0...(p.count - n) { windows.insert(Array(p[i..<(i + n)])) }
+        for i in 0...(t.count - n) where windows.contains(Array(t[i..<(i + n)])) { return true }
+        return false
+    }
+
+    // MARK: Oyes sin red
+
+    /// Lee el orden de oyes directo del texto, sin depender del modelo: "oyes primero Fernando, segundo Roberto",
+    /// "oyes rank Fernando uno, Roberto dos" o solo los nombres en orden ("oyes Fernando, Roberto, Daniel").
+    /// Solo mira la frase donde se dice "oyes" (hasta el punto), para no confundir "Daniel tres" de los scores con un lugar.
+    static func localOyes(_ spoken: String, match: MatchManager, slang: VoiceSlangStore) -> [(String, Int)] {
+        let ranks: [String: Int] = ["primero": 1, "primer": 1, "primera": 1, "uno": 1, "1": 1, "segundo": 2, "segunda": 2, "dos": 2, "2": 2,
+                                    "tercero": 3, "tercer": 3, "tercera": 3, "tres": 3, "3": 3, "cuarto": 4, "cuarta": 4, "cuatro": 4, "4": 4,
+                                    "quinto": 5, "quinta": 5, "cinco": 5, "5": 5]
+        let text = slang.normalize(spoken)
+        var sentence = Substring(text)
+        if let r = text.range(of: "oye") { sentence = text[r.lowerBound...] }
+        if let end = sentence.firstIndex(where: { ".?!\n".contains($0) }) { sentence = sentence[..<end] }
+        enum Item { case rank(Int), name(String) }
+        var items: [Item] = []
+        for tok in sentence.components(separatedBy: CharacterSet.alphanumerics.inverted).filter({ !$0.isEmpty }) {
+            if let r = ranks[tok] { items.append(.rank(r)); continue }
+            if let learned = slang.target(for: tok), match.players.contains(where: { $0.alias == learned }) { items.append(.name(learned)); continue }
+            if let alias = match.exactAlias(for: tok) { items.append(.name(alias)) }
+        }
+        var out: [(String, Int)] = []
+        var i = 0
+        while i + 1 < items.count {
+            switch (items[i], items[i + 1]) {
+            case (.rank(let r), .name(let a)), (.name(let a), .rank(let r)): out.append((a, r)); i += 2
+            default: i += 1
+            }
+        }
+        if out.isEmpty {
+            // Sin lugares dichos: el orden en que nombra a la gente es el orden de oyes.
+            let names = items.compactMap { item -> String? in if case .name(let a) = item { return a } else { return nil } }
+            var seen = Set<String>()
+            let unique = names.filter { seen.insert($0).inserted }
+            if unique.count >= 2 { out = unique.enumerated().map { ($0.element, $0.offset + 1) } }
+        }
+        return out
+    }
+
     // MARK: Entender (una dictada → borrador nuevo)
 
     /// Una dictada nueva se suma al borrador que ya hay: lo más reciente gana en cada celda.
@@ -461,15 +517,20 @@ enum VoiceHolePipeline {
         }
 
         // Oyes: solo en par 3, y solo si hablaron de oyes (el LLM a veces lo inventa con "hole out").
-        let talkedAboutOyes = ["oye", "primero", "segundo", "tercero", "cerca"].contains { spoken.contains($0) }
-        if talkedAboutOyes, !extraction.oyes.isEmpty {
-            if let p = par, p != 3 {
-                out.doubts["oyes-par"] = "El hoyo \(out.hole.map(String.init) ?? "?") es par \(p): los oyes solo se juegan en par 3"
-            } else {
-                for o in extraction.oyes where o.rank > 0 {
-                    guard let who = resolveKnown(o.jugador) else { continue }
-                    out.oyes[who.alias] = o.rank
-                    markDoubts(&out, alias: who.alias, known: who.known, fuzzy: who.fuzzy)
+        let talkedAboutOyes = ["oye", "primero", "segundo", "tercero", "cerca", "rank", "ranking"].contains { spoken.contains($0) }
+        if talkedAboutOyes {
+            // El modelo manda; si no devolvió el orden, se lee del texto (así no depende de la red ni del LLM).
+            var oyesList = extraction.oyes.filter { $0.rank > 0 }.map { ($0.jugador, $0.rank) }
+            if oyesList.isEmpty, spoken.contains("oye") || spoken.contains("rank") { oyesList = localOyes(spoken, match: match, slang: slang) }
+            if !oyesList.isEmpty {
+                if let p = par, p != 3 {
+                    out.doubts["oyes-par"] = "El hoyo \(out.hole.map(String.init) ?? "?") es par \(p): los oyes solo se juegan en par 3"
+                } else {
+                    for (name, rank) in oyesList {
+                        guard let who = resolveKnown(name) else { continue }
+                        out.oyes[who.alias] = rank
+                        markDoubts(&out, alias: who.alias, known: who.known, fuzzy: who.fuzzy)
+                    }
                 }
             }
         }

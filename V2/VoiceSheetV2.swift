@@ -399,7 +399,10 @@ struct VoiceSheetV2: View {
         phase = .processing
         Task {
             do {
-                let text = try await OpenAIService.shared.transcribeAudio(url: url, prompt: VoiceHolePipeline.transcriptionPrompt(match: matchManager))
+                let helpText = VoiceHolePipeline.transcriptionPrompt(match: matchManager)
+                let text = try await OpenAIService.shared.transcribeAudio(url: url, prompt: helpText)
+                // Con audio vacío Whisper devuelve el texto de ayuda: no es una dictada.
+                if VoiceHolePipeline.isPromptEcho(text, prompt: helpText) { throw VoiceHoleError.emptyTranscript }
                 // "Qué llevo" / "cómo vamos" / "qué falta": no es un dato del hoyo, es una petición de lectura.
                 if let intent = ReadbackIntentV2.detect(text, names: matchManager.players.flatMap { [$0.alias, $0.name.split(separator: " ").first.map(String.init) ?? $0.name] }) {
                     readAloud(intent, detail: ReadbackIntentV2.asksForDetail(text))
