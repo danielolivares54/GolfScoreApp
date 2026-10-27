@@ -114,4 +114,6 @@ enum WatchCommand: Codable, Equatable {
     case apply
     case undo
     case discard
+    /// Ampliar el update de un hoyo recién anotado a los hoyos anteriores (numérico).
+    case explain
 }

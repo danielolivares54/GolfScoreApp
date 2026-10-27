@@ -110,25 +110,7 @@ private struct AnswerView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 6) {
-                if !answer.title.isEmpty {
-                    Text(answer.title.uppercased()).font(.wCaps).foregroundStyle(CSW.secondary).frame(maxWidth: .infinity, alignment: .leading)
-                }
-                if let text = answer.text {
-                    Text(text).font(.wBody).foregroundStyle(CSW.ink).frame(maxWidth: .infinity, alignment: .leading)
-                }
-                ForEach(Array(answer.lines.enumerated()), id: \.offset) { _, line in
-                    if line.header {
-                        HStack {
-                            Text(line.label.uppercased()).font(.wCaps).foregroundStyle(CSW.secondary)
-                            Spacer(minLength: 2)
-                            if !line.value.isEmpty {
-                                Text(line.value).font(.wCaps).foregroundStyle(line.tone > 0 ? CSW.green : line.tone < 0 ? CSW.red : CSW.ink)
-                            }
-                        }.padding(.top, 4)
-                    } else {
-                        LineView(line: line)
-                    }
-                }
+                AnswerLines(answer: answer)
                 HStack {
                     Button("Dictar") { model.dismissAnswer(); model.startRecording() }
                     Spacer()
@@ -138,6 +120,35 @@ private struct AnswerView: View {
                 .padding(.top, 4)
             }
             .padding(.horizontal, 4)
+        }
+    }
+}
+
+/// Título, texto y líneas de una respuesta (la usan la respuesta a una pregunta y el update después de anotar).
+private struct AnswerLines: View {
+    let answer: WatchAnswerDTO
+
+    var body: some View {
+        VStack(spacing: 6) {
+            if !answer.title.isEmpty {
+                Text(answer.title.uppercased()).font(.wCaps).foregroundStyle(CSW.secondary).frame(maxWidth: .infinity, alignment: .leading)
+            }
+            if let text = answer.text {
+                Text(text).font(.wBody).foregroundStyle(CSW.ink).frame(maxWidth: .infinity, alignment: .leading)
+            }
+            ForEach(Array(answer.lines.enumerated()), id: \.offset) { _, line in
+                if line.header {
+                    HStack {
+                        Text(line.label.uppercased()).font(.wCaps).foregroundStyle(CSW.secondary)
+                        Spacer(minLength: 2)
+                        if !line.value.isEmpty {
+                            Text(line.value).font(.wCaps).foregroundStyle(line.tone > 0 ? CSW.green : line.tone < 0 ? CSW.red : CSW.ink)
+                        }
+                    }.padding(.top, 4)
+                } else {
+                    LineView(line: line)
+                }
+            }
         }
     }
 }
@@ -342,18 +353,41 @@ private struct EditRowView: View {
 
 // MARK: - Resultado
 
+/// Después de anotar: el update de los matches con ese hoyo (números). Ampliar = los hoyos anteriores. Si no se mira en un minuto
+/// (o la pantalla se apaga) se cierra sola y el reloj queda listo para el siguiente dictado; lo anotado ya está guardado.
 private struct ResultView: View {
     @Bindable var model: WatchModel
     let applied: WatchCardDTO.Applied
+    @Environment(\.scenePhase) private var scenePhase
+    @State private var expanded = false
 
     var body: some View {
-        VStack(spacing: 10) {
-            Image(systemName: "checkmark.circle.fill").font(.largeTitle).foregroundStyle(CSW.green)
-            Text(applied.message).font(.wName).foregroundStyle(CSW.ink).multilineTextAlignment(.center)
-            if applied.canUndo { WatchPrimaryButton(title: "Deshacer", color: CSW.red) { model.send(.undo) } }
-            Button("Listo") { model.send(.discard) }.font(.wCaps).foregroundStyle(CSW.secondary)
+        ScrollView {
+            VStack(spacing: 6) {
+                Text(applied.message).font(.wName).foregroundStyle(CSW.green).frame(maxWidth: .infinity, alignment: .leading)
+                if let answer = model.answer { AnswerLines(answer: answer) }
+                HStack {
+                    if !expanded {
+                        Button("Ampliar") { expanded = true; model.send(.explain) }
+                    }
+                    Spacer()
+                    Button("Dictar") { model.startRecording() }
+                }
+                .font(.wCaps)
+                .padding(.top, 4)
+                if applied.canUndo {
+                    Button("Deshacer") { model.send(.undo) }.font(.wCaps).foregroundStyle(CSW.red)
+                }
+            }
+            .padding(.horizontal, 4)
         }
-        .padding(.horizontal, 6)
+        .task(id: applied.hole) {
+            try? await Task.sleep(for: .seconds(60))
+            if !Task.isCancelled { model.send(.discard) }
+        }
+        .onChange(of: scenePhase) { _, phase in
+            if phase != .active { model.send(.discard) }
+        }
     }
 }
 

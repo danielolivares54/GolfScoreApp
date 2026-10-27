@@ -84,6 +84,24 @@ struct WatchCardCoordinatorTests {
         #expect(c.card().applied == nil)
     }
 
+    @Test func anotatingGivesTheNumericUpdateWithoutVoiceAndExpandsToThePreviousHoles() async {
+        let m = DemoFixture.make()
+        let c = make(m, VoiceHoleExtraction(scores: [.init(jugador: "DAN", gross: 9, putts: 3)]))
+        await c.receiveAudio(audio)
+        c.handle(.apply)
+        // El update es lo mismo que "cómo voy" con el hoyo ya anotado, y no se dice en voz alta.
+        let expected = m.watchStandingsV2(alias: nil, opponent: nil)
+        #expect(c.answer?.lines == expected.lines && c.answer?.title == expected.title)
+        #expect(c.answer?.spoken == "")
+        // "Ampliar": los hoyos anteriores (el último anotado y los anteriores), con neto donde hay stroke.
+        c.handle(.explain)
+        #expect(c.answer?.title == m.watchWhyV2(alias: nil, opponent: nil).title)
+        #expect(c.answer?.lines.isEmpty == false && c.card().applied != nil)
+        // Cerrar o deshacer limpia todo.
+        c.handle(.undo)
+        #expect(c.answer == nil && c.card().applied == nil)
+    }
+
     @Test func applyIsBlockedWhileThereAreDoubts() async {
         let m = DemoFixture.make()
         let c = make(m, VoiceHoleExtraction(scores: [.init(jugador: "DAN", gross: 4, putts: nil), .init(jugador: "DAN", gross: 9, putts: nil)]))

@@ -211,7 +211,7 @@ final class WatchModel: NSObject, WCSessionDelegate {
                 seenAnswerId = a.id
                 if !fromLaunch {
                     answer = a
-                    speech.speak(a.spoken)
+                    if !a.spoken.isEmpty { speech.speak(a.spoken) }
                     WKInterfaceDevice.current().play(.success)
                 }
             }

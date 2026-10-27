@@ -153,8 +153,11 @@ final class WatchCardCoordinator {
             VoiceHolePipeline.undo(u.token, match: match)
             undo = nil
             applied = nil
+            answer = nil
             draft = VoiceHoleDraft()
             recordIds = []
+        case .explain:
+            answer = match.watchWhyV2(alias: nil, opponent: nil)
         case .discard:
             draft = VoiceHoleDraft()
             recordIds = []
@@ -173,6 +176,10 @@ final class WatchCardCoordinator {
         VoiceRecordStore.shared.resolve(ids: recordIds, finalCard: VoiceHolePipeline.cardSummary(draft))
         undo = (hole, token)
         applied = .init(hole: hole, message: "Hoyo \(hole) anotado", canUndo: true)
+        // El update: cómo van los matches con ese hoyo ya anotado (números). Sin voz: se lee solo si lo piden ("Ampliar" o preguntando).
+        var update = match.watchStandingsV2(alias: nil, opponent: nil)
+        update.spoken = ""
+        answer = update
         draft = VoiceHoleDraft()
         recordIds = []
     }
