@@ -237,31 +237,37 @@ private struct RowView: View {
     let edit: () -> Void
     let clear: () -> Void
 
+    // Pensada para la caja de 42 mm: el score (strokes) es lo grande; putts en chico; sin botones fijos por fila.
+    // Tocar la fila edita; mantener presionada quita lo dictado (lo ya anotado no se borra desde un borrador).
     var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            HStack(spacing: 6) {
-                Image(systemName: icon).foregroundStyle(color).font(.caption)
-                Text(row.name).font(.wName).foregroundStyle(CSW.ink).lineLimit(1)
+        VStack(alignment: .leading, spacing: 1) {
+            HStack(spacing: 4) {
+                Image(systemName: icon).foregroundStyle(color).font(.system(size: 10))
+                Text(row.name).font(.wName).foregroundStyle(CSW.ink).lineLimit(1).minimumScaleFactor(0.7)
                 Spacer(minLength: 2)
                 if let gross = row.gross {
+                    if let putts = row.putts { Text("\(putts)p").font(.wCaps).foregroundStyle(CSW.secondary) }
                     Text("\(gross)").font(.wScore).foregroundStyle(row.state == .saved ? CSW.secondary : CSW.ink)
-                    if let putts = row.putts { Text("·\(putts)p").font(.wBody).foregroundStyle(CSW.secondary) }
                 } else {
-                    Text("falta").font(.wBody).foregroundStyle(CSW.warning)
-                }
-                Button(action: edit) { Image(systemName: "pencil") }.buttonStyle(.plain).foregroundStyle(CSW.green)
-                    .accessibilityLabel("Editar \(row.name)")
-                if row.gross != nil, row.state != .saved {   // lo ya anotado no se "borra" desde un borrador
-                    Button(action: clear) { Image(systemName: "eraser") }.buttonStyle(.plain).foregroundStyle(CSW.red)
-                        .accessibilityLabel("Quitar \(row.name)")
+                    Text("falta").font(.wCaps).foregroundStyle(CSW.warning)
                 }
             }
             if let note = row.note { Text(note).font(.wCaps).foregroundStyle(CSW.warning) }
         }
-        .padding(8)
-        .background(CSW.surface, in: RoundedRectangle(cornerRadius: 10))
-        .overlay(RoundedRectangle(cornerRadius: 10).stroke(row.state == .doubt ? CSW.warning : CSW.line, lineWidth: row.state == .doubt ? 2 : 1))
+        .padding(.horizontal, 6)
+        .padding(.vertical, 4)
+        .background(CSW.surface, in: RoundedRectangle(cornerRadius: 8))
+        .overlay(RoundedRectangle(cornerRadius: 8).stroke(row.state == .doubt ? CSW.warning : CSW.line, lineWidth: row.state == .doubt ? 2 : 1))
+        .contentShape(RoundedRectangle(cornerRadius: 8))
+        .onTapGesture(perform: edit)
+        .contextMenu {
+            if row.gross != nil, row.state != .saved {
+                Button("Quitar \(row.name)", systemImage: "eraser", role: .destructive, action: clear)
+            }
+        }
         .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isButton)
+        .accessibilityHint("Toca para editar")
     }
 
     private var icon: String {
@@ -348,4 +354,20 @@ private struct ResultView: View {
         }
         .padding(.horizontal, 6)
     }
+}
+
+#Preview("Tarjeta · 5 jugadores") {
+    let model = WatchModel()
+    model.card = WatchCardDTO(
+        hole: 16, par: 3, replaces: false,
+        rows: [
+            .init(alias: "DAN", name: "Daniel", gross: 3, putts: 2, state: .ok, note: nil),
+            .init(alias: "ROB", name: "Roberto", gross: 4, putts: nil, state: .ok, note: nil),
+            .init(alias: "ANS", name: "Anselmo", gross: 5, putts: 3, state: .doubt, note: "¿5 o 6?"),
+            .init(alias: "RIC", name: "Ricardo", gross: nil, putts: nil, state: .missing, note: nil),
+            .init(alias: "FER", name: "Fernando", gross: 2, putts: 1, state: .saved, note: nil)
+        ],
+        chips: [.init(id: "o", kind: .oyes, text: "Oyes 1 FER · 2 DAN"), .init(id: "u:DAN:sandy", kind: .unit, text: "Sandy DAN")],
+        heard: "", canApply: false, error: nil, processing: false, applied: nil, revision: 1)
+    return ContentView(model: model)
 }

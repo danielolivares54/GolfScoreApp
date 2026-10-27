@@ -26,7 +26,7 @@ extension Color {
 }
 
 extension Font {
-    static let wScore = Font.system(.title3, weight: .heavy).monospacedDigit()
+    static let wScore = Font.system(.title2, weight: .heavy).monospacedDigit()
     static let wName  = Font.system(.footnote, weight: .bold)
     static let wBody  = Font.system(.footnote, weight: .semibold).monospacedDigit()
     static let wCaps  = Font.system(.caption2, weight: .bold)

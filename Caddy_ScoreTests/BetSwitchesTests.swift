@@ -743,9 +743,10 @@ struct CorrectionRouteTests {
 
     @Test func moneyAndDerivedAnswersHaveNothingToCorrect() {
         let m = DemoFixture.make()
-        for tipo in ["dinero", "conteo", "explicar", "presiones", "strokes", "nueve", "vuelta", "match", "otro"] {
+        for tipo in ["dinero", "conteo", "presiones", "strokes", "nueve", "vuelta", "match", "otro"] {
             #expect(route(.init(tipo: tipo), m) == nil)
         }
+        #expect(route(.init(tipo: "explicar"), m) == .hole(14))     // "por qué" lleva al hoyo que se juega, donde se corrige
         #expect(route(.init(tipo: "score", jugador: "Pelón", hoyo: 3), m) == nil)    // jugador que no existe
     }
 }
