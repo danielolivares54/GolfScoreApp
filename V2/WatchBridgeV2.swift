@@ -6,12 +6,17 @@
 
 import Foundation
 import WatchConnectivity
+import os
+
+private let watchLog = Logger(subsystem: "comDOG.Caddy-Score", category: "watch")
 
 final class WatchBridgeV2: NSObject, WCSessionDelegate {
     static let shared = WatchBridgeV2()
 
     @MainActor private var coordinator: WatchCardCoordinator?
     @MainActor private var match: MatchManager?
+    /// Vigila el hoyo de la pantalla del iPhone: si lo cambias (flechas o deslizar), el reloj se entera.
+    @MainActor private var holeObserver: Task<Void, Never>?
     private var session: WCSession? { WCSession.isSupported() ? WCSession.default : nil }
 
     /// Se llama una vez con el MatchManager de la app (el mismo de las vistas).
@@ -25,9 +30,26 @@ final class WatchBridgeV2: NSObject, WCSessionDelegate {
             return order.indices.contains(index) ? order[index] : (order.first ?? 1)
         })
         c.onChange = { [weak self] in self?.push() }
+        // Quien dicta dice el hoyo y el iPhone lo recibe: la pantalla se mueve a ese hoyo (el mismo índice que usa la pantalla del iPhone).
+        // Pasar al hoyo siguiente es del iPhone; el reloj lo recibe de él.
+        c.onHoleDictated = { [weak match] hole in
+            guard let match, let index = match.playOrder().firstIndex(of: hole) else { return }
+            watchLog.notice("se dictó el hoyo \(hole) → pantalla al índice \(index)")
+            UserDefaults.standard.set(index, forKey: AppKeys.currentHoleIndex)
+        }
         coordinator = c
         session?.delegate = self
         session?.activate()
+        holeObserver = Task { @MainActor [weak self] in
+            var last = UserDefaults.standard.integer(forKey: AppKeys.currentHoleIndex)
+            for await _ in NotificationCenter.default.notifications(named: UserDefaults.didChangeNotification) {
+                let now = UserDefaults.standard.integer(forKey: AppKeys.currentHoleIndex)
+                guard now != last else { continue }
+                watchLog.notice("el hoyo en pantalla cambió: índice \(last) → \(now)")
+                last = now
+                self?.push()
+            }
+        }
     }
 
     /// Manda al reloj la tarjeta y el hoyo en juego. Si el reloj no está disponible no pasa nada: la próxima vez llega lo último.
@@ -37,7 +59,9 @@ final class WatchBridgeV2: NSObject, WCSessionDelegate {
         let encoder = JSONEncoder()
         guard let card = try? encoder.encode(coordinator.card()),
               let context = try? encoder.encode(coordinator.context(course: match.courseName)) else { return }
-        try? session.updateApplicationContext([WatchKey.card: card, WatchKey.context: context])
+        var payload: [String: Any] = [WatchKey.card: card, WatchKey.context: context]
+        if let answer = coordinator.answer, let data = try? encoder.encode(answer) { payload[WatchKey.answer] = data }
+        try? session.updateApplicationContext(payload)
     }
 
     // MARK: WCSessionDelegate
@@ -58,12 +82,24 @@ final class WatchBridgeV2: NSObject, WCSessionDelegate {
     /// El reloj pide el estado actual (al abrirse). WatchConnectivity entrega a una u otra versión según si el reloj
     /// pidió respuesta o no: hay que atender las dos.
     func session(_ session: WCSession, didReceiveMessage message: [String: Any]) {
+        if let audio = message[WatchKey.audioHole] as? Data { receive(audio: audio); return }
         Task { @MainActor in self.push() }
     }
 
     func session(_ session: WCSession, didReceiveMessage message: [String: Any], replyHandler: @escaping ([String: Any]) -> Void) {
         replyHandler([:])
+        if let audio = message[WatchKey.audioHole] as? Data { receive(audio: audio); return }
         Task { @MainActor in self.push() }
+    }
+
+    /// Audio del hoyo que llegó como mensaje (el camino rápido): se guarda en un archivo y entra igual que el de `transferFile`.
+    private func receive(audio: Data) {
+        let copy = FileManager.default.temporaryDirectory.appendingPathComponent("watch-\(UUID().uuidString).m4a")
+        guard (try? audio.write(to: copy)) != nil else { return }
+        Task { @MainActor in
+            await self.coordinator?.receiveAudio(copy)
+            try? FileManager.default.removeItem(at: copy)
+        }
     }
 
     /// Órdenes: lápiz, goma, Anotar, Deshacer.

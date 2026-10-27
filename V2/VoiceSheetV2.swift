@@ -19,11 +19,17 @@ struct VoiceSheetV2: View {
     @StateObject private var recorder = VoiceRecorder()
     @State private var speech = SpeechReadbackV2()
     /// Lo que el apuntador acaba de leer (también se ve en pantalla).
-    @State private var readbackText: String?
+    @State private var readbackText: WatchAnswerDTO?
     @State private var showContrast = false
     /// Lo último que se leyó: si es un resumen, el botón "Más detalle" repite lo mismo con el detalle.
     private enum LastRequest: Equatable { case intent(ReadbackIntentV2), query(ReadbackQueryV2) }
     @State private var lastRequest: LastRequest?
+    /// El detalle ya tiene su pantalla en la app: Resultados (todos los matches) o el detalle del match preguntado.
+    private enum DetailScreen: Identifiable {
+        case results, match(MatchManager.ResultadoRowV2)
+        var id: String { switch self { case .results: "results"; case .match(let row): "match-\(row.id)" } }
+    }
+    @State private var detailScreen: DetailScreen?
     @State private var lastWasDetailed = false
     @State private var correctionRoute: VoiceHolePipeline.CorrectionRoute?
 
@@ -58,6 +64,12 @@ struct VoiceSheetV2: View {
         }
         .dynamicTypeSize(...DynamicTypeSize.accessibility2)
         .sheet(isPresented: $showContrast) { ContrastSheetV2(matchManager: matchManager) }
+        .sheet(item: $detailScreen) { screen in
+            switch screen {
+            case .results: ResultadoV2(matchManager: matchManager)
+            case .match(let row): MatchDetailV2(matchManager: matchManager, row: row)
+            }
+        }
         .sheet(item: $correctionRoute) { route in
             switch route {
             case .player(let alias, let segment, let focus):
@@ -73,10 +85,10 @@ struct VoiceSheetV2: View {
         let current = draft.hole ?? hole
         let changed = current != hole
         return VStack(alignment: .leading, spacing: 2) {
-            Text("Grabando el hoyo \(current)").font(.v2Name).foregroundStyle(CSV2.ink)
-            Text(changed ? "Cambiaste del hoyo \(hole) por lo que dijiste. Di \"hoyo \(hole)\" para volver."
-                         : "Es el hoyo en pantalla. Si dices otro número de hoyo, se cambia solo.")
-                .font(.v2Label).foregroundStyle(changed ? CSV2.warning : CSV2.secondary)
+            Text("Hoyo \(current)").font(.v2Name).foregroundStyle(CSV2.ink)
+            if changed {
+                Text("Cambiaste del hoyo \(hole). Di \"hoyo \(hole)\" para volver.").font(.v2Label).foregroundStyle(CSV2.warning)
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .combine)
@@ -90,8 +102,8 @@ struct VoiceSheetV2: View {
         case .idle:
             VStack(spacing: CSV2.s2) {
                 Text(draft.isEmpty
-                     ? "Di el hoyo completo: scores, putts, oyes, unidades y notas. Ej: \"Hoyo 14, yo tres, Rob cuatro, oyes primero Rob segundo yo, yo sandy par\""
-                     : "Dicta solo lo que falta o lo que quieras corregir; se suma a lo ya entendido.")
+                     ? "Di el hoyo: \"Hoyo 14, yo 3, Rob 4\""
+                     : "Dicta solo lo que falta o corrige.")
                     .font(.v2Label).foregroundStyle(CSV2.secondary).multilineTextAlignment(.center)
                 micButton(symbol: "mic.circle.fill", color: CSV2.green, label: draft.isEmpty ? "Empezar a grabar" : "Dictar lo que falta") { start() }
                 readbackButtons
@@ -129,7 +141,7 @@ struct VoiceSheetV2: View {
     /// Tres funciones: revisar lo anotado (unidades, strokes, hoyo), las apuestas (vuelta, presión, match) y el acumulado.
     private var readbackButtons: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Preguntas típicas. También puedes preguntar hablando: \"cómo quedó el hoyo 8 contra Roberto\", \"qué oyes ha ganado Daniel\", \"por qué voy perdiendo con Rob\"")
+            Text("O pregunta hablando: \"cómo voy\", \"por qué\"")
                 .font(.v2Label).foregroundStyle(CSV2.secondary)
             readbackGroup("Revisar") {
                 readbackChip("Unidades", "plus.circle") { ask(.init(tipo: "unidades")) }
@@ -146,7 +158,7 @@ struct VoiceSheetV2: View {
                 readbackChip("B9", "2.circle") { ask(.init(tipo: "nueve", segmento: "B9")) }
             }
             readbackGroup("Acumulado") {
-                readbackChip("Cómo vamos", "speaker.wave.2") { readAloud(.round) }
+                readbackChip("Cómo vamos", "speaker.wave.2") { ask(.init(tipo: "estatus")) }
                 readbackChip("Dinero", "dollarsign.circle") { ask(.init(tipo: "dinero")) }
                 readbackChip("Por qué", "text.bubble") { ask(.init(tipo: "explicar")) }
             }
@@ -163,10 +175,25 @@ struct VoiceSheetV2: View {
 
     /// Una pregunta de los botones: se responde igual que una hablada.
     private func ask(_ q: ReadbackQueryV2, detail: Bool = false) {
-        let text = VoiceHolePipeline.answer(q, match: matchManager, currentHole: draft.hole ?? hole, detail: detail)
+        // El detalle de cómo voy / por qué no se lee ni se repinta aquí: se abre su pantalla.
+        if detail || (q.detalle ?? false), VoiceHolePipeline.isDetailQuery(q) { openDetail(for: q); return }
+        let answer = VoiceHolePipeline.shortAnswer(q, match: matchManager, currentHole: draft.hole ?? hole, detail: detail)
         lastRequest = .query(q); lastWasDetailed = detail || (q.detalle ?? false)
-        readbackText = text
-        speech.speak(text)
+        readbackText = answer
+        speech.speak(answer.spoken)
+    }
+
+    /// Un match preguntado abre su detalle; varios abren Resultados.
+    private func openDetail(for q: ReadbackQueryV2) {
+        speech.stop()
+        let rows = VoiceHolePipeline.detailRows(for: q, match: matchManager)
+        detailScreen = rows.count == 1 ? .match(rows[0]) : .results
+    }
+
+    /// Tras "cómo voy" o "por qué": contrastar la tarjeta y corregir.
+    private var showsCardActions: Bool {
+        if case .query(let q)? = lastRequest { return VoiceHolePipeline.isDetailQuery(q) }
+        return false
     }
 
     private func readbackChip(_ title: String, _ symbol: String, action: @escaping () -> Void) -> some View {
@@ -178,14 +205,48 @@ struct VoiceSheetV2: View {
         .buttonStyle(.plain)
     }
 
-    private func readbackCard(_ text: String) -> some View {
+    /// Una fila de la respuesta corta: nombre a la izquierda, números a la derecha (verde ganando, rojo perdiendo).
+    @ViewBuilder
+    private func answerRow(_ line: WatchAnswerDTO.Line) -> some View {
+        if line.header {
+            HStack {
+                Text(line.label.uppercased()).capsStyleV2()
+                Spacer(minLength: 8)
+                if !line.value.isEmpty {
+                    Text(line.value).font(.v2Body.weight(.bold).monospacedDigit())
+                        .foregroundStyle(line.tone > 0 ? CSV2.green : line.tone < 0 ? CSV2.red : CSV2.ink)
+                }
+            }.padding(.top, 4)
+        } else {
+            VStack(alignment: .leading, spacing: 2) {
+                HStack {
+                    Text(line.label).font(.v2Body.weight(.semibold)).foregroundStyle(CSV2.ink)
+                    Spacer(minLength: 8)
+                    if !line.value.isEmpty {
+                        Text(line.value).font(.v2Name.monospacedDigit())
+                            .foregroundStyle(line.tone > 0 ? CSV2.green : line.tone < 0 ? CSV2.red : CSV2.ink)
+                    }
+                }
+                if let detail = line.detail { Text(detail).font(.v2Label).foregroundStyle(CSV2.secondary) }
+            }
+            .padding(.vertical, 2)
+        }
+    }
+
+    private func readbackCard(_ answer: WatchAnswerDTO) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Lo anotado").capsStyleV2()
-            Text(text).font(.v2Body).foregroundStyle(CSV2.ink)
+            Text(answer.title.isEmpty ? "Respuesta" : answer.title).capsStyleV2()
+            if let text = answer.text { Text(text).font(.v2Body).foregroundStyle(CSV2.ink) }
+            ForEach(Array(answer.lines.enumerated()), id: \.offset) { _, line in answerRow(line) }
             HStack(spacing: 16) {
                 if !lastWasDetailed, lastRequest != nil {
                     Button { moreDetail() } label: {
                         Label("Más detalle", systemImage: "text.append").font(.v2Body.weight(.semibold)).foregroundStyle(CSV2.green).frame(minHeight: CSV2.minTap)
+                    }.buttonStyle(.plain)
+                }
+                if showsCardActions {
+                    Button { showContrast = true } label: {
+                        Label("Contrastar", systemImage: "checklist").font(.v2Body.weight(.semibold)).foregroundStyle(CSV2.ink).frame(minHeight: CSV2.minTap)
                     }.buttonStyle(.plain)
                 }
                 if let route = currentRoute {
@@ -209,7 +270,7 @@ struct VoiceSheetV2: View {
     private func readAloud(_ intent: ReadbackIntentV2, detail: Bool = false) {
         let text = matchManager.readbackV2(intent, hole: draft.hole ?? hole, detail: detail)
         lastRequest = .intent(intent); lastWasDetailed = detail
-        readbackText = text
+        readbackText = .plain(text)
         speech.speak(text)
     }
 
@@ -227,7 +288,10 @@ struct VoiceSheetV2: View {
     private func moreDetail() {
         switch lastRequest {
         case .intent(let intent)?: readAloud(intent, detail: true)
-        case .query(let q)?: ask(q, detail: true)
+        case .query(let q)?:
+            // Tras "cómo voy", lo siguiente son los dos hoyos anteriores (como leer la tarjeta); el detalle largo viene después.
+            if VoiceHolePipeline.isStatusQuery(q) { ask(.init(tipo: "explicar", jugador: q.jugador, oponente: q.oponente)) }
+            else { ask(q, detail: true) }
         case nil: break
         }
     }
@@ -405,14 +469,17 @@ struct VoiceSheetV2: View {
                 if VoiceHolePipeline.isPromptEcho(text, prompt: helpText) { throw VoiceHoleError.emptyTranscript }
                 // "Qué llevo" / "cómo vamos" / "qué falta": no es un dato del hoyo, es una petición de lectura.
                 if let intent = ReadbackIntentV2.detect(text, names: matchManager.players.flatMap { [$0.alias, $0.name.split(separator: " ").first.map(String.init) ?? $0.name] }) {
-                    readAloud(intent, detail: ReadbackIntentV2.asksForDetail(text))
+                    let detail = ReadbackIntentV2.asksForDetail(text)
+                    // "Cómo vamos" = nombres y números; "explícame" = los dos hoyos anteriores.
+                    if intent == .round { ask(.init(tipo: detail ? "explicar" : "estatus")) } else { readAloud(intent, detail: detail) }
                     phase = .idle
                     return
                 }
                 // La grabación se guarda aunque no se entienda: también sirve para aprender.
                 recordIds.append(VoiceRecordStore.shared.record(audio: url, transcript: text,
                                                                 roundId: matchManager.roundId, hole: draft.hole))
-                draft = try await VoiceHolePipeline.propose(transcript: text, match: matchManager, draft: draft, defaultHole: hole)
+                draft = try await VoiceHolePipeline.propose(transcript: text, match: matchManager, draft: draft, defaultHole: hole,
+                                                            extractor: VoiceHolePipeline.fastThenLive(match: matchManager))
                 phase = .idle
             } catch VoiceHoleError.query(let q) {
                 ask(q)

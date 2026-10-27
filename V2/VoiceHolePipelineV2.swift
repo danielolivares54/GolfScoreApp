@@ -365,6 +365,14 @@ enum VoiceHolePipeline {
             if let alias = match.exactAlias(for: tok) { items.append(.name(alias)) }
         }
         var out: [(String, Int)] = []
+        // "Yo soy el 1 en oyes, Rob 2, Ans 3…": el lugar de quien habla va ANTES de la palabra "oyes".
+        if let regex = try? NSRegularExpression(pattern: "\\b([a-z]+)\\s+(?:soy|es|fue|va|quedo)\\s+(?:el\\s+|la\\s+)?([a-z0-9]+)\\s+(?:en\\s+)?(?:los\\s+)?oyes?\\b"),
+           let m = regex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)),
+           let who = Range(m.range(at: 1), in: text).map({ String(text[$0]) }), let place = Range(m.range(at: 2), in: text).map({ String(text[$0]) }),
+           let rank = ranks[place] {
+            let alias = ["yo", "me"].contains(who) ? meAlias(match) : (slang.target(for: who) ?? match.exactAlias(for: who))
+            if let alias, match.players.contains(where: { $0.alias == alias }) { out.append((alias, rank)) }
+        }
         var i = 0
         while i + 1 < items.count {
             switch (items[i], items[i + 1]) {
@@ -372,6 +380,9 @@ enum VoiceHolePipeline {
             default: i += 1
             }
         }
+        // Dos dichos del mismo jugador: el primero (el que se dijo antes de "oyes") se queda.
+        var taken = Set<String>()
+        out = out.filter { taken.insert($0.0).inserted }
         if out.isEmpty {
             // Sin lugares dichos: el orden en que nombra a la gente es el orden de oyes.
             let names = items.compactMap { item -> String? in if case .name(let a) = item { return a } else { return nil } }
@@ -380,6 +391,100 @@ enum VoiceHolePipeline {
             if unique.count >= 2 { out = unique.enumerated().map { ($0.element, $0.offset + 1) } }
         }
         return out
+    }
+
+    // MARK: Lector local (rápido, sin red)
+
+    private static let smallNumbers: [String: Int] = ["uno": 1, "dos": 2, "tres": 3, "cuatro": 4, "cinco": 5, "seis": 6, "siete": 7, "ocho": 8,
+                                                      "nueve": 9, "diez": 10, "once": 11, "doce": 12, "trece": 13, "catorce": 14, "quince": 15,
+                                                      "dieciseis": 16, "diecisiete": 17, "dieciocho": 18]
+
+    /// Un número de 1 a 18 en `t[i]`: "16", "dieciséis" o "diez y seis". `used` = cuántas palabras ocupó.
+    private static func number(at i: Int, in t: [String]) -> (value: Int, used: Int)? {
+        guard i < t.count else { return nil }
+        if t[i] == "diez", i + 2 < t.count, t[i + 1] == "y", let n = smallNumbers[t[i + 2]], (6...8).contains(n) { return (10 + n, 3) }
+        if let n = Int(t[i]) ?? smallNumbers[t[i]], (1...18).contains(n) { return (n, 1) }
+        return nil
+    }
+
+    /// El hoyo que se dijo ("hoyo 16"), leído del texto. No cuenta "del hoyo 5 al 8" (es una corrida, no el hoyo en juego).
+    static func holeFromText(_ spoken: String) -> Int? {
+        let t = spoken.split { !$0.isLetter && !$0.isNumber }.map(String.init)
+        let at = t.indices.filter { t[$0] == "hoyo" }
+        guard at.count == 1, let i = at.first, let n = number(at: i + 1, in: t) else { return nil }
+        if i > 0, ["del", "al"].contains(t[i - 1]) { return nil }
+        if i + 1 + n.used < t.count, ["al", "a", "hasta"].contains(t[i + 1 + n.used]) { return nil }
+        return n.value
+    }
+
+    /// Dictado estructurado ("hoyo 16, yo par, Rob 4, Ans bogey, Ric 5 y dos putts, yo soy el 1 en oyes, Rob 2…") leído sin el modelo:
+    /// instantáneo y sin que se confunda con dictados largos. Si algo no encaja del todo, devuelve nil y decide el modelo.
+    static func localExtraction(_ transcript: String, match: MatchManager, slang: VoiceSlangStore = .shared) -> VoiceHoleExtraction? {
+        let spoken = slang.normalize(transcript)
+        let t = spoken.split { !$0.isLetter && !$0.isNumber }.map(String.init)
+        let hole = holeFromText(spoken)
+        let fillers: Set<String> = ["tiro", "tire", "hizo", "hice", "saco", "saque", "fue", "hace", "con", "un", "puso", "puse", "metio", "meti"]
+        func relative(at i: Int) -> (word: String, used: Int)? {
+            guard i < t.count else { return nil }
+            switch t[i] {
+            case "par": return ("par", 1)
+            case "birdie": return ("birdie", 1)
+            case "bogey": return ("bogey", 1)
+            case "eagle", "aguila": return ("eagle", 1)
+            case "doble": return i + 1 < t.count && t[i + 1] == "bogey" ? ("doble_bogey", 2) : nil
+            default: return nil
+            }
+        }
+        var i = 0
+        // "En el hoyo 16": el hoyo ya se leyó; se salta.
+        if let h = t.firstIndex(of: "hoyo"), let n = number(at: h + 1, in: t) {
+            var start = h
+            while start > 0, ["en", "el"].contains(t[start - 1]) { start -= 1 }
+            guard start == 0 else { return nil }   // el hoyo va al inicio; en medio es otra cosa
+            i = h + 1 + n.used
+        }
+        var scores: [VoiceHoleExtraction.Score] = []
+        while i < t.count {
+            if t[i] == "y" || t[i] == "e" { i += 1; continue }
+            if t[i].hasPrefix("oye") { break }
+            var who: String, used = 1
+            if ["todos", "todas"].contains(t[i]) { who = "DEMAS" }
+            else if t[i] == "los", i + 1 < t.count, t[i + 1] == "demas" { who = "DEMAS"; used = 2 }
+            else {
+                let r = resolveSpoken(t[i], match: match, slang: slang)
+                guard r.known, !r.fuzzy else { break }
+                who = r.alias
+            }
+            var j = i + used
+            if j < t.count, ["soy", "es", "va", "quedo"].contains(t[j]) { break }   // "yo soy el 1 en oyes": no es un score
+            while j < t.count, fillers.contains(t[j]) { j += 1 }
+            var gross: Int?, rel: String?
+            if let r = relative(at: j) { rel = r.word; j += r.used }
+            else if let n = number(at: j, in: t), (1...15).contains(n.value) { gross = n.value; j += n.used }
+            else { break }
+            // "el 1 en oyes" / "5 oyes": ese número es un lugar, no un score.
+            if j < t.count, t[j].hasPrefix("oye") || (t[j] == "en" && j + 1 < t.count && t[j + 1].hasPrefix("oye")) { break }
+            var putts: Int?
+            var k = j
+            if k < t.count, t[k] == "y" { k += 1 }
+            if let p = number(at: k, in: t), k + p.used < t.count, t[k + p.used].hasPrefix("putt") { putts = p.value; j = k + p.used + 1 }
+            scores.append(.init(jugador: who, gross: gross, putts: putts, relativo: rel))
+            i = j
+        }
+        guard !scores.isEmpty else { return nil }
+        if i < t.count {
+            // Lo que sobra solo puede ser el orden de oyes, y solo si se puede leer entero; si no, que decida el modelo.
+            guard t[i...].contains(where: { $0.hasPrefix("oye") }), !localOyes(spoken, match: match, slang: slang).isEmpty else { return nil }
+        }
+        return VoiceHoleExtraction(hoyo: hole, scores: scores)
+    }
+
+    /// El extractor de verdad: primero el lector local (rápido) y, solo si no entiende todo, el modelo.
+    static func fastThenLive(match: MatchManager, slang: VoiceSlangStore = .shared) -> Extractor {
+        { transcript, context in
+            if let local = localExtraction(transcript, match: match, slang: slang) { return local }
+            return try await liveExtractor(transcript, context)
+        }
     }
 
     // MARK: Entender (una dictada → borrador nuevo)
@@ -430,7 +535,9 @@ enum VoiceHolePipeline {
         out.doubts.removeValue(forKey: "oyes-par")
 
         // Hoyo: el del LLM cuenta si lo dijeron (con dígito o con letra) o si es el mismo que ya teníamos.
-        if let hole = extraction.hoyo, (1...18).contains(hole), out.hole == hole || saidNumber(hole, in: spoken) { out.hole = hole }
+        // Lo dicho en el texto manda ("hoyo 16"): el modelo a veces no lo devuelve y se anotaba en el hoyo de la pantalla.
+        if extraction.corridas.isEmpty, let said = holeFromText(spoken) { out.hole = said }
+        else if let hole = extraction.hoyo, (1...18).contains(hole), out.hole == hole || saidNumber(hole, in: spoken) { out.hole = hole }
         let par = out.hole.flatMap { match.getHole($0)?.par }
 
         // Scores y putts.
@@ -457,6 +564,15 @@ enum VoiceHolePipeline {
             markDoubts(&out, alias: alias, known: e.known, fuzzy: e.fuzzy)
             if let all = conflicts[alias] {
                 out.doubts[alias] = "\(alias): dos scores distintos (\(all.map(String.init).joined(separator: " y "))), ¿cuál es?"
+            }
+        }
+        // "Todos tiraron par": a veces el modelo enumera solo a los otros y se salta a quien dicta. "Todos" incluye a todos:
+        // si lo dijeron así (y no "menos Rob") y todos los nombrados tienen el mismo resultado, ese resultado vale para los que faltan.
+        if restGross == nil, explicit.count >= 2 {
+            let words = Set(spoken.split { !$0.isLetter }.map(String.init))
+            if !words.isDisjoint(with: ["todos", "todas"]), words.isDisjoint(with: ["menos", "excepto", "salvo", "sin"]) {
+                let values = Set(explicit.values.compactMap { $0.cell.gross })
+                if values.count == 1 { restGross = values.first }
             }
         }
         // "Los demás …" / "todos …" (con número o con par/bogey/birdie): solo a quien no se dijo con nombre en esta dictada.
@@ -642,19 +758,63 @@ enum VoiceHolePipeline {
         ["demas", "los demas", "resto", "el resto", "otros", "los otros", "todos", "todo el mundo", "los rivales", "rivales"].contains(slang.normalize(who))
     }
 
-    static func answer(_ q: ReadbackQueryV2, match: MatchManager, currentHole: Int, slang: VoiceSlangStore = .shared, detail: Bool = false) -> String {
+    /// De quién y contra quién se pregunta; `error` si un nombre no está en el grupo.
+    private static func resolveParties(_ q: ReadbackQueryV2, match: MatchManager, slang: VoiceSlangStore) -> (alias: String?, opponent: String?, error: String?) {
         var alias: String?
         if let who = q.jugador?.trimmingCharacters(in: .whitespacesAndNewlines), !who.isEmpty, !isEveryone(who, slang: slang) {
             let r = resolveSpoken(who, match: match, slang: slang)
-            guard r.known else { return "No encontré a \"\(who)\" entre los jugadores." }
+            guard r.known else { return (nil, nil, "No encontré a \"\(who)\" entre los jugadores.") }
             alias = r.alias
         }
         var opponent: String?
         if let who = q.oponente?.trimmingCharacters(in: .whitespacesAndNewlines), !who.isEmpty, !isEveryone(who, slang: slang) {
             let r = resolveSpoken(who, match: match, slang: slang)
-            guard r.known else { return "No encontré a \"\(who)\" entre los jugadores." }
+            guard r.known else { return (nil, nil, "No encontré a \"\(who)\" entre los jugadores.") }
             opponent = r.alias
         }
+        return (alias, opponent, nil)
+    }
+
+    /// "Cómo voy" o "por qué" (sin pedir un hoyo): las preguntas que tienen respuesta corta, detalle y pantalla propia.
+    static func isDetailQuery(_ q: ReadbackQueryV2) -> Bool {
+        q.hoyo == nil && ["estatus", "status", "como_voy", "explicar", "porque", "por_que", "acumulado"].contains(q.tipo.lowercased())
+    }
+
+    /// Los matches a los que se refiere la pregunta (para abrir su pantalla de detalle).
+    static func detailRows(for q: ReadbackQueryV2, match: MatchManager, slang: VoiceSlangStore = .shared) -> [MatchManager.ResultadoRowV2] {
+        let parties = resolveParties(q, match: match, slang: slang)
+        guard parties.error == nil else { return [] }
+        return match.detailRowsV2(alias: parties.alias, opponent: parties.opponent)
+    }
+
+    /// "Cómo voy" (sin pedir un hoyo): la respuesta es la lista corta de nombres y números.
+    static func isStatusQuery(_ q: ReadbackQueryV2) -> Bool {
+        q.hoyo == nil && ["estatus", "status", "como_voy"].contains(q.tipo.lowercased())
+    }
+
+    /// La respuesta del reloj y del iPhone. "Cómo voy" son solo nombres y números; "por qué" son los dos hoyos anteriores.
+    /// Con "detalle" o cualquier otra pregunta, es la respuesta larga de siempre en texto.
+    static func shortAnswer(_ q: ReadbackQueryV2, match: MatchManager, currentHole: Int, slang: VoiceSlangStore = .shared, detail: Bool = false) -> WatchAnswerDTO {
+        let parties = resolveParties(q, match: match, slang: slang)
+        if let error = parties.error { return .plain(error) }
+        // El detalle de cómo voy / por qué = la tarjeta: cada apuesta con su conteo y su dinero (para el reloj; el iPhone abre su pantalla).
+        if (detail || (q.detalle ?? false)), isDetailQuery(q) {
+            return match.watchDetailV2(alias: parties.alias, opponent: parties.opponent)
+        }
+        if !(detail || (q.detalle ?? false)), q.hoyo == nil {
+            switch q.tipo.lowercased() {
+            case "estatus", "status", "como_voy": return match.watchStandingsV2(alias: parties.alias, opponent: parties.opponent)
+            case "explicar", "porque", "por_que", "acumulado": return match.watchWhyV2(alias: parties.alias, opponent: parties.opponent)
+            default: break
+            }
+        }
+        return .plain(answer(q, match: match, currentHole: currentHole, slang: slang, detail: detail))
+    }
+
+    static func answer(_ q: ReadbackQueryV2, match: MatchManager, currentHole: Int, slang: VoiceSlangStore = .shared, detail: Bool = false) -> String {
+        let parties = resolveParties(q, match: match, slang: slang)
+        if let error = parties.error { return error }
+        let alias = parties.alias, opponent = parties.opponent
         let hole = q.hoyo.flatMap { (1...18).contains($0) ? $0 : nil }
         let to = q.hasta.flatMap { (1...18).contains($0) ? $0 : nil }
         return match.queryAnswerV2(q.tipo, alias: alias, hole: hole, currentHole: currentHole, segment: q.segmento,
@@ -697,6 +857,8 @@ enum VoiceHolePipeline {
             return .hole(hole ?? currentHole)
         case "hoyo", "resultado_hoyo", "resultado", "total":
             return .player(alias: alias ?? match.yoAlias, segment: nine(hole ?? currentHole), focusHole: hole)
+        case "estatus", "status", "como_voy", "explicar", "porque", "por_que", "acumulado":
+            return .hole(hole ?? currentHole)
         case "tarjeta", "golpes_nueve", "contrastar":
             let seg = q.segmento?.uppercased()
             return .player(alias: alias ?? match.yoAlias, segment: hole.map(nine) ?? (seg == "B9" ? "B9" : seg == "F9" ? "F9" : nine(currentHole)),

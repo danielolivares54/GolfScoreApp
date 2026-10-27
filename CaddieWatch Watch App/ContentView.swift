@@ -17,6 +17,8 @@ struct ContentView: View {
                     RecordingView(model: model)
                 } else if model.isWorking {
                     WorkingView()
+                } else if let answer = model.answer {
+                    AnswerView(model: model, answer: answer)
                 } else if model.hasDraft {
                     CardView(model: model)
                 } else {
@@ -50,9 +52,15 @@ private struct HomeView: View {
                 Text("Abre Caddie Score en el iPhone").font(.wBody).foregroundStyle(CSW.secondary).multilineTextAlignment(.center)
             }
             WatchPrimaryButton(title: "Dictar") { model.startRecording() }
-                .disabled(model.context == nil)
+                .disabled(model.context == nil || !model.reachable)
+            if model.context != nil, !model.reachable {
+                Text("Abre Caddie Score en el iPhone").font(.wCaps).foregroundStyle(CSW.warning).multilineTextAlignment(.center)
+            }
             if let message = model.card.error ?? failure {
                 Text(message).font(.wCaps).foregroundStyle(CSW.red).multilineTextAlignment(.center)
+                if model.card.error != nil, !model.card.heard.isEmpty {   // lo oído no se pierde: se ve para decidir
+                    Text("Oí: «\(model.card.heard)»").font(.wCaps).foregroundStyle(CSW.secondary).multilineTextAlignment(.center)
+                }
             } else if model.context?.hasKey == false {
                 Text("Falta la clave de OpenAI en el iPhone").font(.wCaps).foregroundStyle(CSW.warning).multilineTextAlignment(.center)
             }
@@ -93,6 +101,70 @@ private struct WorkingView: View {
     }
 }
 
+// MARK: - Respuesta a una pregunta
+
+private struct AnswerView: View {
+    @Bindable var model: WatchModel
+    let answer: WatchAnswerDTO
+
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 6) {
+                if !answer.title.isEmpty {
+                    Text(answer.title.uppercased()).font(.wCaps).foregroundStyle(CSW.secondary).frame(maxWidth: .infinity, alignment: .leading)
+                }
+                if let text = answer.text {
+                    Text(text).font(.wBody).foregroundStyle(CSW.ink).frame(maxWidth: .infinity, alignment: .leading)
+                }
+                ForEach(Array(answer.lines.enumerated()), id: \.offset) { _, line in
+                    if line.header {
+                        HStack {
+                            Text(line.label.uppercased()).font(.wCaps).foregroundStyle(CSW.secondary)
+                            Spacer(minLength: 2)
+                            if !line.value.isEmpty {
+                                Text(line.value).font(.wCaps).foregroundStyle(line.tone > 0 ? CSW.green : line.tone < 0 ? CSW.red : CSW.ink)
+                            }
+                        }.padding(.top, 4)
+                    } else {
+                        LineView(line: line)
+                    }
+                }
+                HStack {
+                    Button("Dictar") { model.dismissAnswer(); model.startRecording() }
+                    Spacer()
+                    Button("Listo") { model.dismissAnswer() }.foregroundStyle(CSW.secondary)
+                }
+                .font(.wCaps)
+                .padding(.top, 4)
+            }
+            .padding(.horizontal, 4)
+        }
+    }
+}
+
+private struct LineView: View {
+    let line: WatchAnswerDTO.Line
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(spacing: 6) {
+                Text(line.label).font(.wName).foregroundStyle(CSW.ink)
+                Spacer(minLength: 2)
+                if !line.value.isEmpty {
+                    Text(line.value).font(.wScore).foregroundStyle(color)
+                }
+            }
+            if let detail = line.detail { Text(detail).font(.wCaps).foregroundStyle(CSW.secondary) }
+        }
+        .padding(8)
+        .background(CSW.surface, in: RoundedRectangle(cornerRadius: 10))
+        .overlay(RoundedRectangle(cornerRadius: 10).stroke(CSW.line, lineWidth: 1))
+        .accessibilityElement(children: .combine)
+    }
+
+    private var color: Color { line.tone > 0 ? CSW.green : line.tone < 0 ? CSW.red : CSW.ink }
+}
+
 // MARK: - Tarjeta propuesta
 
 private struct CardView: View {
@@ -122,13 +194,17 @@ private struct CardView: View {
                 if let error = card.error {
                     Text(error).font(.wCaps).foregroundStyle(CSW.red)
                 }
+                if case .failed(let text) = model.phase {   // antes un fallo al mandar una orden no se veía y parecía "trabado"
+                    Text(text).font(.wCaps).foregroundStyle(CSW.red).multilineTextAlignment(.center)
+                }
                 if let notice = card.notice {
                     Text(notice).font(.wCaps).foregroundStyle(CSW.warning)
                 }
+                // Si algo no se pudo anotar, se ve lo que se oyó: nada se pierde en silencio.
+                if (card.error != nil || card.notice != nil), !card.heard.isEmpty {
+                    Text("Oí: «\(card.heard)»").font(.wCaps).foregroundStyle(CSW.secondary).multilineTextAlignment(.center)
+                }
 
-                WatchPrimaryButton(title: "Anotar") { model.send(.apply) }
-                    .disabled(!card.canApply)
-                    .padding(.top, 4)
                 if !card.canApply, card.rows.contains(where: { $0.state == .doubt }) || card.chips.contains(where: { $0.id.hasPrefix("d:") }) {
                     Text("Toca ✎ en lo dudoso para confirmarlo").font(.wCaps).foregroundStyle(CSW.warning).multilineTextAlignment(.center)
                 }
@@ -140,6 +216,12 @@ private struct CardView: View {
                 .font(.wCaps)
             }
             .padding(.horizontal, 4)
+        }
+        // Anotar siempre a la vista: con 5 jugadores y fichas, el botón quedaba abajo del scroll.
+        .safeAreaInset(edge: .bottom) {
+            WatchPrimaryButton(title: "Anotar") { model.send(.apply) }
+                .disabled(!card.canApply)
+                .padding(.horizontal, 4)
         }
         .sheet(item: $editing) { row in
             EditRowView(row: row, par: card.par ?? 4) { gross, putts in

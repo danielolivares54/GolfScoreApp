@@ -530,3 +530,200 @@ extension MatchManager {
         return text
     }
 }
+
+// MARK: - Respuestas cortas para el reloj
+
+extension MatchManager {
+
+    /// "3 -1": la vuelta y luego cada presión abierta, con su signo.
+    private func numbersText(_ values: [Int]) -> String { values.map(String.init).joined(separator: " ") }
+
+    private func toneOf(_ n: Int) -> Int { n > 0 ? 1 : n < 0 ? -1 : 0 }
+
+    /// Un neto: entero, o con medio punto si hubo medio stroke ("9.5").
+    private func netText(_ d: Double) -> String { d.rounded() == d ? String(Int(d)) : String(format: "%.1f", d) }
+
+    /// Un número como se dice en voz alta, sin "más": "3", "menos 2", "cero".
+    private func numberSpoken(_ n: Int) -> String { n < 0 ? "menos \(-n)" : n == 0 ? "cero" : "\(n)" }
+
+    /// "3, menos 1": la vuelta y luego cada presión, separados por pausas.
+    private func numbersSpoken(_ values: [Int]) -> String { values.map(numberSpoken).joined(separator: ", ") }
+
+    /// El último hoyo del que ya hay scores de los dos (en el orden de juego).
+    private func lastHoleHeld() -> Int? {
+        var held = Set<Int>()
+        for a in players.map(\.alias) where a != yoAlias {
+            for n in ["F9", "B9"] { individualZoomRows(opponentAlias: a, segmentOverride: n).forEach { held.insert($0.hole) } }
+        }
+        return playOrder().last { held.contains($0) }
+    }
+
+    /// Cómo se nombra un match: en pantalla el alias ("FER", "DAN+FER vs ROB+RIC"); en voz el nombre ("Fernando", "pareja con Fernando contra Roberto y Ricardo").
+    private func matchLabelsV2(_ row: ResultadoRowV2, alias: String?) -> (label: String, name: String) {
+        let me = yoAlias
+        switch row.kind {
+        case .individual(let a):
+            // Desde el lado de otro jugador el rival es el usuario.
+            let label = (alias == nil || alias == me) ? a : me
+            return (label, spokenName(label))
+        case .pair:
+            let partner = row.title.replacingOccurrences(of: "con ", with: "").trimmingCharacters(in: .whitespaces)
+            let rivals = (row.rivalsText ?? "").components(separatedBy: " – ").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+            return ("\(me)+\(partner)" + (rivals.isEmpty ? "" : " vs " + rivals.joined(separator: "+")),
+                    "pareja con \(spokenName(partner))" + (rivals.isEmpty ? "" : " contra " + spokenList(rivals.map(spokenName))))
+        }
+    }
+
+    /// El detalle, como leer la tarjeta: por cada match, cada apuesta con su CONTEO (vuelta, presiones, match, carry, ajuste, unidades
+    /// con campo y oyes) y su MONETIZACIÓN (lo que vale y lo que deja). En pantalla; en voz solo el total.
+    /// Desde el lado de otro jugador no hay tarjeta de apuestas: ahí se usa la respuesta larga de siempre.
+    func watchDetailV2(alias: String?, opponent: String?) -> WatchAnswerDTO {
+        if let alias, alias != yoAlias { return .plain(explainReadbackV2(alias: alias, opponent: opponent, detail: true)) }
+        let rows = detailRowsV2(alias: alias, opponent: opponent)
+        guard !rows.isEmpty else { return .plain("No encontré ese match.") }
+        func pesos(_ v: Int) -> String { v == 0 ? "$0" : v > 0 ? "+$\(v)" : "-$\(-v)" }
+        func dinero(_ v: Int) -> String { v == 0 ? "sin dinero" : v > 0 ? "ganas $\(v)" : "pierdes $\(-v)" }
+        var lines: [WatchAnswerDTO.Line] = []
+        var total = 0
+        for row in rows {
+            guard let r = matchResumenV2(for: row.target) else { continue }
+            let values = betValuesV2(for: row.target)
+            total += row.money
+            lines.append(.init(label: matchLabelsV2(row, alias: alias).label, value: pesos(row.money), tone: toneOf(row.money), header: true))
+            for c in r.filas {
+                var detail = dinero(c.monto)
+                switch c.nombre {
+                case "F9": detail += " · vuelta $\(values.vueltaValue) · presión $\(values.presionValue)"
+                case let n where n.hasPrefix("B9"):
+                    let mult = r.dobleB9 ? 2 : 1
+                    detail += " · vuelta $\(values.vueltaValue * mult) · presión $\(values.presionValue * mult)" + (r.dobleB9 ? " (doble B9)" : "")
+                case "Match": detail += " · vale $\(values.matchValue) · " + (c.detalle.last ?? "")
+                case "Carry": detail += " · con la apuesta original"
+                case "Unidades": detail += " · " + (c.detalle.first ?? "") + " · $\(values.unitValue) c/u"
+                default: break
+                }
+                lines.append(.init(label: c.nombre, value: c.chips.joined(separator: " "), detail: detail, tone: toneOf(c.monto)))
+            }
+            if let receiver = row.strokesReceiver, row.strokesAmount > 0 {
+                lines.append(.init(label: "Strokes", value: spokenName(receiver), detail: "recibe \(strokesWords(row.strokesAmount))", tone: 0))
+            }
+        }
+        guard !lines.isEmpty else { return .plain("Todavía no hay matches en la ronda.") }
+        return WatchAnswerDTO(title: "Detalle", lines: lines, spoken: "Detalle en pantalla. En total, \(moneyWords(total)).")
+    }
+
+    /// Los matches de una pregunta. Si nombraron un rival ("cómo voy con Rob") sin decir quién pregunta, pregunta el usuario:
+    /// solo salen los matches contra ese rival, no todos.
+    func detailRowsV2(alias: String?, opponent: String?) -> [ResultadoRowV2] {
+        matchesFor(alias: alias ?? (opponent == nil ? nil : yoAlias), opponent: opponent)
+    }
+
+    /// "Cómo voy" en el reloj: una línea por match, el nombre y luego la vuelta y las presiones abiertas ("Rob 3 -1", "Ans 5 3 1").
+    /// Más = va ganando, menos = va perdiendo. Sin dinero ni match: eso se pide aparte.
+    func watchStandingsV2(alias: String?, opponent: String?) -> WatchAnswerDTO {
+        let rows = detailRowsV2(alias: alias, opponent: opponent)
+        guard !rows.isEmpty else { return .plain("No encontré ese match.") }
+        let hole = lastHoleHeld()
+        let nine = hole.map(nineOf) ?? "F9"
+        var lines: [WatchAnswerDTO.Line] = [], spoken: [String] = []
+        for row in rows {
+            let sign = signFor(row, alias: alias)
+            let v = (nine == "B9" ? row.b9Net : row.f9Net) * sign
+            let open = (nine == "B9" ? row.b9Presiones : row.f9Presiones).map { $0 * sign }
+            let (label, name) = matchLabelsV2(row, alias: alias)
+            lines.append(.init(label: label, value: numbersText([v] + open), tone: toneOf(v)))
+            spoken.append("\(name) \(numbersSpoken([v] + open))")
+        }
+        var text = (hole.map { "Hoyo \($0). " } ?? "") + spoken.joined(separator: ". ") + "."
+        if let n = pairsNoticeV2() { text += " Ojo: " + pairsNoticeTextV2(n) }
+        return WatchAnswerDTO(title: (hole.map { "Hoyo \($0) · " } ?? "") + nine, lines: lines, spoken: text)
+    }
+
+    /// Cuántos hoyos explica el "por qué" corto: el último hoyo anotado (el mismo hasta el que llega "cómo voy") y los anteriores.
+    /// Por defecto 3 (el anotado y los dos anteriores); se puede cambiar de 1 a 6 y se guarda en el teléfono.
+    static var whyHolesV2: Int {
+        get { min(max(UserDefaults.standard.object(forKey: "whyHolesV2") as? Int ?? 3, 1), 6) }
+        set { UserDefaults.standard.set(min(max(newValue, 1), 6), forKey: "whyHolesV2") }
+    }
+
+    /// "¿Por qué?" corto (reloj y iPhone): los últimos hoyos jugados de cada match. Por hoyo: si ganas o pierdes, qué tiró cada uno,
+    /// el neto cuando alguien recibe stroke y cómo van la vuelta y las presiones después de ese hoyo.
+    func watchWhyV2(alias: String?, opponent: String?) -> WatchAnswerDTO {
+        let me = yoAlias, p = alias ?? me
+        let order = playOrder()
+        func index(_ hole: Int) -> Int { order.firstIndex(of: hole) ?? Int.max }
+        let isMe = p == me
+        var lines: [WatchAnswerDTO.Line] = [], spoken: [String] = []
+        var shown: [Int] = []   // los hoyos que se explican, para decir "hasta el hoyo N"
+
+        // En pantalla va el detalle de cada hoyo; en voz, una frase por match (como lo leerían tus ojos, pero hablado).
+        for opp in players.map(\.alias) where opp != me {
+            guard p == me || p == opp else { continue }
+            if let opponent, opponent != (p == me ? opp : me) { continue }
+            let sign = isMe ? 1 : -1
+            let other = isMe ? opp : me
+            let last = ["F9", "B9"].flatMap { individualZoomRows(opponentAlias: opp, segmentOverride: $0) }
+                .sorted { index($0.hole) < index($1.hole) }.suffix(Self.whyHolesV2)
+            guard let final = last.last else { continue }
+            lines.append(.init(label: other, value: "", header: true))
+            var parts: [String] = []
+            for r in last {
+                shown.append(r.hole)
+                let myGross = sign == 1 ? r.yoGross : r.oppGross, hisGross = sign == 1 ? r.oppGross : r.yoGross
+                let myStroke = sign == 1 ? r.yoStrokes : r.oppStrokes, hisStroke = sign == 1 ? r.oppStrokes : r.yoStrokes
+                let myNet = netText(sign == 1 ? r.yoNet : r.oppNet), hisNet = netText(sign == 1 ? r.oppNet : r.yoNet)
+                let result = r.result * sign
+                let word = isMe ? (result > 0 ? "ganas" : result < 0 ? "pierdes" : "empatas") : (result > 0 ? "gana" : result < 0 ? "pierde" : "empata")
+                let state = [r.vueltaAccum * sign] + r.openPressures.map { $0 * sign }
+                let mine = isMe ? "tú" : spokenName(p), his = "él"
+                var detail = "\(mine) \(myGross) · \(his) \(hisGross)"
+                var said = "\(r.hole) \(word) \(myGross) a \(hisGross)"
+                if myStroke > 0 || hisStroke > 0 {
+                    // Dónde cae el stroke: a veces el empate en golpes se gana por el neto.
+                    let who = myStroke > 0 ? (isMe ? "tuyo" : "de \(spokenName(p))") : "de él"
+                    let amount = myStroke > 0 ? myStroke : hisStroke
+                    let size = amount == 1 ? "" : " (\(strokesWords(amount)))"
+                    detail += " · stroke \(who)\(size) · neto \(myNet)-\(hisNet)"
+                    said += ", stroke \(who)\(size), neto \(myNet) a \(hisNet)"
+                }
+                lines.append(.init(label: "\(r.hole) \(word)", value: numbersText(state), detail: detail, tone: toneOf(state[0])))
+                parts.append(said)
+            }
+            let finalState = [final.vueltaAccum * sign] + final.openPressures.map { $0 * sign }
+            spoken.append("Contra \(spokenName(other)): \(parts.joined(separator: ", ")). Van \(numbersSpoken(finalState)).")
+        }
+
+        // Parejas: lo mismo, hoyo por hoyo, con las bolas de cada lado y quién recibe ventaja.
+        for lane in activeLanes where lane.base.contains(p) || lane.opp.contains(p) {
+            if let opponent, !((lane.base.contains(p) ? lane.opp : lane.base).contains(opponent)) { continue }
+            let mine = lane.base.contains(p)
+            let sign = mine ? 1 : -1
+            let mySide = mine ? lane.base : lane.opp, hisSide = mine ? lane.opp : lane.base
+            let rows = ["F9", "B9"].flatMap { pairZoomRows(laneId: lane.id, segmentOverride: $0) }
+                .sorted { index($0.hole) < index($1.hole) }.suffix(Self.whyHolesV2)
+            guard let final = rows.last else { continue }
+            lines.append(.init(label: "\(mySide.joined(separator: "+")) vs \(hisSide.joined(separator: "+"))", value: "", header: true))
+            var parts: [String] = []
+            for r in rows {
+                shown.append(r.hole)
+                let result = r.result * sign
+                let word = result > 0 ? "ganan" : result < 0 ? "pierden" : "empatan"
+                let state = [r.vueltaAccum * sign] + r.openPressures.map { $0 * sign }
+                func balls(_ side: [PairBallLine]) -> String { side.map { "\($0.alias) \($0.gross)" }.joined(separator: " · ") }
+                let advantage = (r.basePlayers + r.oppPlayers).filter { $0.laneStrokes > 0 }.map(\.alias)
+                let detail = "\(balls(mine ? r.basePlayers : r.oppPlayers))  vs  \(balls(mine ? r.oppPlayers : r.basePlayers))"
+                    + (advantage.isEmpty ? "" : " · ventaja \(advantage.joined(separator: ", "))")
+                lines.append(.init(label: "\(r.hole) \(word)", value: numbersText(state), detail: detail, tone: toneOf(state[0])))
+                parts.append("\(r.hole) \(word)")
+            }
+            let finalState = [final.vueltaAccum * sign] + final.openPressures.map { $0 * sign }
+            let partner = mySide.filter { $0 != p }.map(spokenName)
+            let rivals = hisSide.map(spokenName)
+            spoken.append("Pareja" + (partner.isEmpty ? "" : " con \(spokenList(partner))") + " contra \(spokenList(rivals)): \(parts.joined(separator: ", ")). Van \(numbersSpoken(finalState)).")
+        }
+
+        guard !lines.isEmpty else { return .plain("Todavía no hay hoyos completos para explicar.") }
+        let upTo = shown.max { index($0) < index($1) }
+        return WatchAnswerDTO(title: upTo.map { "Hasta el hoyo \($0)" } ?? "Últimos hoyos", lines: lines, spoken: spoken.joined(separator: " "))
+    }
+}

@@ -8,11 +8,35 @@ import AVFoundation
 import WatchConnectivity
 import WatchKit
 
+/// La bocina del reloj: dice la respuesta en español de México.
+@MainActor
+final class WatchSpeech {
+    private let synthesizer = AVSpeechSynthesizer()
+
+    func speak(_ text: String) {
+        stop()
+        // El micrófono deja la sesión en modo grabación: para hablar hace falta reproducción.
+        let session = AVAudioSession.sharedInstance()
+        try? session.setCategory(.playback, mode: .spokenAudio)
+        try? session.setActive(true)
+        let utterance = AVSpeechUtterance(string: text)
+        utterance.voice = AVSpeechSynthesisVoice(language: "es-MX") ?? AVSpeechSynthesisVoice(language: "es-ES")
+        utterance.rate = AVSpeechUtteranceDefaultSpeechRate * 0.95
+        synthesizer.speak(utterance)
+    }
+
+    func stop() {
+        if synthesizer.isSpeaking { synthesizer.stopSpeaking(at: .immediate) }
+    }
+}
+
 @MainActor @Observable
 final class WatchModel: NSObject, WCSessionDelegate {
     enum Phase: Equatable { case idle, recording, sending, failed(String) }
 
     var card = WatchCardDTO.empty
+    /// La respuesta a la última pregunta (se ve hasta que se cierra o llega otra dictada).
+    var answer: WatchAnswerDTO?
     var context: WatchContextDTO?
     var phase: Phase = .idle
     var reachable = false
@@ -20,6 +44,11 @@ final class WatchModel: NSObject, WCSessionDelegate {
     private var recorder: AVAudioRecorder?
     private var recordingURL: URL?
     private var revisionAtSend = -1
+    /// El iPhone avisó que estaba procesando después de mandar el audio (así se sabe que la respuesta que llega es la de esta dictada).
+    private var sawProcessing = false
+    @ObservationIgnored private let speech = WatchSpeech()
+    /// La última respuesta ya atendida: el contexto se repite en cada envío y no debe volver a hablar.
+    private var seenAnswerId: String?
     private var timeout: Task<Void, Never>?
     private var staleProcessing: Task<Void, Never>?
 
@@ -49,6 +78,9 @@ final class WatchModel: NSObject, WCSessionDelegate {
 
     func startRecording() {
         guard phase != .recording else { return }
+        speech.stop()
+        // Sin el iPhone no hay a quién mandarle el audio: se avisa antes de dictar, no después de hablar.
+        guard WCSession.default.isReachable else { phase = .failed("Abre Caddie Score en el iPhone y vuelve a dictar."); return }
         AVAudioApplication.requestRecordPermission { granted in
             Task { @MainActor in
                 guard granted else { self.phase = .failed("Permiso de micrófono denegado. Actívalo en Ajustes del reloj."); return }
@@ -84,16 +116,39 @@ final class WatchModel: NSObject, WCSessionDelegate {
         try? AVAudioSession.sharedInstance().setActive(false)
         guard WCSession.default.activationState == .activated else { phase = .failed("El iPhone no está disponible."); return }
         revisionAtSend = card.revision
+        sawProcessing = false
         phase = .sending
-        WCSession.default.transferFile(url, metadata: nil)
+        sendAudio(url)
         WKInterfaceDevice.current().play(.stop)
-        // Si el iPhone no contesta no se queda "Interpretando…" para siempre.
+        // Si el iPhone no contesta no se queda "Interpretando…" para siempre: 30 s sin señal, o 75 s si dijo que estaba procesando
+        // (el iPhone corta su propio trabajo a los 45 s).
         timeout?.cancel()
-        timeout = Task { [revision = card.revision] in
+        timeout = Task {
             try? await Task.sleep(for: .seconds(30))
-            guard !Task.isCancelled, self.phase == .sending, self.card.revision == revision else { return }
+            if self.card.processing { try? await Task.sleep(for: .seconds(45)) }
+            guard !Task.isCancelled, self.phase == .sending else { return }
+            self.card.processing = false
             self.phase = .failed("El iPhone no respondió. Abre Caddie Score en el iPhone y vuelve a dictar.")
             WKInterfaceDevice.current().play(.failure)
+        }
+    }
+
+    /// Cierra la respuesta y calla la voz.
+    func dismissAnswer() {
+        speech.stop()
+        answer = nil
+    }
+
+    /// Con el iPhone alcanzable el clip (unos cientos de KB) viaja como mensaje: llega al instante. `transferFile` es una cola
+    /// que puede tardar minutos (y entre simuladores casi no entrega), así que solo es el respaldo.
+    private func sendAudio(_ url: URL) {
+        let session = WCSession.default
+        if session.isReachable, let data = try? Data(contentsOf: url), data.count < 1_000_000 {
+            session.sendMessage([WatchKey.audioHole: data], replyHandler: nil) { _ in
+                Task { @MainActor in WCSession.default.transferFile(url, metadata: nil) }
+            }
+        } else {
+            session.transferFile(url, metadata: nil)
         }
     }
 
@@ -111,6 +166,7 @@ final class WatchModel: NSObject, WCSessionDelegate {
             phase = .failed("iPhone no disponible. Acércalo y abre la app.")
             return
         }
+        if case .failed = phase { phase = .idle }   // un aviso viejo no se queda
         WCSession.default.sendMessageData(data, replyHandler: nil) { error in
             Task { @MainActor in self.phase = .failed("No llegó al iPhone: \(error.localizedDescription)") }
         }
@@ -149,6 +205,19 @@ final class WatchModel: NSObject, WCSessionDelegate {
     private func absorb(_ ctx: [String: Any], fromLaunch: Bool = false) {
         let decoder = JSONDecoder()
         if let data = ctx[WatchKey.context] as? Data, let c = try? decoder.decode(WatchContextDTO.self, from: data) { context = c }
+        if let data = ctx[WatchKey.answer] as? Data, let a = try? decoder.decode(WatchAnswerDTO.self, from: data) {
+            // Una respuesta guardada de antes de abrir la app no se muestra ni se dice.
+            if a.id != seenAnswerId {
+                seenAnswerId = a.id
+                if !fromLaunch {
+                    answer = a
+                    speech.speak(a.spoken)
+                    WKInterfaceDevice.current().play(.success)
+                }
+            }
+        } else if ctx[WatchKey.answer] == nil, !fromLaunch {
+            answer = nil   // el iPhone ya la limpió (otra dictada)
+        }
         if let data = ctx[WatchKey.card] as? Data, let c = try? decoder.decode(WatchCardDTO.self, from: data) {
             let previous = card
             var c = c
@@ -162,7 +231,9 @@ final class WatchModel: NSObject, WCSessionDelegate {
                     self.card.processing = false
                 }
             }
-            if phase == .sending, c.revision != revisionAtSend, !c.processing { phase = .idle; timeout?.cancel() }
+            if phase == .sending, c.processing { sawProcessing = true }
+            // Terminó la dictada: llegó otra revisión, o el iPhone ya había avisado "procesando" y ahora no (su revisión vuelve a 0 si se reabre).
+            if phase == .sending, !c.processing, c.revision != revisionAtSend || sawProcessing { phase = .idle; timeout?.cancel() }
             if c.error != nil, !c.processing { phase = .idle; WKInterfaceDevice.current().play(.failure) }
             if previous.applied == nil, c.applied != nil { WKInterfaceDevice.current().play(.success) }
         }

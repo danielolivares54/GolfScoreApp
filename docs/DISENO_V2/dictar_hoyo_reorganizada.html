@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Dictar el hoyo · v2 reorganizada</title>
+<style>
+:root{--ink:#1A1A17;--sec:#5E584C;--bg:#F7F3EA;--surf:#fff;--line:#E4DCCB;--green:#157A3B;--red:#B3261E;--warn:#B45309;--page:#E9E4D8}
+*{box-sizing:border-box}body{margin:0;background:var(--page);font-family:-apple-system,"SF Pro Text",system-ui,sans-serif;color:var(--ink);padding:24px 16px}
+h1{font-size:20px;margin:0 0 4px}p.lead{margin:0 0 20px;color:var(--sec);font-size:14px;max-width:900px}
+.row{display:flex;gap:24px;flex-wrap:wrap;justify-content:center}
+.col{display:flex;flex-direction:column;align-items:center;gap:8px}
+.cap{font-size:13px;font-weight:600;color:var(--sec);text-transform:uppercase;letter-spacing:.04em}
+.phone{width:340px;max-width:100%;height:700px;background:var(--bg);border-radius:38px;border:8px solid #1d1d1b;position:relative;overflow:hidden;display:flex;flex-direction:column}
+.scroll{flex:1;overflow:auto;padding:18px 16px 8px}
+.top{display:flex;justify-content:space-between;align-items:center}
+.top b{font-size:22px}.pill{background:#E2DED4;color:var(--sec);border-radius:20px;padding:8px 14px;font-size:14px}
+.hint{font-size:13px;color:var(--sec);margin:2px 0 12px}
+.sec{margin-top:16px}.h{font-size:12px;font-weight:700;color:var(--sec);letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px;display:flex;align-items:center;gap:6px}
+.n{background:var(--green);color:#fff;border-radius:50%;width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center;font-size:11px}
+.card{background:var(--surf);border:1px solid var(--line);border-radius:14px;padding:12px}
+.pr{display:flex;align-items:baseline;gap:8px;padding:7px 0;border-bottom:1px solid var(--line)}.pr:last-child{border:0}
+.pr .a{font-weight:600;flex:1}.pr .g{font-weight:700;font-size:18px}.s{font-size:12px;color:var(--sec)}.w{font-size:12px;color:var(--warn);font-weight:600}.o{font-size:12px;color:var(--green);font-weight:600}
+.msg{border:1px solid var(--warn);border-radius:12px;padding:10px;font-size:13px;margin-top:10px;background:#fff}
+.btns{display:flex;gap:8px;margin-top:10px}.b1{flex:1;background:var(--green);color:#fff;border-radius:12px;padding:12px;text-align:center;font-weight:600}.b2{flex:1;text-align:center;padding:12px;color:var(--sec)}
+.chips{display:flex;flex-wrap:wrap;gap:6px}.chip{border:1px solid rgba(21,122,59,.5);color:var(--green);border-radius:20px;padding:8px 12px;font-size:13px;font-weight:600}
+.chip.on{background:var(--green);color:#fff}
+.sub{font-size:11px;color:var(--sec);margin:8px 0 4px;font-weight:600}
+.link{color:var(--green);font-weight:600;font-size:14px;display:block;padding:10px 0 2px}
+.ans .r{display:flex;justify-content:space-between;padding:4px 0}.ans .v{font-weight:700;font-variant-numeric:tabular-nums}.pos{color:var(--green)}.neg{color:var(--red)}
+.mini{display:flex;justify-content:space-between;align-items:center;font-size:13px}
+.bar{border-top:1px solid var(--line);background:var(--bg);padding:10px 16px 16px;display:flex;align-items:center;gap:12px}
+.mic{width:64px;height:64px;border-radius:50%;background:var(--green);display:flex;align-items:center;justify-content:center;flex:none}
+.mic svg{width:28px;height:28px}.mic.rec{background:var(--warn)}
+.bar .t{font-size:13px;color:var(--sec)}.bar .t b{color:var(--ink);display:block;font-size:15px}
+.notes{max-width:1100px;margin:28px auto 0;background:#fff;border-radius:14px;padding:16px 20px;font-size:14px;line-height:1.5}
+.notes h2{font-size:16px;margin:0 0 8px}.notes td,.notes th{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);vertical-align:top}.notes table{border-collapse:collapse;width:100%}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--page:#1f1e1b}h1{color:#eee}p.lead{color:#bbb}}
+</style></head><body>
+<h1>Dictar el hoyo — reorganizada en 3 zonas</h1>
+<p class="lead">1 Dictar · 2 Confirmar lo dictado · 3 Preguntar a la tarjeta. El micrófono queda fijo abajo (zona del pulgar) y la respuesta sale junto al botón que la pidió.</p>
+
+<div class="row">
+<!-- A -->
+<div class="col"><div class="cap">A · Antes de dictar</div>
+<div class="phone"><div class="scroll">
+ <div class="top"><b>Hoyo 10</b><span class="pill">Cerrar</span></div>
+ <div class="hint">Si dices otro número de hoyo, se cambia solo.</div>
+
+ <div class="sec"><div class="h"><span class="n">2</span>Confirmar lo dictado</div>
+  <div class="card mini"><span>Hoyo 9 · 4 de 4 anotados</span><span class="o">✓ completo</span></div>
+  <div class="chips" style="margin-top:8px"><span class="chip">Qué falta</span><span class="chip">Contrastar tarjeta ›</span></div>
+ </div>
+
+ <div class="sec"><div class="h"><span class="n">3</span>Preguntar a la tarjeta</div>
+  <div class="sub">ESTE HOYO</div><div class="chips"><span class="chip">Lo anotado</span><span class="chip">Unidades</span><span class="chip">Strokes</span></div>
+  <div class="sub">APUESTAS</div><div class="chips"><span class="chip">Match</span><span class="chip">Presión</span><span class="chip">Vuelta</span><span class="chip">F9</span><span class="chip">B9</span></div>
+  <div class="sub">ACUMULADO</div><div class="chips"><span class="chip">Cómo vamos</span><span class="chip">Dinero</span><span class="chip">Por qué</span></div>
+ </div>
+</div>
+<div class="bar"><div class="mic"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3M9 21h6"/></svg></div>
+ <div class="t"><b>1 · Dictar el hoyo</b>“Hoyo 10, yo 4, Rob 5, oyes…” o pregunta: “cómo voy con Rob”</div></div>
+</div></div>
+
+<!-- B -->
+<div class="col"><div class="cap">B · Después de dictar</div>
+<div class="phone"><div class="scroll">
+ <div class="top"><b>Hoyo 10</b><span class="pill">Cerrar</span></div>
+ <div class="sec"><div class="h"><span class="n">2</span>Confirmar · así quedaría</div>
+  <div class="card">
+   <div class="pr"><span class="a">Daniel</span><span class="g">4</span><span class="s">2 putts</span></div>
+   <div class="pr"><span class="a">Rob</span><span class="g">5</span><span class="w">sin putts</span><span class="o">oyes 1°</span></div>
+   <div class="pr"><span class="a">Pepe</span><span class="g">4</span><span class="s">1 putt</span></div>
+   <div class="pr"><span class="a">Luis</span><span class="w">falta</span></div>
+   <div class="s" style="margin-top:6px">Daniel · Sandy ×1</div>
+  </div>
+  <div class="msg">Entendí 3 de 4. <b>Falta:</b> score de Luis, putts de Rob.</div>
+  <div class="btns"><span class="b2">Empezar de nuevo</span><span class="b1">Anotar así</span></div>
+  <div class="s" style="margin-top:6px">“hoyo diez yo cuatro dos putts rob cinco…”</div>
+  <div class="chips" style="margin-top:8px"><span class="chip">Qué falta</span><span class="chip">Contrastar tarjeta ›</span></div>
+ </div>
+ <div class="sec"><div class="h"><span class="n">3</span>Preguntar a la tarjeta</div><div class="s">(los mismos botones, abajo)</div></div>
+</div>
+<div class="bar"><div class="mic"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3M9 21h6"/></svg></div>
+ <div class="t"><b>Dictar lo que falta</b>“Luis cinco, Rob dos putts”</div></div>
+</div></div>
+
+<!-- C -->
+<div class="col"><div class="cap">C · Preguntando</div>
+<div class="phone"><div class="scroll">
+ <div class="top"><b>Hoyo 10</b><span class="pill">Cerrar</span></div>
+ <div class="sec"><div class="h"><span class="n">2</span>Confirmar lo dictado</div>
+  <div class="card mini"><span>Hoyo 9 · 4 de 4 anotados</span><span class="o">✓ completo</span></div></div>
+ <div class="sec"><div class="h"><span class="n">3</span>Preguntar a la tarjeta</div>
+  <div class="sub">APUESTAS</div><div class="chips"><span class="chip on">Match</span><span class="chip">Presión</span><span class="chip">Vuelta</span><span class="chip">F9</span><span class="chip">B9</span></div>
+  <div class="card ans" style="margin-top:10px">
+   <div class="h" style="margin:0 0 4px">Match · al hoyo 9</div>
+   <div class="r"><span>Daniel vs Rob</span><span class="v pos">+2</span></div>
+   <div class="r"><span>Daniel vs Pepe</span><span class="v neg">−1</span></div>
+   <div class="r"><span>Pareja D/P vs R/L</span><span class="v">AS</span></div>
+   <div style="display:flex;gap:16px"><span class="link">Más detalle</span><span class="link" style="color:var(--ink)">Corregir</span></div>
+  </div>
+  <div class="sub">ESTE HOYO</div><div class="chips"><span class="chip">Lo anotado</span><span class="chip">Unidades</span><span class="chip">Strokes</span></div>
+  <div class="sub">ACUMULADO</div><div class="chips"><span class="chip">Cómo vamos</span><span class="chip">Dinero</span><span class="chip">Por qué</span></div>
+ </div>
+</div>
+<div class="bar"><div class="mic"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3M9 21h6"/></svg></div>
+ <div class="t"><b>Dictar o preguntar</b>La respuesta hablada sale aquí arriba</div></div>
+</div></div>
+</div>
+
+<div class="notes"><h2>Qué cambia y por qué</h2>
+<table><tr><th>Hoy</th><th>Propuesta</th><th>Razón</th></tr>
+<tr><td>La respuesta (“Lo anotado”) sale arriba; los botones que la piden están abajo</td><td>La respuesta sale pegada al grupo del botón tocado</td><td>Hoy tocas “Match” y la respuesta queda fuera de pantalla, tienes que subir</td></tr>
+<tr><td>“Qué falta” y “Contrastar tarjeta” mezclados con Unidades/Strokes en “Revisar”</td><td>Se mueven a la zona 2 “Confirmar lo dictado”</td><td>Validan lo que acabas de dictar; no son consultas de la tarjeta</td></tr>
+<tr><td>“Contrastar tarjeta” se ve igual que los chips que solo leen</td><td>Lleva “›”: abre otra hoja</td><td>Es navegación, no una lectura en voz</td></tr>
+<tr><td>Micrófono a media pantalla, dentro del scroll</td><td>Barra fija abajo con el mic</td><td>En el campo se usa con una mano; siempre visible aunque hagas scroll</td></tr>
+<tr><td>Dos párrafos de ayuda (≈8 líneas)</td><td>Un ejemplo de una línea junto al mic</td><td>Libera espacio; F9, B9 y Acumulado hoy quedan bajo el pliegue</td></tr>
+<tr><td>Grupos por tipo de dato (Revisar / Apuestas / Acumulado)</td><td>Este hoyo / Apuestas / Acumulado, dentro de “Preguntar”</td><td>“Este hoyo” describe mejor Lo anotado + Unidades + Strokes</td></tr>
+</table></div>
+</body></html>

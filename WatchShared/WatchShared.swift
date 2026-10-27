@@ -12,6 +12,8 @@ enum WatchKey {
     /// iPhone → Watch (applicationContext): la tarjeta propuesta y el hoyo en juego.
     static let card = "card"
     static let context = "context"
+    /// iPhone → Watch: la respuesta a una pregunta ("cómo voy", "por qué").
+    static let answer = "answer"
     /// Watch → iPhone (sendMessageData / transferFile metadata).
     static let command = "command"
     static let audioHole = "audioHole"
@@ -76,6 +78,32 @@ struct WatchCardDTO: Codable, Equatable {
 
     static let empty = WatchCardDTO(hole: nil, par: nil, replaces: false, rows: [], chips: [], heard: "",
                                     canApply: false, error: nil, processing: false, applied: nil, revision: 0)
+}
+
+/// La respuesta a una pregunta hablada: corta y objetiva. El reloj la pinta y la dice en voz alta (`spoken`).
+/// Todo se calcula en el iPhone; el `id` cambia con cada respuesta para que el reloj no repita la voz.
+struct WatchAnswerDTO: Codable, Equatable {
+    struct Line: Codable, Equatable {
+        /// Jugador, pareja u hoyo.
+        var label: String
+        /// Los números ("3 -1") o el resultado ("pierdes").
+        var value: String
+        /// Segunda línea más pequeña (golpes, neto…).
+        var detail: String? = nil
+        /// -1 va perdiendo, 0 parejo, 1 va ganando: el color del valor.
+        var tone: Int = 0
+        /// Encabezado de grupo (el rival, la pareja).
+        var header: Bool = false
+    }
+
+    var id: String = UUID().uuidString
+    var title: String
+    var lines: [Line] = []
+    /// Respuestas sin estructura (cualquier otra pregunta): solo texto.
+    var text: String? = nil
+    var spoken: String
+
+    static func plain(_ text: String) -> WatchAnswerDTO { WatchAnswerDTO(title: "", text: text, spoken: text) }
 }
 
 /// Órdenes del Watch. `edit` es el lápiz, `clear` la goma.
