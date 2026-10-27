@@ -200,9 +200,10 @@ private struct CardView: View {
                 if let notice = card.notice {
                     Text(notice).font(.wCaps).foregroundStyle(CSW.warning)
                 }
-                // Si algo no se pudo anotar, se ve lo que se oyó: nada se pierde en silencio.
-                if (card.error != nil || card.notice != nil), !card.heard.isEmpty {
-                    Text("Oí: «\(card.heard)»").font(.wCaps).foregroundStyle(CSW.secondary).multilineTextAlignment(.center)
+                // Siempre se ve lo que se oyó (mientras el slang de golf no está entrenado, oyes, notas y unidades pueden no reconocerse): nada se pierde en silencio.
+                if !card.heard.isEmpty {
+                    Text("Oí: «\(card.heard)»").font(.wCaps).foregroundStyle(CSW.secondary).multilineTextAlignment(.leading)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                 }
 
                 if !card.canApply, card.rows.contains(where: { $0.state == .doubt }) || card.chips.contains(where: { $0.id.hasPrefix("d:") }) {

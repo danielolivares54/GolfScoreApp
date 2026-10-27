@@ -259,6 +259,20 @@ struct VoiceHolePipelineTests {
         #expect(d3.oyes.isEmpty)   // "oyes" llega al final: sin lugares después, no se adivina
     }
 
+    @Test func theSpeakerSaysSoyUnoAfterOyesAndEveryonePairsWithTheirPlace() async throws {
+        let d = try await oyesFrom("Oyes, soy uno, Fer 2, Rob 3, Ans 4, Ric 5.")
+        #expect(d.oyes == ["DAN": 1, "FER": 2, "ROB": 3, "ANS": 4, "RIC": 5])
+    }
+
+    @Test func repeatedPlacesInOyesAreADoubtAndNothingIsSaved() async throws {
+        // "ns" no se entiende y Rob y Ric repiten el 3: queda como empate (dudoso, no se puede anotar) y el 4 de "ns" no se le pega a Ric.
+        let m = setup()
+        let d = try await oyesFrom("Oyes soy uno Fer 5 Rob 3 ns 4 Ric 3")
+        #expect(d.oyes["DAN"] == 1 && d.oyes["FER"] == 5 && d.oyes["ROB"] == 3 && d.oyes["RIC"] == 3 && d.oyes["ANS"] == nil)
+        #expect(d.doubts["oyes"]?.contains("Empate") == true)
+        #expect(!VoiceHolePipeline.canApply(d, match: m))
+    }
+
     @Test func justTheNamesInOrderAreTheOyesOrder() async throws {
         let d = try await oyesFrom("oyes Fernando, Roberto, Daniel")
         #expect(d.oyes == ["FER": 1, "ROB": 2, "DAN": 3])

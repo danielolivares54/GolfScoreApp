@@ -357,14 +357,27 @@ enum VoiceHolePipeline {
         var sentence = Substring(text)
         if let r = text.range(of: "oye") { sentence = text[r.lowerBound...] }
         if let end = sentence.firstIndex(where: { ".?!\n".contains($0) }) { sentence = sentence[..<end] }
-        enum Item { case rank(Int), name(String) }
+        var out: [(String, Int)] = []
+        // "Oyes, soy uno, Fer 5, Rob 3…": quien habla se nombra con "soy N" DESPUÉS de "oyes". Se saca de la frase para que su lugar no se le pegue a otro.
+        var spoken = String(sentence)
+        if let regex = try? NSRegularExpression(pattern: "\\b(?:yo\\s+)?soy\\s+(?:el\\s+|la\\s+)?([a-z0-9]+)"),
+           let m = regex.firstMatch(in: spoken, range: NSRange(spoken.startIndex..., in: spoken)),
+           let place = Range(m.range(at: 1), in: spoken).map({ String(spoken[$0]) }), let rank = ranks[place],
+           let whole = Range(m.range, in: spoken) {
+            out.append((meAlias(match), rank))
+            spoken.removeSubrange(whole)
+        }
+        // Relleno que no es un nombre desconocido. Una palabra suelta pegada a un lugar ("ns 4") sí lo es: se salta con su lugar para no pegárselo al siguiente.
+        let filler: Set<String> = ["el", "la", "y", "en", "los", "oyes", "oye", "rank", "ranking", "de", "con", "lugar", "puesto", "posicion", "que", "es", "yo", "me", "tiene", "va", "soy"]
+        enum Item { case rank(Int), name(String), unknown }
         var items: [Item] = []
-        for tok in sentence.components(separatedBy: CharacterSet.alphanumerics.inverted).filter({ !$0.isEmpty }) {
+        let tokens = spoken.components(separatedBy: CharacterSet.alphanumerics.inverted).filter { !$0.isEmpty }
+        for (n, tok) in tokens.enumerated() {
             if let r = ranks[tok] { items.append(.rank(r)); continue }
             if let learned = slang.target(for: tok), match.players.contains(where: { $0.alias == learned }) { items.append(.name(learned)); continue }
-            if let alias = match.exactAlias(for: tok) { items.append(.name(alias)) }
+            if let alias = match.exactAlias(for: tok) { items.append(.name(alias)); continue }
+            if !filler.contains(tok), tok.count >= 2, n + 1 < tokens.count, ranks[tokens[n + 1]] != nil { items.append(.unknown) }
         }
-        var out: [(String, Int)] = []
         // "Yo soy el 1 en oyes, Rob 2, Ans 3…": el lugar de quien habla va ANTES de la palabra "oyes".
         if let regex = try? NSRegularExpression(pattern: "\\b([a-z]+)\\s+(?:soy|es|fue|va|quedo)\\s+(?:el\\s+|la\\s+)?([a-z0-9]+)\\s+(?:en\\s+)?(?:los\\s+)?oyes?\\b"),
            let m = regex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)),
@@ -377,6 +390,7 @@ enum VoiceHolePipeline {
         while i + 1 < items.count {
             switch (items[i], items[i + 1]) {
             case (.rank(let r), .name(let a)), (.name(let a), .rank(let r)): out.append((a, r)); i += 2
+            case (.unknown, .rank): i += 2   // nombre no entendido con su lugar: no se anota ni se le pega a otro
             default: i += 1
             }
         }
