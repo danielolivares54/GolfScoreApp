@@ -361,7 +361,7 @@ struct ContentView: View {
                 Text("HOYO \(currentHole)")
                     .font(.system(size: 23, weight: .bold, design: .monospaced))
                     .foregroundColor(.cBg)
-                Text("Par \(currentPar) · HCP \(currentHC)")
+                Text("Par \(currentPar) · HCP \(currentHC)" + (matchManager.myTeeYardsV2(hole: currentHole).map { " · \($0) yd" } ?? ""))
                     .font(.system(size: 13, weight: .semibold)).foregroundColor(.cGreenHint)
             }
             .frame(maxWidth: .infinity).padding(.vertical, 10)

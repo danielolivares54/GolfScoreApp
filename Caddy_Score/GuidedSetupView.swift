@@ -56,6 +56,8 @@ struct GuidedSetupView: View {
     @State private var showingRoundHistory = false
     @State private var showingBets = false
     @State private var strokesByAlias: [String: Double] = [:]
+    /// Se refresca al cambiar un tee (el tee vive en el teléfono y en el directorio, no en este borrador).
+    @State private var teeRefresh = 0
     @State private var base1: String = ""
     @State private var base2: String = ""
     @State private var laneStrokes: [String: Double] = [:]
@@ -373,12 +375,53 @@ struct GuidedSetupView: View {
 
     // MARK: Step 4 — Strokes individuales
 
+    // MARK: Tee de salida de cada jugador
+
+    private var setupCourse: CourseModel? { CourseCatalog.all.first { $0.id == selectedCourseId } }
+
+    /// "Sale de": mismo estilo que los strokes (− tee +), recorre los tees del campo y pasa por "—" (sin elegir).
+    private func teeStepper(label: String, current: TeeModel?, course: CourseModel, change: @escaping (TeeModel?) -> Void) -> some View {
+        HStack {
+            Text(label).font(.system(size: 11.5)).foregroundColor(.cMuted)
+            Spacer()
+            HStack(spacing: 0) {
+                strokeBtn(icon: "minus") { change(course.cycle(from: current, by: -1)); teeRefresh += 1 }
+                Text(current?.displayName ?? "—")
+                    .font(.system(size: 14, weight: .semibold)).foregroundColor(current == nil ? .cMuted : .cInk)
+                    .frame(minWidth: 120).multilineTextAlignment(.center)
+                strokeBtn(icon: "plus") { change(course.cycle(from: current, by: 1)); teeRefresh += 1 }
+            }
+        }
+    }
+
+    /// Tu tee: de ahí sale la distancia que ven el iPhone y el reloj.
+    @ViewBuilder private var myTeeRow: some View {
+        if let course = setupCourse, !course.tees.isEmpty {
+            VStack(alignment: .leading, spacing: 8) {
+                sectionTitle("Tu tee")
+                VStack(spacing: 6) {
+                    teeStepper(label: "Sales de", current: MyTeeStore.tee(courseId: course.id), course: course) { tee in
+                        MyTeeStore.set(tee?.id, courseId: course.id)
+                        WatchBridgeV2.shared.push()
+                    }
+                    Text("La distancia de cada hoyo (iPhone y reloj) sale de este tee.")
+                        .font(.system(size: 11.5)).foregroundColor(.cMuted).frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .padding(.horizontal, 16).padding(.vertical, 14)
+                .background(Color.cSurface).cornerRadius(14)
+                .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.cBorder, lineWidth: 1))
+            }
+            .id(teeRefresh)
+        }
+    }
+
     private var strokesStep: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("Daniel juega presión individual contra cada uno. Ajusta los strokes y la apuesta de cada rival — cada uno puede tener una plantilla distinta.")
                 .font(.system(size: 12.5)).foregroundColor(.cMuted).lineSpacing(4)
 
             let rivals = playerAliases.filter { $0.alias != matchManager.yoAlias }
+            myTeeRow
             if !rivals.isEmpty {
                 VStack(alignment: .leading, spacing: 8) {
                     sectionTitle("Strokes y apuesta por rival")
@@ -403,6 +446,12 @@ struct GuidedSetupView: View {
                                         }
                                         strokeBtn(icon: "plus") { adjustStroke(alias: p.alias, delta: 1.0) }
                                     }
+                                }
+                                if let course = setupCourse, !course.tees.isEmpty {
+                                    teeStepper(label: "Sale de", current: PlayerTeeStore.tee(player: p.name, in: course), course: course) { tee in
+                                        PlayerTeeStore.set(tee, player: p.name)
+                                    }
+                                    .id(teeRefresh)
                                 }
                                 HStack {
                                     Text("Apuesta")
