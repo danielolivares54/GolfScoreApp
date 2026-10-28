@@ -202,6 +202,7 @@ struct AcapulcoCoursesTests {
         let c = WatchCardCoordinator(match: m, currentHole: { 6 }, transcriber: { _, _ in "" },
                                      extractor: { _, _ in VoiceHoleExtraction() }, slang: slang, hasKey: { true })
         let ctx = c.context(course: m.courseName)
+        #expect(m.myTeeYardsV2(hole: 6) == 488)                                // el iPhone muestra la misma distancia que el reloj
         #expect(ctx.course == "Turtle Dunes" && ctx.hole == 6 && ctx.par == 5 && ctx.teeDistance == 488)   // hoyo 6 de Turtle Dunes: par 5, 488 desde las rojas
     }
 }

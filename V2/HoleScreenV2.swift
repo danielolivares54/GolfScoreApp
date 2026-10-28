@@ -181,6 +181,7 @@ struct HoleScreenV2: View {
                 HStack(spacing: 8) {
                     ParTagV2(par: par, onGreen: true)
                     HcpTagV2(hcp: hcp, onGreen: true)
+                    if let yards = matchManager.myTeeYardsV2(hole: currentHole) { DistanceTagV2(yards: yards, onGreen: true) }
                 }
             }
             .frame(maxWidth: .infinity)

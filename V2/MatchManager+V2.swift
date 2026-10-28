@@ -314,3 +314,10 @@ extension MatchManager {
         }
     }
 }
+
+extension MatchManager {
+    /// La distancia del hoyo desde el tee de salida del usuario (el que eligió en el Setup); nil si no eligió tee. La ven el iPhone y el reloj.
+    func myTeeYardsV2(hole: Int) -> Int? {
+        CourseCatalog.all.first { $0.id == courseId }?.yards(hole: hole, tee: MyTeeStore.tee(courseId: courseId))
+    }
+}

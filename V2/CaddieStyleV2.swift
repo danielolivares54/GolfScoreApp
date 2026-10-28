@@ -75,6 +75,17 @@ struct HcpTagV2: View {
     }
 }
 
+/// La distancia del hoyo desde el tee del usuario ("405 yd"), junto a Par y HCP.
+struct DistanceTagV2: View {
+    let yards: Int
+    var onGreen = false
+    var body: some View {
+        Text("\(yards) yd").font(.v2Label).foregroundStyle(onGreen ? .white : CSV2.ink)
+            .padding(.horizontal, 7).padding(.vertical, 2)
+            .overlay(RoundedRectangle(cornerRadius: 8).stroke(onGreen ? Color.white : CSV2.secondary, lineWidth: 2))
+    }
+}
+
 // MARK: - Score mark (golf standard): ○ birdie, ◎ eagle+, □ bogey, ⧈ double+, dashed = empty
 
 struct ScoreMarkV2: View {
