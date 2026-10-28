@@ -147,6 +147,8 @@ struct SetupV2: View {
         VStack(spacing: 8) {
             sectionTitle("Campo")
             CardV2 {
+                // Muchos campos: la lista se desplaza dentro de su tarjeta (alto máximo de unas 4 filas).
+                ScrollView {
                 VStack(spacing: 0) {
                     ForEach(Array(CourseCatalog.all.enumerated()), id: \.offset) { index, course in
                         if index > 0 { RowDividerV2() }
@@ -165,6 +167,8 @@ struct SetupV2: View {
                         .buttonStyle(.plain)
                     }
                 }
+                }
+                .frame(maxHeight: 232)
             }
         }
     }

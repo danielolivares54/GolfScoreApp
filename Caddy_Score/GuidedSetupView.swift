@@ -162,6 +162,8 @@ struct GuidedSetupView: View {
     private var campoStep: some View {
         VStack(alignment: .leading, spacing: 8) {
             sectionTitle("Campo")
+            // Muchos campos: la lista se desplaza dentro de su tarjeta (alto máximo de unas 4 filas).
+            ScrollView {
             VStack(spacing: 0) {
                 ForEach(Array(CourseCatalog.all.enumerated()), id: \.offset) { idx, course in
                     Button {
@@ -190,6 +192,8 @@ struct GuidedSetupView: View {
                     }
                 }
             }
+            }
+            .frame(maxHeight: 232)
             .background(Color.cSurface)
             .cornerRadius(14)
             .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.cBorder, lineWidth: 1))

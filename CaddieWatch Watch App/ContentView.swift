@@ -44,7 +44,10 @@ private struct HomeView: View {
                 VStack(spacing: 0) {
                     Text(ctx.course.isEmpty ? "ESPERANDO" : ctx.course.uppercased()).font(.wCaps).foregroundStyle(CSW.secondary).lineLimit(1).minimumScaleFactor(0.7)
                     Text("HOYO \(ctx.hole)").font(.system(.title2, weight: .heavy).monospacedDigit()).foregroundStyle(CSW.ink)
-                    Text("PAR \(ctx.par)" + (ctx.teeDistance.map { " · \($0)" } ?? "")).font(.wCaps).foregroundStyle(CSW.secondary)
+                    Text("PAR \(ctx.par)" + (ctx.teeDistance.map { " · \($0) yd" } ?? "")).font(.wCaps).foregroundStyle(CSW.secondary)
+                    if ctx.teeDistance == nil {   // sin tee elegido no hay distancia: se dice dónde elegirlo
+                        Text("Elige tu tee en el iPhone").font(.wCaps).foregroundStyle(CSW.warning).multilineTextAlignment(.center)
+                    }
                 }
                 .accessibilityElement(children: .combine)
                 .accessibilityLabel("Esperando el hoyo \(ctx.hole), par \(ctx.par)" + (ctx.teeDistance.map { ", \($0) de distancia" } ?? ""))
@@ -188,7 +191,8 @@ private struct CardView: View {
         ScrollView {
             VStack(spacing: 6) {
                 HStack {
-                    Text("HOYO \(card.hole.map(String.init) ?? "?")" + (card.par.map { " · PAR \($0)" } ?? "")).font(.wCaps)
+                    Text("HOYO \(card.hole.map(String.init) ?? "?")" + (card.par.map { " · PAR \($0)" } ?? "")
+                         + (model.context?.teeDistance.map { " · \($0) yd" } ?? "")).font(.wCaps)
                     Spacer()
                     if card.replaces { Text("REEMPLAZA").font(.wCaps).foregroundStyle(CSW.warning) }
                 }
