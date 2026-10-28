@@ -347,16 +347,24 @@ extension CourseModel {
 enum PlayerTeeStore {
     private static func key(_ name: String) -> String { "playerTee.\(name.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current).lowercased())" }
 
-    static func tee(player name: String, in course: CourseModel, defaults: UserDefaults = .standard,
-                    directory: PlayerDirectoryStore? = .shared) -> TeeModel? {
-        if let saved = defaults.string(forKey: key(name)) { return course.tee(named: saved) }
-        let entry = directory?.entries.first { $0.name.caseInsensitiveCompare(name) == .orderedSame }
-        return course.tee(named: entry?.opponentTee)
+    /// El jugador del directorio que corresponde a lo escrito en el Setup: por nombre completo o por alias ("JL" encuentra a "JL Castro").
+    private static func entry(name: String, alias: String?, in directory: PlayerDirectoryStore?) -> PlayerDirectoryEntry? {
+        directory?.entries.first { e in
+            e.name.caseInsensitiveCompare(name) == .orderedSame
+                || (alias.map { !$0.isEmpty && e.alias.caseInsensitiveCompare($0) == .orderedSame } ?? false)
+        }
     }
 
-    static func set(_ tee: TeeModel?, player name: String, defaults: UserDefaults = .standard, directory: PlayerDirectoryStore? = .shared) {
+    static func tee(player name: String, alias: String? = nil, in course: CourseModel, defaults: UserDefaults = .standard,
+                    directory: PlayerDirectoryStore? = .shared) -> TeeModel? {
+        if let saved = defaults.string(forKey: key(name)) { return course.tee(named: saved) }
+        return course.tee(named: entry(name: name, alias: alias, in: directory)?.opponentTee)
+    }
+
+    static func set(_ tee: TeeModel?, player name: String, alias: String? = nil, defaults: UserDefaults = .standard,
+                    directory: PlayerDirectoryStore? = .shared) {
         defaults.set(tee?.displayName ?? "", forKey: key(name))
-        if let directory, let entry = directory.entries.first(where: { $0.name.caseInsensitiveCompare(name) == .orderedSame }) {
+        if let directory, let entry = entry(name: name, alias: alias, in: directory) {
             directory.setDetails(id: entry.id, opponentTee: tee?.displayName, myTee: entry.myTee, adjustmentNotes: entry.adjustmentNotes,
                                  comentario: entry.comentario, strokeAnt: entry.strokeAnt)
         }

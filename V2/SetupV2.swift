@@ -447,8 +447,8 @@ struct SetupV2: View {
                          detail: matchManager.strokeHolesText(total: strokes, startHole: model.startHole))
                 .fixedSize(horizontal: false, vertical: true)
             if let course = setupCourse, !course.tees.isEmpty {
-                teeStepper(current: PlayerTeeStore.tee(player: rival.name, in: course), course: course) { tee in
-                    PlayerTeeStore.set(tee, player: rival.name)
+                teeStepper(current: PlayerTeeStore.tee(player: rival.name, alias: rival.alias, in: course), course: course) { tee in
+                    PlayerTeeStore.set(tee, player: rival.name, alias: rival.alias)
                 }
                 .id(myTeeRefresh)
             }

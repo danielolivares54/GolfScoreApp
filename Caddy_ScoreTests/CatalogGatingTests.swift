@@ -162,6 +162,18 @@ struct PlayerTeeTests {
         #expect(cgm.cycle(from: nil, by: -1)?.id == cgm.tees.last?.id)       // hacia atrás desde "sin elegir" va al último
     }
 
+    @Test func anAliasFindsThePlayerInTheDirectoryAndItsTee() {
+        let dir = PlayerDirectoryStore(fileName: "tee-\(UUID().uuidString).json")
+        dir.upsert(name: "JL Castro", alias: "JL", strokesVsBase: 0, preferredTagId: nil, opponentTee: "Doradas")
+        let d = defaults()
+        // Escrito solo "JL" en el Setup: no es el nombre completo, pero sí el alias del directorio.
+        #expect(PlayerTeeStore.tee(player: "JL", alias: "JL", in: cgm, defaults: d, directory: dir)?.id == "doradas-h")
+        #expect(PlayerTeeStore.tee(player: "JL", in: cgm, defaults: defaults(), directory: dir) == nil)   // sin alias no hay forma de saberlo
+        // Cambiarlo en el Setup se guarda también en el directorio, para el siguiente match.
+        PlayerTeeStore.set(cgm.tee(named: "Verdes"), player: "JL", alias: "JL", defaults: d, directory: dir)
+        #expect(dir.entries.first { $0.alias == "JL" }?.opponentTee == "Verdes")
+    }
+
     @Test func whatIsChosenInTheSetupWinsAndIsRemembered() {
         let d = defaults()
         #expect(PlayerTeeStore.tee(player: "Fernando", in: cgm, defaults: d, directory: nil) == nil)

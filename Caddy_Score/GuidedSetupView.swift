@@ -460,8 +460,8 @@ struct GuidedSetupView: View {
                                     }
                                 }
                                 if let course = setupCourse, !course.tees.isEmpty {
-                                    teeStepper(label: "Sale de", current: PlayerTeeStore.tee(player: p.name, in: course), course: course) { tee in
-                                        PlayerTeeStore.set(tee, player: p.name)
+                                    teeStepper(label: "Sale de", current: PlayerTeeStore.tee(player: p.name, alias: p.alias, in: course), course: course) { tee in
+                                        PlayerTeeStore.set(tee, player: p.name, alias: p.alias)
                                     }
                                     .id(teeRefresh)
                                 }
