@@ -171,3 +171,37 @@ struct PlayerTeeTests {
         #expect(PlayerTeeStore.tee(player: "Fernando", in: cgm, defaults: d, directory: nil) == nil)
     }
 }
+
+/// Los campos de Acapulco salen de las tarjetas (xlsx): forma válida, y el reloj toma par y distancia del campo elegido.
+struct AcapulcoCoursesTests {
+    @Test func everyCourseHasAValidShape() {
+        let courses = CourseCatalog.all
+        #expect(courses.map(\.id).count == Set(courses.map(\.id)).count && courses.count == 4)
+        for c in courses {
+            #expect(c.holes.count == 18 && c.holes.map(\.par).reduce(0, +) == 72)
+            #expect(c.holes.map(\.si).sorted() == Array(1...18))
+            #expect(!c.tees.isEmpty && c.tees.allSatisfy { $0.yards.count == 18 && $0.yards.allSatisfy { $0 > 0 } })
+            #expect(c.tees.map(\.id).count == Set(c.tees.map(\.id)).count)
+        }
+    }
+
+    @Test func teesGetShorterFromTheBackToTheFront() {
+        // Negras ≥ Azules ≥ Blancas ≥ Doradas/Amarillas ≥ Rojas en el total de cada campo.
+        for c in [CourseCatalog.turtleDunes, CourseCatalog.tresVidas, CourseCatalog.princessImperial] {
+            let totals = c.tees.map { $0.yards.reduce(0, +) }
+            #expect(totals == totals.sorted(by: >))
+        }
+    }
+
+    @MainActor @Test func theWatchContextFollowsTheChosenCourse() {
+        let m = DemoFixture.make()
+        let slang = VoiceSlangStore(defaults: UserDefaults(suiteName: "ctx-\(UUID().uuidString)")!)
+        m.setCourse(CourseCatalog.turtleDunes, resetScores: false)
+        defer { MyTeeStore.set(nil, courseId: "TURTLE") }
+        MyTeeStore.set("rojas", courseId: "TURTLE")
+        let c = WatchCardCoordinator(match: m, currentHole: { 6 }, transcriber: { _, _ in "" },
+                                     extractor: { _, _ in VoiceHoleExtraction() }, slang: slang, hasKey: { true })
+        let ctx = c.context(course: m.courseName)
+        #expect(ctx.course == "Turtle Dunes" && ctx.hole == 6 && ctx.par == 5 && ctx.teeDistance == 488)   // hoyo 6 de Turtle Dunes: par 5, 488 desde las rojas
+    }
+}

@@ -42,7 +42,7 @@ private struct HomeView: View {
         VStack(spacing: 8) {
             if let ctx = model.context {
                 VStack(spacing: 0) {
-                    Text("ESPERANDO").font(.wCaps).foregroundStyle(CSW.secondary)
+                    Text(ctx.course.isEmpty ? "ESPERANDO" : ctx.course.uppercased()).font(.wCaps).foregroundStyle(CSW.secondary).lineLimit(1).minimumScaleFactor(0.7)
                     Text("HOYO \(ctx.hole)").font(.system(.title2, weight: .heavy).monospacedDigit()).foregroundStyle(CSW.ink)
                     Text("PAR \(ctx.par)" + (ctx.teeDistance.map { " · \($0)" } ?? "")).font(.wCaps).foregroundStyle(CSW.secondary)
                 }

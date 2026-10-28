@@ -88,11 +88,12 @@ struct SetupV2: View {
                 Button {
                     if isLast {
                         model.save()
+                        WatchBridgeV2.shared.push()
                         dismiss()
                     } else {
                         // Campo + hoyo de salida se aplican al avanzar (como en la v1): los golpes se reparten de nuevo
                         // y se apagan Carry, Ajuste 50 y Doble Press si estaban activos.
-                        if stepIndex == 0 { model.applyCourseAndStartHole() }
+                        if stepIndex == 0 { model.applyCourseAndStartHole(); WatchBridgeV2.shared.push() }   // el reloj toma el campo nuevo (par y distancia)
                         stepIndex += 1
                     }
                 } label: {

@@ -399,8 +399,50 @@ enum CourseCatalog {
         ])
     }()
 
+    /// Un campo con una sola tabla de HCP para todos los tees (sin tabla aparte de Damas).
+    private static func single(id: String, name: String, pars: [Int], sis: [Int], tees: [(id: String, name: String, yards: [Int])]) -> CourseModel {
+        let holes = (1...18).map { HoleModel(number: $0, par: pars[$0 - 1], si: sis[$0 - 1]) }
+        return CourseModel(id: id, name: name, holes: holes,
+                           tees: tees.map { TeeModel(id: $0.id, name: $0.name, usesDamasIndex: false, ratingSlope: "", yards: $0.yards) })
+    }
+
+    /// Turtle Dunes (Acapulco): par, HCP y distancias por tee de la tarjeta (Tarjetas_de_Golf_Acapulco.xlsx, 27-oct-2026). Un solo HCP para todos los tees.
+    static let turtleDunes: CourseModel = single(id: "TURTLE", name: "Turtle Dunes",
+        pars: [4, 5, 4, 3, 4, 5, 4, 3, 4, 4, 4, 5, 4, 4, 3, 4, 3, 5],
+        sis: [5, 11, 9, 13, 17, 7, 3, 15, 1, 2, 6, 8, 14, 16, 18, 4, 12, 10],
+        tees: [
+            ("negras", "Negras", [425, 556, 386, 213, 312, 602, 482, 184, 479, 462, 401, 577, 402, 339, 159, 468, 236, 561]),
+            ("azules", "Azules", [405, 534, 366, 196, 291, 585, 468, 164, 458, 447, 382, 559, 382, 320, 155, 458, 215, 532]),
+            ("blancas", "Blancas", [375, 514, 344, 170, 283, 568, 438, 138, 429, 413, 359, 540, 365, 301, 144, 428, 195, 515]),
+            ("doradas", "Doradas", [341, 458, 307, 152, 267, 554, 394, 115, 365, 399, 309, 478, 333, 260, 126, 389, 172, 463]),
+            ("rojas", "Rojas", [302, 429, 278, 127, 245, 488, 336, 87, 316, 366, 276, 423, 281, 229, 111, 374, 131, 404])
+        ])
+
+    /// Tres Vidas (Acapulco): par, HCP y distancias por tee de la tarjeta (Tarjetas_de_Golf_Acapulco.xlsx, 27-oct-2026). Un solo HCP para todos los tees.
+    static let tresVidas: CourseModel = single(id: "TRESVIDAS", name: "Tres Vidas",
+        pars: [5, 4, 3, 4, 4, 3, 4, 5, 4, 5, 4, 3, 5, 4, 3, 4, 4, 4],
+        sis: [5, 3, 7, 17, 1, 13, 15, 9, 11, 10, 2, 18, 6, 14, 16, 4, 8, 12],
+        tees: [
+            ("negras", "Negras", [528, 439, 193, 383, 454, 190, 412, 550, 425, 555, 472, 215, 540, 418, 180, 445, 426, 434]),
+            ("azules", "Azules", [513, 418, 174, 370, 445, 175, 390, 530, 405, 532, 453, 203, 520, 400, 165, 425, 410, 420]),
+            ("blancas", "Blancas", [490, 387, 169, 360, 415, 160, 375, 505, 385, 510, 425, 185, 495, 380, 150, 400, 385, 392]),
+            ("amarillas", "Amarillas", [450, 355, 145, 330, 380, 140, 340, 470, 350, 465, 385, 155, 460, 345, 130, 360, 350, 356]),
+            ("rojas", "Rojas", [405, 310, 120, 285, 335, 115, 295, 415, 300, 410, 330, 125, 405, 290, 105, 315, 300, 306])
+        ])
+
+    /// Princess Imperial (Acapulco): par, HCP y distancias por tee de la tarjeta (Tarjetas_de_Golf_Acapulco.xlsx, 27-oct-2026). Un solo HCP para todos los tees.
+    static let princessImperial: CourseModel = single(id: "PRINCESS", name: "Princess Imperial",
+        pars: [5, 4, 3, 4, 4, 4, 3, 5, 4, 4, 5, 3, 4, 4, 3, 4, 5, 4],
+        sis: [7, 5, 15, 11, 17, 3, 13, 8, 12, 2, 10, 6, 16, 4, 18, 14, 1, 9],
+        tees: [
+            ("azules", "Azules", [527, 374, 200, 377, 294, 340, 169, 451, 325, 355, 485, 150, 360, 375, 165, 380, 495, 385]),
+            ("blancas", "Blancas", [506, 356, 182, 366, 282, 320, 145, 442, 308, 338, 470, 140, 342, 358, 150, 365, 480, 365]),
+            ("amarillas", "Amarillas", [487, 332, 151, 355, 271, 296, 123, 432, 301, 320, 455, 128, 325, 340, 135, 345, 460, 345]),
+            ("rojas", "Rojas", [468, 322, 140, 345, 260, 283, 100, 373, 278, 298, 420, 110, 300, 315, 115, 310, 425, 310])
+        ])
+
     static var `default`: CourseModel { cgm }
-    static var all: [CourseModel] { [cgm] }
+    static var all: [CourseModel] { [cgm, turtleDunes, tresVidas, princessImperial] }
 }
 
 class MatchManager: ObservableObject {
