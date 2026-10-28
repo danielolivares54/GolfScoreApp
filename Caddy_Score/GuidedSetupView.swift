@@ -379,17 +379,25 @@ struct GuidedSetupView: View {
 
     private var setupCourse: CourseModel? { CourseCatalog.all.first { $0.id == selectedCourseId } }
 
-    /// "Sale de": mismo estilo que los strokes (− tee +), recorre los tees del campo y pasa por "—" (sin elegir).
+    /// "Sale de": un menú desplegable, igual que "Apuesta". Lista los tees del campo y "Sin elegir".
     private func teeStepper(label: String, current: TeeModel?, course: CourseModel, change: @escaping (TeeModel?) -> Void) -> some View {
         HStack {
             Text(label).font(.system(size: 11.5)).foregroundColor(.cMuted)
             Spacer()
-            HStack(spacing: 0) {
-                strokeBtn(icon: "minus") { change(course.cycle(from: current, by: -1)); teeRefresh += 1 }
-                Text(current?.displayName ?? "—")
-                    .font(.system(size: 14, weight: .semibold)).foregroundColor(current == nil ? .cMuted : .cInk)
-                    .frame(minWidth: 120).multilineTextAlignment(.center)
-                strokeBtn(icon: "plus") { change(course.cycle(from: current, by: 1)); teeRefresh += 1 }
+            Menu {
+                ForEach(course.tees) { tee in
+                    Button(tee.displayName + (tee.id == current?.id ? "  ✓" : "")) { change(tee); teeRefresh += 1 }
+                }
+                Button("Sin elegir") { change(nil); teeRefresh += 1 }
+            } label: {
+                HStack(spacing: 3) {
+                    Text(current?.displayName ?? "Elegir")
+                        .font(.system(size: 12, weight: .bold)).foregroundColor(.cFairway)
+                    Image(systemName: "chevron.down").font(.system(size: 8, weight: .bold)).foregroundColor(.cFairway)
+                }
+                .padding(.horizontal, 10).padding(.vertical, 5)
+                .background(Color.cBg).cornerRadius(8)
+                .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.cFairway.opacity(0.4), lineWidth: 1))
             }
         }
     }

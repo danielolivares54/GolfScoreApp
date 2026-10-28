@@ -201,17 +201,25 @@ struct SetupV2: View {
 
     private var setupCourse: CourseModel? { CourseCatalog.all.first { $0.id == model.courseId } }
 
-    /// "Sale de": el mismo stepper que los strokes, pero recorre los tees del campo. Lo que se elige queda guardado para el siguiente match.
+    /// "Sale de": un menú desplegable, igual que "Apuesta". Lista los tees del campo y "Sin elegir"; lo elegido queda guardado para el siguiente match.
     private func teeStepper(current: TeeModel?, course: CourseModel, change: @escaping (TeeModel?) -> Void) -> some View {
         HStack(spacing: 8) {
             Text("Sale de").font(.v2Label).foregroundStyle(CSV2.secondary)
             Spacer(minLength: 0)
-            StepButtonV2(symbol: "minus") { change(course.cycle(from: current, by: -1)); myTeeRefresh += 1 }
-                .accessibilityLabel("Tee anterior")
-            Text(current?.displayName ?? "—").font(.v2Body).foregroundStyle(current == nil ? CSV2.secondary : CSV2.ink)
-                .frame(minWidth: 110)
-            StepButtonV2(symbol: "plus") { change(course.cycle(from: current, by: 1)); myTeeRefresh += 1 }
-                .accessibilityLabel("Tee siguiente")
+            Menu {
+                ForEach(course.tees) { tee in
+                    Button(tee.displayName + (tee.id == current?.id ? "  ✓" : "")) { change(tee); myTeeRefresh += 1 }
+                }
+                Button("Sin elegir") { change(nil); myTeeRefresh += 1 }
+            } label: {
+                HStack(spacing: 6) {
+                    Text(current?.displayName ?? "Elegir").font(.v2Body)
+                    Image(systemName: "chevron.down").font(.system(.caption, weight: .bold))
+                }
+                .foregroundStyle(CSV2.green)
+                .padding(.horizontal, 12).frame(minHeight: 44)
+                .overlay(RoundedRectangle(cornerRadius: 10).stroke(CSV2.green.opacity(0.4)))
+            }
         }
     }
 
