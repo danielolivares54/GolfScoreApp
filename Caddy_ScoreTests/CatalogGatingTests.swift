@@ -7,6 +7,7 @@
 //  caso de estudio cambiando solo `betCatalog` (las definiciones ACTIVAS), sin tocar el catálogo guardado.
 //
 
+import Foundation
 import Testing
 @testable import Caddy_Score
 
@@ -98,5 +99,75 @@ struct CatalogGatingTests {
         let custom = BetDefinition(tag: "SAND", name: "Sandy par", type: .individual, mode: .manual, units: 1, description: "")
         #expect(store.isBuiltIn(builtIn))
         #expect(!store.isBuiltIn(custom))
+    }
+}
+
+/// El catálogo de CGM sale de la tarjeta impresa vigente: sus totales y sus índices deben cuadrar con lo impreso.
+struct CourseCatalogTeesTests {
+    private let cgm = CourseCatalog.cgm
+
+    @Test func theIndexesAreTheOnesOnTheCard() {
+        // Caballeros: el 13 y el 16 eran 18 y 14 en la app; la tarjeta dice 14 y 18.
+        #expect(cgm.holes.map(\.si) == [13, 3, 17, 1, 15, 5, 11, 9, 7, 6, 4, 10, 14, 16, 8, 18, 2, 12])
+        #expect(cgm.damasSI == [13, 5, 17, 3, 15, 1, 11, 9, 7, 2, 4, 10, 12, 18, 8, 16, 6, 14])
+        #expect(cgm.holes.map(\.si).sorted() == Array(1...18) && cgm.damasSI.sorted() == Array(1...18))
+        #expect(cgm.holes.map(\.par) == [4, 5, 3, 4, 3, 5, 4, 4, 4, 4, 5, 4, 4, 3, 4, 3, 5, 4])
+    }
+
+    @Test func eachTeeAddsUpToTheTotalsPrintedOnTheCard() {
+        let printed: [String: (Int, Int)] = ["azules-h": (3684, 3665), "blancas-h": (3379, 3404), "doradas-h": (3110, 3176),
+                                             "verdes-h": (2878, 2876), "plateadas-h": (2217, 2253), "blancas-d": (3379, 3404),
+                                             "rojas-d": (2859, 2863), "rosas-d": (2217, 2253)]
+        #expect(cgm.tees.count == printed.count)
+        for tee in cgm.tees {
+            #expect(tee.yards.count == 18)
+            let want = printed[tee.id]
+            #expect(tee.yards.prefix(9).reduce(0, +) == want?.0 && tee.yards.suffix(9).reduce(0, +) == want?.1)
+        }
+    }
+
+    @Test func whoLeavesFromTheRedsGetsTheDamasIndexAndTheirOwnDistance() {
+        let reds = cgm.tees.first { $0.id == "rojas-d" }
+        let blues = cgm.tees.first { $0.id == "azules-h" }
+        #expect(cgm.si(hole: 10, tee: reds) == 2 && cgm.si(hole: 13, tee: reds) == 12 && cgm.si(hole: 6, tee: reds) == 1)
+        #expect(cgm.si(hole: 10, tee: blues) == 6 && cgm.si(hole: 6, tee: blues) == 5)
+        #expect(cgm.si(hole: 10, tee: nil) == 6)                       // sin tee: el de siempre
+        #expect(cgm.yards(hole: 3, tee: reds) == 120 && cgm.yards(hole: 3, tee: blues) == 175)
+        #expect(cgm.yards(hole: 3, tee: nil) == nil)
+    }
+}
+
+/// El tee de cada jugador: default del directorio, lo que se elige en el Setup manda y se puede recorrer con el stepper.
+struct PlayerTeeTests {
+    private let cgm = CourseCatalog.cgm
+    private func defaults() -> UserDefaults { UserDefaults(suiteName: "tee-\(UUID().uuidString)")! }
+
+    @Test func theDirectoryTextFindsItsTeeAndDoesNotGuessTheRest() {
+        #expect(cgm.tee(named: "Verdes")?.id == "verdes-h")
+        #expect(cgm.tee(named: " doradas ")?.id == "doradas-h")
+        #expect(cgm.tee(named: "Blancas")?.id == "blancas-h")                // a secas: Caballeros
+        #expect(cgm.tee(named: "Blancas (Damas)")?.id == "blancas-d")
+        #expect(cgm.tee(named: "Rojas")?.id == "rojas-d")
+        for unknown in ["Ajuste", "Verdes / Doradas", "Platino", "", nil] { #expect(cgm.tee(named: unknown) == nil) }
+    }
+
+    @Test func theStepperWalksThroughTheTeesAndPassesBySinElegir() {
+        var seen: [String] = []
+        var tee: TeeModel? = nil
+        for _ in 0..<cgm.tees.count + 1 {
+            tee = cgm.cycle(from: tee, by: 1)
+            seen.append(tee?.id ?? "nil")
+        }
+        #expect(seen.first == cgm.tees.first?.id && seen.last == "nil" && seen.count == cgm.tees.count + 1)
+        #expect(cgm.cycle(from: nil, by: -1)?.id == cgm.tees.last?.id)       // hacia atrás desde "sin elegir" va al último
+    }
+
+    @Test func whatIsChosenInTheSetupWinsAndIsRemembered() {
+        let d = defaults()
+        #expect(PlayerTeeStore.tee(player: "Fernando", in: cgm, defaults: d, directory: nil) == nil)
+        PlayerTeeStore.set(cgm.tee(named: "Rojas"), player: "Fernando", defaults: d, directory: nil)
+        #expect(PlayerTeeStore.tee(player: "fernando", in: cgm, defaults: d, directory: nil)?.id == "rojas-d")
+        PlayerTeeStore.set(nil, player: "Fernando", defaults: d, directory: nil)   // quitarlo a propósito se respeta
+        #expect(PlayerTeeStore.tee(player: "Fernando", in: cgm, defaults: d, directory: nil) == nil)
     }
 }

@@ -25,7 +25,7 @@ struct WatchContextDTO: Codable, Equatable {
     var par: Int
     var course: String
     var hasKey: Bool
-    /// Distancia del hoyo desde el tee de salida. Por ahora fija (ver `WatchCardCoordinator.placeholderTeeDistance`); luego sale de la tarjeta del campo.
+    /// Distancia del hoyo desde el tee de salida. Sale del tee de salida que el usuario eligió en el Setup (tarjeta del campo); nil si no eligió.
     var teeDistance: Int? = nil
 }
 

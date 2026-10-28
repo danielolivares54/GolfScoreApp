@@ -26,6 +26,8 @@ struct SetupV2: View {
     @State private var showCatalog = false
     /// Rival cuya apuesta (valores y qué cuenta) se está corrigiendo.
     @State private var editingBetAlias: String?
+    /// Se refresca al elegir tee (el tee vive en el teléfono, no en el borrador del Setup).
+    @State private var myTeeRefresh = 0
 
     private let stepTitles = ["Campo", "Oponentes", "Parejas"]
 
@@ -124,6 +126,7 @@ struct SetupV2: View {
             toolsRow
             addPlayerCard
             playersCard
+            myTeeCard
             rivalsCard
         default:
             basePairCard
@@ -190,6 +193,46 @@ struct SetupV2: View {
                 }
                 .padding(CSV2.s2)
             }
+        }
+    }
+
+    // MARK: Tee de salida de cada jugador
+
+    private var setupCourse: CourseModel? { CourseCatalog.all.first { $0.id == model.courseId } }
+
+    /// "Sale de": el mismo stepper que los strokes, pero recorre los tees del campo. Lo que se elige queda guardado para el siguiente match.
+    private func teeStepper(current: TeeModel?, course: CourseModel, change: @escaping (TeeModel?) -> Void) -> some View {
+        HStack(spacing: 8) {
+            Text("Sale de").font(.v2Label).foregroundStyle(CSV2.secondary)
+            Spacer(minLength: 0)
+            StepButtonV2(symbol: "minus") { change(course.cycle(from: current, by: -1)); myTeeRefresh += 1 }
+                .accessibilityLabel("Tee anterior")
+            Text(current?.displayName ?? "—").font(.v2Body).foregroundStyle(current == nil ? CSV2.secondary : CSV2.ink)
+                .frame(minWidth: 110)
+            StepButtonV2(symbol: "plus") { change(course.cycle(from: current, by: 1)); myTeeRefresh += 1 }
+                .accessibilityLabel("Tee siguiente")
+        }
+    }
+
+    /// Tu tee: de ahí sale la distancia que ve el reloj.
+    @ViewBuilder private var myTeeCard: some View {
+        if let course = setupCourse, !course.tees.isEmpty {
+            let me = matchManager.players.first { $0.alias == matchManager.yoAlias }?.name ?? "Tú"
+            VStack(alignment: .leading, spacing: 8) {
+                sectionTitle("Tu tee")
+                CardV2 {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(me).font(.v2Name).foregroundStyle(CSV2.ink)
+                        teeStepper(current: MyTeeStore.tee(courseId: course.id), course: course) { tee in
+                            MyTeeStore.set(tee?.id, courseId: course.id)
+                            WatchBridgeV2.shared.push()
+                        }
+                        Text("La distancia de cada hoyo en el reloj sale de este tee.").font(.v2Label).foregroundStyle(CSV2.secondary)
+                    }
+                    .padding(CSV2.s2)
+                }
+            }
+            .id(myTeeRefresh)
         }
     }
 
@@ -390,6 +433,12 @@ struct SetupV2: View {
             StrokeTextV2(receiver: receiver, amount: abs(strokes),
                          detail: matchManager.strokeHolesText(total: strokes, startHole: model.startHole))
                 .fixedSize(horizontal: false, vertical: true)
+            if let course = setupCourse, !course.tees.isEmpty {
+                teeStepper(current: PlayerTeeStore.tee(player: rival.name, in: course), course: course) { tee in
+                    PlayerTeeStore.set(tee, player: rival.name)
+                }
+                .id(myTeeRefresh)
+            }
             HStack {
                 Text("Apuesta").font(.v2Label).foregroundStyle(CSV2.secondary)
                 Spacer()

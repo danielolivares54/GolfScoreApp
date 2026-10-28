@@ -102,6 +102,21 @@ struct WatchCardCoordinatorTests {
         #expect(c.answer == nil && c.card().applied == nil)
     }
 
+    @Test func theWatchGetsTheDistanceFromTheTeeTheUserLeavesFrom() {
+        let m = DemoFixture.make()
+        let c = make(m, VoiceHoleExtraction())
+        let course = m.courseId
+        defer { MyTeeStore.set(nil, courseId: course) }
+        MyTeeStore.set(nil, courseId: course)
+        #expect(c.context(course: m.courseName).teeDistance == nil)          // sin tee elegido no se inventa una distancia
+        MyTeeStore.set("rojas-d", courseId: course)
+        let hole = c.context(course: m.courseName).hole
+        let expected = CourseCatalog.all.first { $0.id == course }?.tees.first { $0.id == "rojas-d" }?.yards[hole - 1]
+        #expect(expected != nil && c.context(course: m.courseName).teeDistance == expected)
+        MyTeeStore.set("azules-h", courseId: course)
+        #expect(c.context(course: m.courseName).teeDistance != expected)
+    }
+
     @Test func applyIsBlockedWhileThereAreDoubts() async {
         let m = DemoFixture.make()
         let c = make(m, VoiceHoleExtraction(scores: [.init(jugador: "DAN", gross: 4, putts: nil), .init(jugador: "DAN", gross: 9, putts: nil)]))

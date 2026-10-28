@@ -32,10 +32,40 @@ struct HoleModel {
     let si: Int
 }
 
+/// Un tee de salida del campo (Azules, Blancas, Rojas…): sus distancias y qué tabla de índices (ventaja) le toca.
+struct TeeModel: Identifiable, Equatable {
+    let id: String
+    let name: String
+    /// Los tees de Damas reparten los golpes con el índice de Damas; los demás, con el de Caballeros.
+    let usesDamasIndex: Bool
+    let ratingSlope: String
+    /// Distancia por hoyo (18 valores, en yardas).
+    let yards: [Int]
+
+    /// Como se lee en pantalla: "Blancas" existe para Caballeros y para Damas, así que se aclara.
+    var displayName: String { usesDamasIndex ? "\(name) (Damas)" : name }
+}
+
 struct CourseModel {
     let id: String
     let name: String
+    /// Hoyos con el índice de Caballeros (el de siempre).
     let holes: [HoleModel]
+    /// Índice (ventaja) de Damas por hoyo (18 valores); vacío si el campo no lo tiene.
+    var damasSI: [Int] = []
+    var tees: [TeeModel] = []
+
+    /// El índice del hoyo para quien sale de ese tee. Sin tee (o sin tabla de Damas) es el de siempre.
+    func si(hole: Int, tee: TeeModel?) -> Int {
+        if let tee, tee.usesDamasIndex, damasSI.count == 18, (1...18).contains(hole) { return damasSI[hole - 1] }
+        return holes.first { $0.number == hole }?.si ?? 0
+    }
+
+    /// Distancia del hoyo desde ese tee; nil si no hay dato.
+    func yards(hole: Int, tee: TeeModel?) -> Int? {
+        guard let tee, tee.yards.count == 18, (1...18).contains(hole) else { return nil }
+        return tee.yards[hole - 1]
+    }
 }
 
 struct LaneModel: Identifiable {
@@ -290,12 +320,83 @@ struct MatchBetSwitches: Codable, Equatable {
     }
 }
 
+extension CourseModel {
+    private static func plain(_ text: String) -> String {
+        text.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current).trimmingCharacters(in: .whitespaces)
+    }
+
+    /// El tee que nombra un texto del directorio ("Verdes", "Rojas (Damas)"). "Blancas" a secas es el de Caballeros. Si no coincide con
+    /// ninguno ("Ajuste", "Verdes / Doradas") no se adivina: nil.
+    func tee(named text: String?) -> TeeModel? {
+        guard let text, !text.isEmpty else { return nil }
+        let wanted = Self.plain(text)
+        if let exact = tees.first(where: { Self.plain($0.displayName) == wanted }) { return exact }
+        return tees.first { Self.plain($0.name) == wanted && !$0.usesDamasIndex } ?? tees.first { Self.plain($0.name) == wanted }
+    }
+
+    /// El tee que sigue (o el anterior) en la lista, dando la vuelta; pasa por "sin elegir" (nil) entre el último y el primero.
+    func cycle(from current: TeeModel?, by step: Int) -> TeeModel? {
+        let options: [TeeModel?] = [nil] + tees.map { Optional($0) }
+        let index = options.firstIndex { $0?.id == current?.id } ?? 0
+        return options[((index + step) % options.count + options.count) % options.count]
+    }
+}
+
+/// El tee de cada jugador rival (por nombre). Lo que se elige en el Setup se guarda aquí y en el directorio, para el siguiente match;
+/// si no hay nada guardado, el default es lo que ya dice el directorio.
+enum PlayerTeeStore {
+    private static func key(_ name: String) -> String { "playerTee.\(name.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current).lowercased())" }
+
+    static func tee(player name: String, in course: CourseModel, defaults: UserDefaults = .standard,
+                    directory: PlayerDirectoryStore? = .shared) -> TeeModel? {
+        if let saved = defaults.string(forKey: key(name)) { return course.tee(named: saved) }
+        let entry = directory?.entries.first { $0.name.caseInsensitiveCompare(name) == .orderedSame }
+        return course.tee(named: entry?.opponentTee)
+    }
+
+    static func set(_ tee: TeeModel?, player name: String, defaults: UserDefaults = .standard, directory: PlayerDirectoryStore? = .shared) {
+        defaults.set(tee?.displayName ?? "", forKey: key(name))
+        if let directory, let entry = directory.entries.first(where: { $0.name.caseInsensitiveCompare(name) == .orderedSame }) {
+            directory.setDetails(id: entry.id, opponentTee: tee?.displayName, myTee: entry.myTee, adjustmentNotes: entry.adjustmentNotes,
+                                 comentario: entry.comentario, strokeAnt: entry.strokeAnt)
+        }
+    }
+}
+
+/// El tee de salida del usuario en cada campo (se guarda en el teléfono). De ahí sale la distancia que ve el reloj.
+enum MyTeeStore {
+    private static func key(_ courseId: String) -> String { "myTeeId.\(courseId)" }
+
+    static func teeId(courseId: String) -> String? { UserDefaults.standard.string(forKey: key(courseId)) }
+
+    static func set(_ teeId: String?, courseId: String) {
+        if let teeId { UserDefaults.standard.set(teeId, forKey: key(courseId)) } else { UserDefaults.standard.removeObject(forKey: key(courseId)) }
+    }
+
+    static func tee(courseId: String) -> TeeModel? {
+        guard let id = teeId(courseId: courseId) else { return nil }
+        return CourseCatalog.all.first { $0.id == courseId }?.tees.first { $0.id == id }
+    }
+}
+
 enum CourseCatalog {
+    /// CGM: pares, índices y distancias de la tarjeta impresa vigente (foto del 27-oct-2026; copia en docs/CGM_TARJETA_POR_TEE.json).
     static let cgm: CourseModel = {
         let pars = [4, 5, 3, 4, 3, 5, 4, 4, 4, 4, 5, 4, 4, 3, 4, 3, 5, 4]
-        let sis = [13, 3, 17, 1, 15, 5, 11, 9, 7, 6, 4, 10, 18, 16, 8, 14, 2, 12]
+        let sis = [13, 3, 17, 1, 15, 5, 11, 9, 7, 6, 4, 10, 14, 16, 8, 18, 2, 12]
         let holes = (1...18).map { HoleModel(number: $0, par: pars[$0 - 1], si: sis[$0 - 1]) }
-        return CourseModel(id: "CGM", name: "CGM", holes: holes)
+        return CourseModel(id: "CGM", name: "CGM", holes: holes,
+                           damasSI: [13, 5, 17, 3, 15, 1, 11, 9, 7, 2, 4, 10, 12, 18, 8, 16, 6, 14],
+                           tees: [
+            TeeModel(id: "azules-h", name: "Azules", usesDamasIndex: false, ratingSlope: "73.3/137", yards: [389, 587, 175, 468, 213, 585, 404, 418, 445, 430, 568, 426, 403, 224, 435, 237, 578, 364]),
+            TeeModel(id: "blancas-h", name: "Blancas", usesDamasIndex: false, ratingSlope: "70.7/133", yards: [367, 534, 162, 414, 177, 558, 357, 396, 414, 415, 544, 400, 365, 182, 408, 198, 548, 344]),
+            TeeModel(id: "doradas-h", name: "Doradas", usesDamasIndex: false, ratingSlope: "68.5/123", yards: [324, 490, 149, 392, 150, 516, 330, 375, 384, 399, 526, 379, 340, 139, 391, 166, 502, 334]),
+            TeeModel(id: "verdes-h", name: "Verdes", usesDamasIndex: false, ratingSlope: "65.9/113", yards: [306, 447, 135, 375, 123, 461, 323, 353, 355, 343, 471, 344, 311, 127, 386, 146, 462, 286]),
+            TeeModel(id: "plateadas-h", name: "Plateadas", usesDamasIndex: false, ratingSlope: "60.3/103", yards: [234, 389, 83, 217, 103, 386, 240, 282, 283, 284, 411, 278, 244, 109, 271, 113, 343, 200]),
+            TeeModel(id: "blancas-d", name: "Blancas", usesDamasIndex: true, ratingSlope: "77.1/148", yards: [367, 534, 162, 414, 177, 558, 357, 396, 414, 415, 544, 400, 365, 182, 408, 198, 548, 344]),
+            TeeModel(id: "rojas-d", name: "Rojas", usesDamasIndex: true, ratingSlope: "70.9/135", yards: [306, 447, 120, 375, 123, 461, 319, 353, 355, 343, 471, 344, 311, 127, 379, 146, 462, 280]),
+            TeeModel(id: "rosas-d", name: "Rosas", usesDamasIndex: true, ratingSlope: "63.8/119", yards: [234, 389, 83, 217, 103, 386, 240, 282, 283, 284, 411, 278, 244, 109, 271, 113, 343, 200])
+        ])
     }()
 
     static var `default`: CourseModel { cgm }
