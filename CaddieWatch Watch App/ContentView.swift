@@ -58,7 +58,7 @@ private struct HomeView: View {
                 Text("Abre Caddie Score en el iPhone").font(.wBody).foregroundStyle(CSW.secondary).multilineTextAlignment(.center)
             }
             WatchPrimaryButton(title: "Dictar") { model.startRecording() }
-                .disabled(model.context == nil || !model.reachable)
+                .disabled(model.context == nil)
             // Menú breve: sin dictar. Cómo voy (F9, B9, presiones, strokes) y los últimos hoyos.
             HStack {
                 Button("Cómo voy") { model.send(.standings) }
@@ -68,7 +68,7 @@ private struct HomeView: View {
             .font(.wCaps).foregroundStyle(CSW.green)
             .disabled(model.context == nil || !model.reachable)
             if model.context != nil, !model.reachable {
-                Text("Abre Caddie Score en el iPhone").font(.wCaps).foregroundStyle(CSW.warning).multilineTextAlignment(.center)
+                Text("iPhone dormido: tu dictado queda en cola").font(.wCaps).foregroundStyle(CSW.warning).multilineTextAlignment(.center)
             }
             if let message = model.card.error ?? failure {
                 Text(message).font(.wCaps).foregroundStyle(CSW.red).multilineTextAlignment(.center)

@@ -87,8 +87,8 @@ final class WatchModel: NSObject, WCSessionDelegate {
     func startRecording() {
         guard phase != .recording else { return }
         speech.stop()
-        // Sin el iPhone no hay a quién mandarle el audio: se avisa antes de dictar, no después de hablar.
-        guard WCSession.default.isReachable else { phase = .failed("Abre Caddie Score en el iPhone y vuelve a dictar."); return }
+        // iOS cierra la app del iPhone si pasan ~15 min sin usarla: dictar NO se bloquea. Si el iPhone no está alcanzable el audio
+        // se encola (transferFile) y la app lo procesa cuando despierte.
         AVAudioApplication.requestRecordPermission { granted in
             Task { @MainActor in
                 guard granted else { self.phase = .failed("Permiso de micrófono denegado. Actívalo en Ajustes del reloj."); return }
@@ -136,7 +136,9 @@ final class WatchModel: NSObject, WCSessionDelegate {
             if self.card.processing { try? await Task.sleep(for: .seconds(45)) }
             guard !Task.isCancelled, self.phase == .sending else { return }
             self.card.processing = false
-            self.phase = .failed("El iPhone no respondió. Abre Caddie Score en el iPhone y vuelve a dictar.")
+            self.phase = .failed(self.queuedWhileAsleep
+                ? "Enviado. Se anota cuando el iPhone despierte; abre Caddie Score para acelerarlo."
+                : "El iPhone no respondió. Abre Caddie Score en el iPhone y vuelve a dictar.")
             WKInterfaceDevice.current().play(.failure)
         }
     }
@@ -149,8 +151,12 @@ final class WatchModel: NSObject, WCSessionDelegate {
 
     /// Con el iPhone alcanzable el clip (unos cientos de KB) viaja como mensaje: llega al instante. `transferFile` es una cola
     /// que puede tardar minutos (y entre simuladores casi no entrega), así que solo es el respaldo.
+    /// El último audio se mandó sin el iPhone alcanzable: queda en cola y se procesa cuando la app del iPhone despierte.
+    private var queuedWhileAsleep = false
+
     private func sendAudio(_ url: URL) {
         let session = WCSession.default
+        queuedWhileAsleep = !session.isReachable
         if session.isReachable, let data = try? Data(contentsOf: url), data.count < 1_000_000 {
             session.sendMessage([WatchKey.audioHole: data], replyHandler: nil) { _ in
                 Task { @MainActor in WCSession.default.transferFile(url, metadata: nil) }

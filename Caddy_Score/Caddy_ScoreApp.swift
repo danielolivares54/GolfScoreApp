@@ -101,6 +101,8 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
     ) -> Bool {
         loadMatchMeta()
+        // El reloj puede despertar la app en segundo plano para entregarle un dictado: la sesión debe estar lista desde el arranque.
+        WatchBridgeV2.shared.activateEarly()
         // Re-register Siri shortcuts on every launch so phrase changes take effect immediately
         Caddy_ScoreAppShortcuts.updateAppShortcutParameters()
         return true

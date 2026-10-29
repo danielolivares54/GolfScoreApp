@@ -19,6 +19,17 @@ final class WatchBridgeV2: NSObject, WCSessionDelegate {
     @MainActor private var holeObserver: Task<Void, Never>?
     private var session: WCSession? { WCSession.isSupported() ? WCSession.default : nil }
 
+    /// Audios que llegaron antes de que el match estuviera listo (iOS despertó la app en segundo plano para entregar un archivo del
+    /// reloj). Se procesan en cuanto arranca `start(match:)`; nada se pierde por haber estado la app cerrada.
+    @MainActor private var pendingAudio: [URL] = []
+
+    /// Se llama en cuanto arranca la app (también en un arranque en segundo plano): deja lista la sesión para recibir lo del reloj.
+    func activateEarly() {
+        guard let session else { return }
+        session.delegate = self
+        session.activate()
+    }
+
     /// Se llama una vez con el MatchManager de la app (el mismo de las vistas).
     @MainActor func start(match: MatchManager) {
         guard coordinator == nil else { return }
@@ -40,6 +51,17 @@ final class WatchBridgeV2: NSObject, WCSessionDelegate {
         coordinator = c
         session?.delegate = self
         session?.activate()
+        // Lo que llegó mientras la app arrancaba (dictados encolados por el reloj) se procesa ahora, en orden.
+        let waiting = pendingAudio
+        pendingAudio = []
+        if !waiting.isEmpty {
+            Task { @MainActor in
+                for url in waiting {
+                    await c.receiveAudio(url)
+                    try? FileManager.default.removeItem(at: url)
+                }
+            }
+        }
         holeObserver = Task { @MainActor [weak self] in
             var last = UserDefaults.standard.integer(forKey: AppKeys.currentHoleIndex)
             for await _ in NotificationCenter.default.notifications(named: UserDefaults.didChangeNotification) {
@@ -96,8 +118,14 @@ final class WatchBridgeV2: NSObject, WCSessionDelegate {
     private func receive(audio: Data) {
         let copy = FileManager.default.temporaryDirectory.appendingPathComponent("watch-\(UUID().uuidString).m4a")
         guard (try? audio.write(to: copy)) != nil else { return }
+        enqueueOrProcess(copy)
+    }
+
+    /// Procesa el audio ya, o lo deja en cola si el match aún no está listo.
+    private func enqueueOrProcess(_ copy: URL) {
         Task { @MainActor in
-            await self.coordinator?.receiveAudio(copy)
+            guard let coordinator = self.coordinator else { self.pendingAudio.append(copy); return }
+            await coordinator.receiveAudio(copy)
             try? FileManager.default.removeItem(at: copy)
         }
     }
@@ -121,9 +149,6 @@ final class WatchBridgeV2: NSObject, WCSessionDelegate {
     func session(_ session: WCSession, didReceive file: WCSessionFile) {
         let copy = FileManager.default.temporaryDirectory.appendingPathComponent("watch-\(UUID().uuidString).m4a")
         do { try FileManager.default.copyItem(at: file.fileURL, to: copy) } catch { return }
-        Task { @MainActor in
-            await self.coordinator?.receiveAudio(copy)
-            try? FileManager.default.removeItem(at: copy)
-        }
+        enqueueOrProcess(copy)
     }
 }
