@@ -57,8 +57,11 @@ private struct HomeView: View {
             } else {
                 Text("Abre Caddie Score en el iPhone").font(.wBody).foregroundStyle(CSW.secondary).multilineTextAlignment(.center)
             }
+            if model.context?.ready == false {   // sin match configurado no hay a quién anotar: primero se configura en el iPhone
+                Text("Primero configura el match en el iPhone").font(.wBody).foregroundStyle(CSW.warning).multilineTextAlignment(.center)
+            }
             WatchPrimaryButton(title: "Dictar") { model.startRecording() }
-                .disabled(model.context == nil)
+                .disabled(model.context == nil || model.context?.ready == false)
             // Menú breve: sin dictar. Cómo voy (F9, B9, presiones, strokes) y los últimos hoyos.
             HStack {
                 Button("Cómo voy") { model.send(.standings) }
@@ -66,7 +69,7 @@ private struct HomeView: View {
                 Button("Últimos 3") { model.send(.explain) }
             }
             .font(.wCaps).foregroundStyle(CSW.green)
-            .disabled(model.context == nil || !model.reachable)
+            .disabled(model.context == nil || !model.reachable || model.context?.ready == false)
             if model.context != nil, !model.reachable {
                 Text("iPhone dormido: tu dictado queda en cola").font(.wCaps).foregroundStyle(CSW.warning).multilineTextAlignment(.center)
             }

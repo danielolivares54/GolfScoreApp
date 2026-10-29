@@ -29,6 +29,8 @@ struct WatchContextDTO: Codable, Equatable {
     var teeDistance: Int? = nil
     /// El último hoyo ya anotado (con scores de todos); nil si aún no hay ninguno. El reloj lo muestra al dictar.
     var lastDone: Int? = nil
+    /// El match está configurado en el iPhone (campo y al menos dos jugadores). Si no, el reloj pide configurarlo primero allá.
+    var ready: Bool = true
 }
 
 /// La tarjeta del hoyo tal como se va a anotar. Todo se calcula en el iPhone.

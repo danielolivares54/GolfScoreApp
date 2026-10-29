@@ -71,6 +71,12 @@ final class WatchCardCoordinator {
         lastHeard = ""
         processing = true
         changed()
+        guard isSetupReady else {
+            error = "Primero configura el match en el iPhone (campo y jugadores)."
+            processing = false
+            changed()
+            return
+        }
         guard hasKey() else {
             error = "Falta la clave de OpenAI en el iPhone."
             processing = false
@@ -256,10 +262,13 @@ final class WatchCardCoordinator {
                             error: error, processing: processing, applied: applied, revision: revision)
     }
 
+    /// Hay un match configurado: campo y al menos dos jugadores. Sin eso no hay a quién anotarle nada.
+    var isSetupReady: Bool { match.players.count >= 2 && !match.courseId.isEmpty }
+
     func context(course: String) -> WatchContextDTO {
         let hole = currentHole()
         return WatchContextDTO(hole: hole, par: match.getHole(hole)?.par ?? 4, course: course, hasKey: hasKey(),
-                               teeDistance: match.myTeeYardsV2(hole: hole), lastDone: match.lastHoleHeldV2())
+                               teeDistance: match.myTeeYardsV2(hole: hole), lastDone: match.lastHoleHeldV2(), ready: isSetupReady)
     }
 
     private func changed() {

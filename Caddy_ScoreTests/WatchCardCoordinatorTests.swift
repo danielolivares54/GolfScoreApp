@@ -166,6 +166,18 @@ struct WatchCardCoordinatorTests {
         }
     }
 
+    @Test func withoutASetupTheWatchAsksToConfigureTheMatchOnTheIPhoneFirst() async {
+        let empty = MatchManager()
+        empty.players = []
+        let c = make(empty, VoiceHoleExtraction())
+        #expect(c.context(course: empty.courseName).ready == false)
+        await c.receiveAudio(audio)
+        #expect(c.card().error?.contains("configura el match") == true && c.draft.cells.isEmpty)
+        // Con el match armado todo sigue igual.
+        let m = DemoFixture.make()
+        #expect(make(m, VoiceHoleExtraction()).context(course: m.courseName).ready)
+    }
+
     @Test func applyIsBlockedWhileThereAreDoubts() async {
         let m = DemoFixture.make()
         let c = make(m, VoiceHoleExtraction(scores: [.init(jugador: "DAN", gross: 4, putts: nil), .init(jugador: "DAN", gross: 9, putts: nil)]))
