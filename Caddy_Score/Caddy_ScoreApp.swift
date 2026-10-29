@@ -26,8 +26,9 @@ struct Caddy_ScoreApp: App {
 enum AppKeys {
     /// Posición del hoyo actual dentro del orden de juego, compartida por la v1 y la v2.
     static let currentHoleIndex = "currentHoleIndex"
-    /// "v1" (default) o "v2".
+    /// "v2" (default) o "v1" (modo Pro: se conserva como opción, pero la app se usa en v2).
     static let uiVersion = "uiVersion"
+    static let uiVersionDefault = "v2"
 }
 
 // MARK: - Carátula (splash dibujado en SwiftUI)
@@ -43,8 +44,8 @@ private struct RootView: View {
     // UN solo match para las dos vistas: RootView es su dueño (@StateObject) y lo pasa a la v1 y a la
     // v2. Así cambiar de vista no pierde nada, tampoco lo que solo vive en memoria.
     @StateObject private var matchManager = MatchManager()
-    // "v1" (default) = pantallas actuales · "v2" = Vista v2 (en construcción, ver docs/DISENO_V2).
-    @AppStorage(AppKeys.uiVersion) private var uiVersion = "v1"
+    // "v2" (default) = Vista v2 · "v1" = modo Pro (las pantallas anteriores, como opción).
+    @AppStorage(AppKeys.uiVersion) private var uiVersion = AppKeys.uiVersionDefault
 
     var body: some View {
         ZStack {

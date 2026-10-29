@@ -109,7 +109,7 @@ struct ContentView: View {
     // El match ya no nace aquí: lo crea RootView y lo comparten la Vista v1 y la v2 (si cada vista
     // creara el suyo, al cambiar de vista se perdería lo que solo vive en memoria: oyes, eventos, notas).
     @ObservedObject private var matchManager: MatchManager
-    @AppStorage(AppKeys.uiVersion) private var uiVersion = "v1"
+    @AppStorage(AppKeys.uiVersion) private var uiVersion = AppKeys.uiVersionDefault
 
     init(matchManager: MatchManager) {
         self.matchManager = matchManager
@@ -275,7 +275,7 @@ struct ContentView: View {
 
             Spacer()
 
-            // Cambia a la Vista v2 (el mismo match, otra apariencia). En la v2 hay un botón para volver.
+            // Cambia a la Vista v2 (la que se usa); la v1 queda como "Modo Pro".
             Button { uiVersion = "v2" } label: {
                 Text("v2")
                     .font(.system(size: 12, weight: .bold))

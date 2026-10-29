@@ -128,7 +128,7 @@ final class WatchCardCoordinator {
             return try await VoiceHolePipeline.propose(transcript: text, match: match, draft: draft, defaultHole: currentHole(),
                                                        slang: slang, extractor: extractor)
         } catch VoiceHoleError.query(let q) {
-            throw Answered(answer: VoiceHolePipeline.shortAnswer(q, match: match, currentHole: draft.hole ?? currentHole(), slang: slang, detail: detail))
+            throw Answered(answer: VoiceHolePipeline.shortAnswer(q, match: match, currentHole: draft.hole ?? currentHole(), slang: slang, detail: detail, forWatch: true))
         }
     }
 
@@ -157,7 +157,13 @@ final class WatchCardCoordinator {
             draft = VoiceHoleDraft()
             recordIds = []
         case .explain:
-            answer = match.watchWhyV2(alias: nil, opponent: nil)
+            var why = match.watchWhyV2(alias: nil, opponent: nil)
+            why.spoken = ""   // lo pidió con un toque: se lee, no se dice
+            answer = why
+        case .standings:
+            var now = match.watchStandingsV2(alias: nil, opponent: nil)
+            now.spoken = ""
+            answer = now
         case .discard:
             draft = VoiceHoleDraft()
             recordIds = []

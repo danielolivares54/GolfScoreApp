@@ -551,7 +551,7 @@ extension MatchManager {
 
     /// El último hoyo del que ya hay scores de los dos (en el orden de juego).
     /// Todos los números de un match en una línea, con las mismas etiquetas en el reloj, el iPhone y el historial:
-    /// "F9 2 (1 -1) · B9 -1 · Carry $50 · Unid 2 · $300" (entre paréntesis, las presiones abiertas de esa nueve).
+    /// "F9 2 (1 -1) · B9 -1 · Carry $50 · Strokes ROB 3 · Unid 2 · $300" (entre paréntesis, las presiones abiertas de esa nueve).
     func allNumbersLineV2(_ row: ResultadoRowV2, sign: Int) -> String {
         func nine(_ label: String, _ net: Int, _ played: Int, _ open: [Int]) -> String {
             guard played > 0 else { return "\(label) —" }
@@ -560,6 +560,7 @@ extension MatchManager {
         }
         var parts = [nine("F9", row.f9Net, row.f9Played, row.f9Presiones), nine("B9", row.b9Net, row.b9Played, row.b9Presiones)]
         if row.carryActive { parts.append("Carry $\(row.carryMoney * sign)") }
+        if let receiver = row.strokesReceiver, row.strokesAmount > 0 { parts.append("Strokes \(receiver) \(netText(row.strokesAmount))") }
         if row.unitsNet != 0 { parts.append("Unid \(row.unitsNet * sign)") }
         parts.append("$\(row.money * sign)")
         return parts.joined(separator: " · ")

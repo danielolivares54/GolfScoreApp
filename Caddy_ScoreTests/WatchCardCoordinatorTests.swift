@@ -131,6 +131,41 @@ struct WatchCardCoordinatorTests {
         #expect(m.lastHoleHeldV2() != nil)
     }
 
+    @Test func theWatchOnlyAnswersTheShortMenuAndSendsTheRestToTheIPhone() {
+        let m = DemoFixture.make()
+        func q(_ tipo: String, detalle: Bool? = nil) -> ReadbackQueryV2 { .init(tipo: tipo, detalle: detalle) }
+        for allowed in ["estatus", "explicar", "unidades", "nueve", "strokes"] {
+            let a = VoiceHolePipeline.shortAnswer(q(allowed), match: m, currentHole: 6, forWatch: true)
+            #expect(a.text != "Eso ábrelo en el iPhone.")
+        }
+        for blocked in ["dinero", "oyes", "notas", "otro"] {
+            #expect(VoiceHolePipeline.shortAnswer(q(blocked), match: m, currentHole: 6, forWatch: true).text == "Eso ábrelo en el iPhone.")
+        }
+        // El detalle largo (cada apuesta con su dinero) se abre en el iPhone; el iPhone sigue contestándolo.
+        #expect(VoiceHolePipeline.shortAnswer(q("estatus", detalle: true), match: m, currentHole: 6, forWatch: true).text == "Eso ábrelo en el iPhone.")
+        #expect(VoiceHolePipeline.shortAnswer(q("dinero"), match: m, currentHole: 6, forWatch: false).text != "Eso ábrelo en el iPhone.")
+    }
+
+    @Test func theHomeMenuGivesStandingsAndTheLastHolesWithoutVoice() {
+        let m = DemoFixture.make()
+        let c = make(m, VoiceHoleExtraction())
+        c.handle(.standings)
+        #expect(c.answer?.lines.isEmpty == false && c.answer?.spoken == "")
+        let standings = c.answer?.title
+        c.handle(.explain)
+        #expect(c.answer?.title != standings && c.answer?.spoken == "")
+    }
+
+    @Test func everyStandingsLineCarriesTheStrokesOfThatMatch() {
+        let m = DemoFixture.make()
+        let rows = m.detailRowsV2(alias: nil, opponent: nil)
+        let lines = m.watchStandingsV2(alias: nil, opponent: nil).lines
+        #expect(rows.count == lines.count && !rows.isEmpty)
+        for (row, line) in zip(rows, lines) {
+            #expect((line.detail ?? "").contains("Strokes") == (row.strokesReceiver != nil && row.strokesAmount > 0))
+        }
+    }
+
     @Test func applyIsBlockedWhileThereAreDoubts() async {
         let m = DemoFixture.make()
         let c = make(m, VoiceHoleExtraction(scores: [.init(jugador: "DAN", gross: 4, putts: nil), .init(jugador: "DAN", gross: 9, putts: nil)]))

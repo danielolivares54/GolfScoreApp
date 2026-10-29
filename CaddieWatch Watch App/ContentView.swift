@@ -59,6 +59,14 @@ private struct HomeView: View {
             }
             WatchPrimaryButton(title: "Dictar") { model.startRecording() }
                 .disabled(model.context == nil || !model.reachable)
+            // Menú breve: sin dictar. Cómo voy (F9, B9, presiones, strokes) y los últimos hoyos.
+            HStack {
+                Button("Cómo voy") { model.send(.standings) }
+                Spacer()
+                Button("Últimos 3") { model.send(.explain) }
+            }
+            .font(.wCaps).foregroundStyle(CSW.green)
+            .disabled(model.context == nil || !model.reachable)
             if model.context != nil, !model.reachable {
                 Text("Abre Caddie Score en el iPhone").font(.wCaps).foregroundStyle(CSW.warning).multilineTextAlignment(.center)
             }

@@ -118,4 +118,6 @@ enum WatchCommand: Codable, Equatable {
     case discard
     /// Ampliar el update de un hoyo recién anotado a los hoyos anteriores (numérico).
     case explain
+    /// "Cómo voy" desde el menú del inicio del reloj (sin dictar).
+    case standings
 }

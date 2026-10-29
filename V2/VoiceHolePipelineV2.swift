@@ -808,7 +808,15 @@ enum VoiceHolePipeline {
 
     /// La respuesta del reloj y del iPhone. "Cómo voy" son solo nombres y números; "por qué" son los dos hoyos anteriores.
     /// Con "detalle" o cualquier otra pregunta, es la respuesta larga de siempre en texto.
-    static func shortAnswer(_ q: ReadbackQueryV2, match: MatchManager, currentHole: Int, slang: VoiceSlangStore = .shared, detail: Bool = false) -> WatchAnswerDTO {
+    /// Lo que el reloj contesta: cómo voy (F9, B9, presiones, strokes), unidades, un hoyo y los últimos hoyos. El resto se abre en el iPhone.
+    static let watchAllowedTypes: Set<String> = ["estatus", "status", "como_voy", "explicar", "porque", "por_que", "acumulado", "nueve", "vuelta",
+                                                 "presiones", "presion", "strokes", "match", "unidades", "score", "hoyo"]
+
+    static func shortAnswer(_ q: ReadbackQueryV2, match: MatchManager, currentHole: Int, slang: VoiceSlangStore = .shared, detail: Bool = false,
+                            forWatch: Bool = false) -> WatchAnswerDTO {
+        if forWatch, detail || (q.detalle ?? false) || !watchAllowedTypes.contains(q.tipo.lowercased()) {
+            return .plain("Eso ábrelo en el iPhone.")
+        }
         let parties = resolveParties(q, match: match, slang: slang)
         if let error = parties.error { return .plain(error) }
         // El detalle de cómo voy / por qué = la tarjeta: cada apuesta con su conteo y su dinero (para el reloj; el iPhone abre su pantalla).
