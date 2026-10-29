@@ -33,6 +33,9 @@ struct VoiceSheetV2: View {
     @State private var lastWasDetailed = false
     @State private var correctionRoute: VoiceHolePipeline.CorrectionRoute?
 
+    /// Las respuestas se leen en pantalla; no se dicen en voz alta salvo que se active la clave `speakAnswers`.
+    private static var speaksAnswers: Bool { UserDefaults.standard.bool(forKey: "speakAnswers") }
+
     private enum Phase: Equatable { case idle, recording, processing, failed(String) }
     @State private var phase: Phase = .idle
     /// Lo entendido hasta ahora: cada dictada nueva se suma hasta que el hoyo queda resuelto.
@@ -180,7 +183,7 @@ struct VoiceSheetV2: View {
         let answer = VoiceHolePipeline.shortAnswer(q, match: matchManager, currentHole: draft.hole ?? hole, detail: detail)
         lastRequest = .query(q); lastWasDetailed = detail || (q.detalle ?? false)
         readbackText = answer
-        speech.speak(answer.spoken)
+        if Self.speaksAnswers { speech.speak(answer.spoken) }
     }
 
     /// Un match preguntado abre su detalle; varios abren Resultados.
@@ -271,7 +274,7 @@ struct VoiceSheetV2: View {
         let text = matchManager.readbackV2(intent, hole: draft.hole ?? hole, detail: detail)
         lastRequest = .intent(intent); lastWasDetailed = detail
         readbackText = .plain(text)
-        speech.speak(text)
+        if Self.speaksAnswers { speech.speak(text) }
     }
 
     /// Dónde se corrige lo último que se leyó (nil si no hay nada que corregir: dinero, presiones, strokes…).
