@@ -446,6 +446,9 @@ struct VoiceSheetV2: View {
 
     private func start() {
         speech.stop()
+        // Una respuesta vieja no se queda encima de lo que se va a dictar ahora: la pantalla vuelve al micrófono limpio.
+        readbackText = nil
+        lastRequest = nil
         guard AppConfig.hasOpenAIKey else {
             phase = .failed("Falta la clave de OpenAI. Pon tu archivo caddie.env en la carpeta de la app (Archivos > Caddie Score). Ejemplo: caddie.env.example")
             return
