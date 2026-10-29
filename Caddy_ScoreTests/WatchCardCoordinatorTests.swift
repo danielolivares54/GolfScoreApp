@@ -84,7 +84,7 @@ struct WatchCardCoordinatorTests {
         #expect(c.card().applied == nil)
     }
 
-    @Test func anotatingGivesTheNumericUpdateWithoutVoiceAndExpandsToThePreviousHoles() async {
+    @Test func anotatingGivesTheNumericUpdateWithTheSpokenBriefAndExpandsToThePreviousHoles() async {
         let m = DemoFixture.make()
         let c = make(m, VoiceHoleExtraction(scores: [.init(jugador: "DAN", gross: 9, putts: 3)]))
         await c.receiveAudio(audio)
@@ -92,7 +92,7 @@ struct WatchCardCoordinatorTests {
         // El update es lo mismo que "cómo voy" con el hoyo ya anotado, y no se dice en voz alta.
         let expected = m.watchStandingsV2(alias: nil, opponent: nil)
         #expect(c.answer?.lines == expected.lines && c.answer?.title == expected.title)
-        #expect(c.answer?.spoken == "")
+        #expect(c.answer?.spoken.isEmpty == false)   // el brief hablado: "Vas …"
         // "Ampliar": los hoyos anteriores (el último anotado y los anteriores), con neto donde hay stroke.
         c.handle(.explain)
         #expect(c.answer?.title == m.watchWhyV2(alias: nil, opponent: nil).title)
@@ -146,11 +146,11 @@ struct WatchCardCoordinatorTests {
         #expect(VoiceHolePipeline.shortAnswer(q("dinero"), match: m, currentHole: 6, forWatch: false).text != "Eso ábrelo en el iPhone.")
     }
 
-    @Test func theHomeMenuGivesStandingsAndTheLastHolesWithoutVoice() {
+    @Test func theHomeMenuSpeaksTheBriefForStandingsAndIsSilentForTheLastHolesList() {
         let m = DemoFixture.make()
         let c = make(m, VoiceHoleExtraction())
         c.handle(.standings)
-        #expect(c.answer?.lines.isEmpty == false && c.answer?.spoken == "")
+        #expect(c.answer?.lines.isEmpty == false && c.answer?.spoken.isEmpty == false)   // "Cómo voy" se dice como brief
         let standings = c.answer?.title
         c.handle(.explain)
         #expect(c.answer?.title != standings && c.answer?.spoken == "")
@@ -178,6 +178,19 @@ struct WatchCardCoordinatorTests {
         #expect(make(m, VoiceHoleExtraction()).context(course: m.courseName).ready)
     }
 
+    @Test func theSpokenBriefIsShort() {
+        let m = DemoFixture.make()
+        // Un solo match: "Vas 3, 1 contra Roberto, al hoyo 8".
+        let rob = m.watchStandingsV2(alias: nil, opponent: "ROB")
+        let singleMatch = m.detailRowsV2(alias: nil, opponent: "ROB").count == 1
+        #expect(singleMatch ? (rob.spoken.hasPrefix("Vas ") && rob.spoken.contains(" contra ")) : rob.spoken.hasPrefix("Al hoyo"))
+        // Varios: "Al hoyo 8. …" con un renglón por match, sin letanía.
+        let all = m.watchStandingsV2(alias: nil, opponent: nil).spoken
+        #expect(all.hasPrefix("Al hoyo"))
+        #expect(!all.contains("pareja"))      // las parejas se ven en pantalla, no se dicen
+        #expect(all.count < 200)
+    }
+
     @Test func applyIsBlockedWhileThereAreDoubts() async {
         let m = DemoFixture.make()
         let c = make(m, VoiceHoleExtraction(scores: [.init(jugador: "DAN", gross: 4, putts: nil), .init(jugador: "DAN", gross: 9, putts: nil)]))
@@ -203,7 +216,7 @@ struct WatchCardCoordinatorTests {
         let answer = try #require(asks.answer)
         #expect(asks.card().error == nil && asks.draft.isEmpty && !asks.card().processing)
         #expect(!answer.lines.isEmpty && answer.lines.allSatisfy { !$0.label.isEmpty && !$0.value.isEmpty })
-        #expect(answer.spoken.hasPrefix("Hoyo"))
+        #expect(answer.spoken.hasPrefix("Al hoyo"))
         #expect(try JSONDecoder().decode(WatchAnswerDTO.self, from: JSONEncoder().encode(answer)) == answer)
         // Otra dictada borra la respuesta vieja.
         await asks.receiveAudio(audio)
@@ -378,7 +391,7 @@ struct WatchCardCoordinatorTests {
         #expect(!status.lines.isEmpty && status.text == nil)
         #expect(status.lines.allSatisfy { !$0.value.isEmpty })
         // Dicho en voz alta: nombres y números, sin la letanía de "arriba", "abajo", "presión", "más".
-        #expect(status.spoken.hasPrefix("Hoyo"))
+        #expect(status.spoken.hasPrefix("Al hoyo"))
         for word in ["arriba", "abajo", "presión", "presiones", "más", "pesos"] { #expect(!status.spoken.contains(word)) }
         // Con detalle es la tarjeta: cada apuesta con su conteo y su dinero.
         let long = VoiceHolePipeline.shortAnswer(ReadbackQueryV2(tipo: "estatus", detalle: true), match: m, currentHole: 6)

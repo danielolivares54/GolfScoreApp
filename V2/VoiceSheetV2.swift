@@ -33,8 +33,8 @@ struct VoiceSheetV2: View {
     @State private var lastWasDetailed = false
     @State private var correctionRoute: VoiceHolePipeline.CorrectionRoute?
 
-    /// Las respuestas se leen en pantalla; no se dicen en voz alta salvo que se active la clave `speakAnswers`.
-    private static var speaksAnswers: Bool { UserDefaults.standard.bool(forKey: "speakAnswers") }
+    /// Las respuestas se dicen en voz alta (un brief corto) además de verse; se silencian con la clave `speakAnswers` = false.
+    private static var speaksAnswers: Bool { UserDefaults.standard.object(forKey: "speakAnswers") as? Bool ?? true }
 
     private enum Phase: Equatable { case idle, recording, processing, failed(String) }
     @State private var phase: Phase = .idle

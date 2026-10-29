@@ -644,16 +644,28 @@ extension MatchManager {
         guard !rows.isEmpty else { return .plain("No encontré ese match.") }
         let hole = lastHoleHeld()
         let nine = hole.map(nineOf) ?? "F9"
-        var lines: [WatchAnswerDTO.Line] = [], spoken: [String] = []
+        var lines: [WatchAnswerDTO.Line] = [], spoken: [String] = [], spokenAll: [String] = []
         for row in rows {
             let sign = signFor(row, alias: alias)
             let v = (nine == "B9" ? row.b9Net : row.f9Net) * sign
             let open = (nine == "B9" ? row.b9Presiones : row.f9Presiones).map { $0 * sign }
             let (label, name) = matchLabelsV2(row, alias: alias)
             lines.append(.init(label: label, value: numbersText([v] + open), detail: allNumbersLineV2(row, sign: sign), tone: toneOf(v)))
-            spoken.append("\(name) \(numbersSpoken([v] + open))")
+            // Lo que se dice son los matches individuales (corto); las parejas se ven en pantalla.
+            if case .individual = row.kind { spoken.append("\(name) \(numbersSpoken([v] + open))") }
+            spokenAll.append("\(name) \(numbersSpoken([v] + open))")
         }
-        var text = (hole.map { "Hoyo \($0). " } ?? "") + spoken.joined(separator: ". ") + "."
+        if spoken.isEmpty { spoken = spokenAll }
+        // El brief que se dice (no distrae): un match = "Vas 3, 1 contra Rob, al hoyo 7"; varios = "Al hoyo 7. Rob 3, 1. Ans 5, 3, 1."
+        var text: String
+        if rows.count == 1, let row = rows.first {
+            let sign = signFor(row, alias: alias)
+            let v = (nine == "B9" ? row.b9Net : row.f9Net) * sign
+            let open = (nine == "B9" ? row.b9Presiones : row.f9Presiones).map { $0 * sign }
+            text = "Vas \(numbersSpoken([v] + open)) contra \(matchLabelsV2(row, alias: alias).name)" + (hole.map { ", al hoyo \($0)" } ?? "") + "."
+        } else {
+            text = (hole.map { "Al hoyo \($0). " } ?? "") + spoken.joined(separator: ". ") + "."
+        }
         if let n = pairsNoticeV2() { text += " Ojo: " + pairsNoticeTextV2(n) }
         return WatchAnswerDTO(title: (hole.map { "Hoyo \($0) · " } ?? "") + nine, lines: lines, spoken: text)
     }

@@ -36,8 +36,8 @@ final class WatchModel: NSObject, WCSessionDelegate {
 
     var card = WatchCardDTO.empty
     /// La respuesta a la última pregunta (se ve hasta que se cierra o llega otra dictada).
-    /// El reloj no habla por defecto. Se puede activar con la clave `speakAnswers` (sin pantalla de ajustes por ahora).
-    static var speaksAnswers: Bool { UserDefaults.standard.bool(forKey: "speakAnswers") }
+    /// El reloj habla un brief corto ("Vas 3, 1 contra Rob, al hoyo 7"): no distrae. Se silencia con la clave `speakAnswers` = false.
+    static var speaksAnswers: Bool { UserDefaults.standard.object(forKey: "speakAnswers") as? Bool ?? true }
     var answer: WatchAnswerDTO?
     var context: WatchContextDTO?
     var phase: Phase = .idle
@@ -227,7 +227,6 @@ final class WatchModel: NSObject, WCSessionDelegate {
                 seenAnswerId = a.id
                 if !fromLaunch {
                     answer = a
-                    // Las respuestas se leen en pantalla; el reloj no habla (en la cancha el silencio es lo que se quiere).
                     if Self.speaksAnswers, !a.spoken.isEmpty { speech.speak(a.spoken) }
                     WKInterfaceDevice.current().play(.success)
                 }

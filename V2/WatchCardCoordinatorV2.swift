@@ -167,9 +167,7 @@ final class WatchCardCoordinator {
             why.spoken = ""   // lo pidió con un toque: se lee, no se dice
             answer = why
         case .standings:
-            var now = match.watchStandingsV2(alias: nil, opponent: nil)
-            now.spoken = ""
-            answer = now
+            answer = match.watchStandingsV2(alias: nil, opponent: nil)
         case .discard:
             draft = VoiceHoleDraft()
             recordIds = []
@@ -188,10 +186,8 @@ final class WatchCardCoordinator {
         VoiceRecordStore.shared.resolve(ids: recordIds, finalCard: VoiceHolePipeline.cardSummary(draft))
         undo = (hole, token)
         applied = .init(hole: hole, message: "Hoyo \(hole) anotado", canUndo: true)
-        // El update: cómo van los matches con ese hoyo ya anotado (números). Sin voz: se lee solo si lo piden ("Ampliar" o preguntando).
-        var update = match.watchStandingsV2(alias: nil, opponent: nil)
-        update.spoken = ""
-        answer = update
+        // El update: cómo van los matches con ese hoyo ya anotado. Se ve y se dice el brief ("Vas -1, -3, -1, al hoyo 7").
+        answer = match.watchStandingsV2(alias: nil, opponent: nil)
         draft = VoiceHoleDraft()
         recordIds = []
     }
