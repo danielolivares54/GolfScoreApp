@@ -253,7 +253,7 @@ final class WatchCardCoordinator {
     func context(course: String) -> WatchContextDTO {
         let hole = currentHole()
         return WatchContextDTO(hole: hole, par: match.getHole(hole)?.par ?? 4, course: course, hasKey: hasKey(),
-                               teeDistance: match.myTeeYardsV2(hole: hole))
+                               teeDistance: match.myTeeYardsV2(hole: hole), lastDone: match.lastHoleHeldV2())
     }
 
     private func changed() {

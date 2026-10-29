@@ -550,6 +550,24 @@ extension MatchManager {
     private func numbersSpoken(_ values: [Int]) -> String { values.map(numberSpoken).joined(separator: ", ") }
 
     /// El último hoyo del que ya hay scores de los dos (en el orden de juego).
+    /// Todos los números de un match en una línea, con las mismas etiquetas en el reloj, el iPhone y el historial:
+    /// "F9 2 (1 -1) · B9 -1 · Carry $50 · Unid 2 · $300" (entre paréntesis, las presiones abiertas de esa nueve).
+    func allNumbersLineV2(_ row: ResultadoRowV2, sign: Int) -> String {
+        func nine(_ label: String, _ net: Int, _ played: Int, _ open: [Int]) -> String {
+            guard played > 0 else { return "\(label) —" }
+            let pres = open.isEmpty ? "" : " (" + open.map { String($0 * sign) }.joined(separator: " ") + ")"
+            return "\(label) \(net * sign)\(pres)"
+        }
+        var parts = [nine("F9", row.f9Net, row.f9Played, row.f9Presiones), nine("B9", row.b9Net, row.b9Played, row.b9Presiones)]
+        if row.carryActive { parts.append("Carry $\(row.carryMoney * sign)") }
+        if row.unitsNet != 0 { parts.append("Unid \(row.unitsNet * sign)") }
+        parts.append("$\(row.money * sign)")
+        return parts.joined(separator: " · ")
+    }
+
+    /// El último hoyo del que ya hay scores de los dos (lo usan las respuestas y el reloj).
+    func lastHoleHeldV2() -> Int? { lastHoleHeld() }
+
     private func lastHoleHeld() -> Int? {
         var held = Set<Int>()
         for a in players.map(\.alias) where a != yoAlias {
@@ -631,7 +649,7 @@ extension MatchManager {
             let v = (nine == "B9" ? row.b9Net : row.f9Net) * sign
             let open = (nine == "B9" ? row.b9Presiones : row.f9Presiones).map { $0 * sign }
             let (label, name) = matchLabelsV2(row, alias: alias)
-            lines.append(.init(label: label, value: numbersText([v] + open), tone: toneOf(v)))
+            lines.append(.init(label: label, value: numbersText([v] + open), detail: allNumbersLineV2(row, sign: sign), tone: toneOf(v)))
             spoken.append("\(name) \(numbersSpoken([v] + open))")
         }
         var text = (hole.map { "Hoyo \($0). " } ?? "") + spoken.joined(separator: ". ") + "."

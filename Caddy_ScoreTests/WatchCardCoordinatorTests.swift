@@ -117,6 +117,20 @@ struct WatchCardCoordinatorTests {
         #expect(c.context(course: m.courseName).teeDistance != expected)
     }
 
+    @Test func theStandingsShowEveryNumberOfTheMatchAndTheWatchKnowsTheLastDoneHole() {
+        let m = DemoFixture.make()
+        let answer = m.watchStandingsV2(alias: nil, opponent: nil)
+        #expect(!answer.lines.isEmpty)
+        for line in answer.lines {
+            // Debajo de "3 -1" van todos los números: F9, B9 y el dinero, con las mismas etiquetas en reloj, iPhone e historial.
+            let detail = line.detail ?? ""
+            #expect(detail.contains("F9") && detail.contains("B9") && detail.contains("$"))
+        }
+        let c = make(m, VoiceHoleExtraction())
+        #expect(c.context(course: m.courseName).lastDone == m.lastHoleHeldV2())
+        #expect(m.lastHoleHeldV2() != nil)
+    }
+
     @Test func applyIsBlockedWhileThereAreDoubts() async {
         let m = DemoFixture.make()
         let c = make(m, VoiceHoleExtraction(scores: [.init(jugador: "DAN", gross: 4, putts: nil), .init(jugador: "DAN", gross: 9, putts: nil)]))

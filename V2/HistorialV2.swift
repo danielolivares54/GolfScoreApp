@@ -245,7 +245,6 @@ struct HistorialV2: View {
         let rivalName = name(for: round, alias: line.opponentAlias)
         let yoAlias = round.players.first?.alias ?? "DAN"
         let strokes = round.players.first { $0.alias == line.opponentAlias }?.strokesVsBase ?? 0
-        let isLatest = rivalName.map { latestRoundByName[$0] == round.roundId } ?? false
         let live = rivalName.flatMap { n in directory.entries.first { $0.name == n }?.strokesVsBase }
         let rival = line.opponentAlias ?? "—"
         return VStack(alignment: .leading, spacing: 6) {
@@ -257,7 +256,7 @@ struct HistorialV2: View {
             resultLine(line)
             HStack(spacing: 6) {
                 Circle().fill(CSV2.stroke).frame(width: 9, height: 9).opacity(abs(strokes) > 0.001 ? 1 : 0.35)
-                Text(strokesLine(strokes: strokes, rival: rival, yo: yoAlias, latest: isLatest, live: live))
+                Text(strokesLine(strokes: strokes, rival: rival, yo: yoAlias, next: nextStrokes(after: round, rivalName: rivalName, live: live)))
                     .font(.v2Label).foregroundStyle(CSV2.stroke)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -265,39 +264,54 @@ struct HistorialV2: View {
         .padding(.horizontal, CSV2.s2).padding(.vertical, 12)
     }
 
-    /// "F9 2↑ · B9 1↓ · match ganado"
+    /// Todos los números del match, con las mismas etiquetas que el reloj y el iPhone: "F9 2 · B9 -1 · Pres 1 · Match 1 · Unid 0 · ganado".
     private func resultLine(_ line: RoundResultLine) -> Text {
-        func nine(_ label: String, _ points: Int?) -> Text {
-            let value: Text
-            if let p = points {
-                value = p > 0 ? Text("\(p)↑").foregroundStyle(CSV2.green)
-                    : p < 0 ? Text("\(-p)↓").foregroundStyle(CSV2.red) : Text("E").foregroundStyle(CSV2.secondary)
+        func number(_ label: String, _ value: Int?) -> Text {
+            let n: Text
+            if let v = value {
+                n = Text("\(v)").foregroundStyle(v > 0 ? CSV2.green : v < 0 ? CSV2.red : CSV2.secondary)
             } else {
-                value = Text("—").foregroundStyle(CSV2.secondary)
+                n = Text("—").foregroundStyle(CSV2.secondary)
             }
-            return Text("\(label) ").foregroundStyle(CSV2.secondary) + value
+            return Text("\(label) ").foregroundStyle(CSV2.secondary) + n
         }
-        let match = line.matchPoints > 0 ? "match ganado" : line.matchPoints < 0 ? "match perdido" : "match empatado"
+        let dot = Text("  ·  ").foregroundStyle(CSV2.secondary)
+        let verdict = line.matchPoints > 0 ? "ganado" : line.matchPoints < 0 ? "perdido" : "empatado"
         let color = line.matchPoints > 0 ? CSV2.green : line.matchPoints < 0 ? CSV2.red : CSV2.secondary
-        return (nine("F9", line.f9Points) + Text("  ·  ").foregroundStyle(CSV2.secondary)
-                + nine("B9", line.b9Points) + Text("  ·  ").foregroundStyle(CSV2.secondary)
-                + Text(match).foregroundStyle(color))
-            .font(.v2Label)
+        var text = number("F9", line.f9Points) + dot + number("B9", line.b9Points)
+            + dot + number("Pres", line.presionPoints)
+        if line.carryActive { text = text + dot + number("Carry", line.carryPoints) }
+        text = text + dot + number("Match", line.matchPoints)
+        if line.unitsPoints != 0 { text = text + dot + number("Unid", line.unitsPoints) }
+        return (text + dot + Text(verdict).foregroundStyle(color)).font(.v2Label)
     }
 
-    /// "DAN recibe 8 → próximo: recibe 7" (la parte de "próximo" solo en la ronda más reciente contra ese rival).
-    private func strokesLine(strokes: Double, rival: String, yo: String, latest: Bool, live: Double?) -> String {
+    /// "ROB recibe 8 → siguiente: recibe 7": los strokes de ese match y los del siguiente contra el mismo rival
+    /// (la ronda más nueva que sigue en la lista; si no hay, lo que dice el directorio hoy).
+    private func strokesLine(strokes: Double, rival: String, yo: String, next: Double?) -> String {
         func phrase(_ value: Double) -> String {
             guard abs(value) > 0.001 else { return "sin strokes" }
             return "\(value > 0 ? rival : yo) recibe \(strokesTextV2(value))"
         }
         var text = phrase(strokes)
-        if latest, let live {
+        if let next {
             // Misma redacción corta: si no cambia quién recibe basta con la cantidad.
-            let sameSide = (live > 0) == (strokes > 0) && abs(live) > 0.001 && abs(strokes) > 0.001
-            text += " → próximo: " + (sameSide ? "recibe \(strokesTextV2(live))" : phrase(live))
+            let sameSide = (next > 0) == (strokes > 0) && abs(next) > 0.001 && abs(strokes) > 0.001
+            text += " → siguiente: " + (sameSide ? "recibe \(strokesTextV2(next))" : phrase(next))
         }
         return text
+    }
+
+    /// Los strokes del match que sigue contra ese rival: la ronda más nueva con él (`rounds` va de nueva a vieja), o el directorio.
+    private func nextStrokes(after round: RoundResultFile, rivalName: String?, live: Double?) -> Double? {
+        guard let rivalName, let index = rounds.firstIndex(where: { $0.roundId == round.roundId }) else { return live }
+        for newer in rounds[..<index].reversed() {
+            if let line = newer.lines.first(where: { $0.scope == "individual" && name(for: newer, alias: $0.opponentAlias) == rivalName }),
+               let value = newer.players.first(where: { $0.alias == line.opponentAlias })?.strokesVsBase {
+                return value
+            }
+        }
+        return live
     }
 }
 

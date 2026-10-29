@@ -45,6 +45,9 @@ private struct HomeView: View {
                     Text(ctx.course.isEmpty ? "ESPERANDO" : ctx.course.uppercased()).font(.wCaps).foregroundStyle(CSW.secondary).lineLimit(1).minimumScaleFactor(0.7)
                     Text("HOYO \(ctx.hole)").font(.system(.title2, weight: .heavy).monospacedDigit()).foregroundStyle(CSW.ink)
                     Text("PAR \(ctx.par)" + (ctx.teeDistance.map { " · \($0) yd" } ?? "")).font(.wCaps).foregroundStyle(CSW.secondary)
+                    if let done = ctx.lastDone {
+                        Text("ÚLTIMO LISTO · HOYO \(done)").font(.wCaps).foregroundStyle(CSW.green)
+                    }
                     if ctx.teeDistance == nil {   // sin tee elegido no hay distancia: se dice dónde elegirlo
                         Text("Elige tu tee en el iPhone").font(.wCaps).foregroundStyle(CSW.warning).multilineTextAlignment(.center)
                     }
@@ -192,7 +195,8 @@ private struct CardView: View {
             VStack(spacing: 6) {
                 HStack {
                     Text("HOYO \(card.hole.map(String.init) ?? "?")" + (card.par.map { " · PAR \($0)" } ?? "")
-                         + (model.context?.teeDistance.map { " · \($0) yd" } ?? "")).font(.wCaps)
+                         + (model.context?.teeDistance.map { " · \($0) yd" } ?? "")
+                         + (model.context?.lastDone.map { " · LISTO \($0)" } ?? "")).font(.wCaps)
                     Spacer()
                     if card.replaces { Text("REEMPLAZA").font(.wCaps).foregroundStyle(CSW.warning) }
                 }

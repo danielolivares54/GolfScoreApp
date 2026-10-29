@@ -59,12 +59,20 @@ final class WatchModel: NSObject, WCSessionDelegate {
         WCSession.default.activate()
         // Audios viejos que no se llegaron a entregar no deben procesarse después.
         WCSession.default.outstandingFileTransfers.forEach { $0.cancel() }
-        // Mientras no haya contexto del iPhone, se vuelve a pedir cada pocos segundos.
-        Task {
-            while true {
-                if self.context == nil { self.requestState() }
+        startPollingState()
+    }
+
+    /// Mientras no haya contexto del iPhone se vuelve a pedir cada pocos segundos; al llegar el ciclo termina (antes seguía
+    /// despertando al reloj cada 4 s para nada). Se reactiva si el iPhone vuelve a ser alcanzable y aún no hay contexto.
+    private var pollTask: Task<Void, Never>?
+    private func startPollingState() {
+        guard pollTask == nil, context == nil else { return }
+        pollTask = Task { @MainActor in
+            while !Task.isCancelled, self.context == nil {
+                self.requestState()
                 try? await Task.sleep(for: .seconds(4))
             }
+            self.pollTask = nil
         }
     }
 
@@ -192,7 +200,7 @@ final class WatchModel: NSObject, WCSessionDelegate {
     nonisolated func sessionReachabilityDidChange(_ session: WCSession) {
         Task { @MainActor in
             self.reachable = session.isReachable
-            if session.isReachable { self.requestState() }
+            if session.isReachable { self.requestState(); self.startPollingState() }
         }
     }
 
