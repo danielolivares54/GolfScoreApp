@@ -190,7 +190,7 @@ struct AcapulcoCoursesTests {
         let courses = CourseCatalog.all
         #expect(courses.map(\.id).count == Set(courses.map(\.id)).count && courses.count == 4)
         for c in courses {
-            #expect(c.holes.count == 18 && c.holes.map(\.par).reduce(0, +) == (c.id == "TRESVIDAS" ? 71 : 72))   // Tres Vidas: el 17 es par 3 (71)
+            #expect(c.holes.count == 18 && c.holes.map(\.par).reduce(0, +) == 72)
             #expect(c.holes.map(\.si).sorted() == Array(1...18))
             #expect(!c.tees.isEmpty && c.tees.allSatisfy { $0.yards.count == 18 && $0.yards.allSatisfy { $0 > 0 } })
             #expect(c.tees.map(\.id).count == Set(c.tees.map(\.id)).count)
