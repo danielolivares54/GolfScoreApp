@@ -149,6 +149,25 @@ struct VoiceHolePipelineTests {
         #expect(five.cells["ROB"]?.gross == 5 && five.cells["ANS"]?.gross == 5)
     }
 
+    @Test func losNTiramosIsTheRestWhenNMatchesWhoIsLeft() {
+        let m = setup()   // 5 jugadores
+        let n = m.players.count
+        // Dos nombrados: "los tres" son los que faltan.
+        let three = VoiceHolePipeline.localExtraction("yo tres, rob cuatro y los tres tiramos cinco", match: m, slang: slang())
+        #expect(three?.scores.map(\.jugador).last == "DEMAS" && three?.scores.last?.gross == 5)
+        // Todo el grupo: "los cinco".
+        let all = VoiceHolePipeline.localExtraction("los cinco tiramos cinco", match: m, slang: slang())
+        #expect(n == 5 && all?.scores.count == 1 && all?.scores.first?.jugador == "DEMAS" && all?.scores.first?.gross == 5)
+        // Con par, como "los demás par".
+        let par = VoiceHolePipeline.localExtraction("los cinco hicimos par", match: m, slang: slang())
+        #expect(par?.scores.first?.jugador == "DEMAS" && par?.scores.first?.relativo == "par")
+        // Cuatro nombrados: "los dos" no cuadra con el único que falta → no se adivina.
+        let wrong = VoiceHolePipeline.localExtraction("yo tres, rob cuatro y los dos tiramos cinco", match: m, slang: slang())
+        #expect(wrong == nil)
+        // Sin nadie nombrado, "los dos" tampoco se sabe.
+        #expect(VoiceHolePipeline.localExtraction("los dos tiramos cinco", match: m, slang: slang()) == nil)
+    }
+
     @Test func anInventedOyesOrderIsIgnoredWhenNobodyTalkedAboutOyes() async throws {
         let m = setup()
         let e = extraction(scores: [("ROB", nil, 3)], oyes: [("ROB", 1)], units: [("DAN", "HO")])
@@ -262,6 +281,20 @@ struct VoiceHolePipelineTests {
     @Test func theSpeakerSaysSoyUnoAfterOyesAndEveryonePairsWithTheirPlace() async throws {
         let d = try await oyesFrom("Oyes, soy uno, Fer 2, Rob 3, Ans 4, Ric 5.")
         #expect(d.oyes == ["DAN": 1, "FER": 2, "ROB": 3, "ANS": 4, "RIC": 5])
+    }
+
+    @Test func oyesCanBeEditedSayingNameThenElPlaceInAnyMixOfStyles() async throws {
+        let all = ["DAN": 1, "ROB": 2, "ANS": 3, "RIC": 4, "FER": 5]
+        // "Soy el 1, Rob el 2, Ans el 3…": el lugar con "el" y número.
+        #expect(try await oyesFrom("Oyes, soy el 1, Rob el 2, Ans el 3, Ric el 4, Fer el 5").oyes == all)
+        // "Rob es primero, segundo Ans…": "es" + ordinal, y el ordinal antes del nombre.
+        #expect(try await oyesFrom("Oyes, Dan es primero, segundo Rob, tercero Ans, cuarto Ric, quinto Fer").oyes == all)
+        // Mezclado: número, ordinal antes y después del nombre.
+        #expect(try await oyesFrom("Oyes soy el 1, Rob el 2, Ans 3, cuarto Ric, Fer quinto").oyes == all)
+        // "Yo" con el lugar después, como cualquier otro jugador.
+        #expect(try await oyesFrom("Oyes, Ans es primero, Rob segundo, yo tercero").oyes == ["ANS": 1, "ROB": 2, "DAN": 3])
+        // Solo corregir uno.
+        #expect(try await oyesFrom("Oyes Rob es primero").oyes == ["ROB": 1])
     }
 
     @Test func repeatedPlacesInOyesAreADoubtAndNothingIsSaved() async throws {

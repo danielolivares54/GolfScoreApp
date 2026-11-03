@@ -437,7 +437,8 @@ enum VoiceHolePipeline {
         let spoken = slang.normalize(transcript)
         let t = spoken.split { !$0.isLetter && !$0.isNumber }.map(String.init)
         let hole = holeFromText(spoken)
-        let fillers: Set<String> = ["tiro", "tire", "hizo", "hice", "saco", "saque", "fue", "hace", "con", "un", "puso", "puse", "metio", "meti"]
+        let fillers: Set<String> = ["tiro", "tire", "hizo", "hice", "saco", "saque", "fue", "hace", "con", "un", "puso", "puse", "metio", "meti",
+                                "tiramos", "tiraron", "hicimos", "hicieron", "sacamos", "sacaron", "hacemos"]
         func relative(at i: Int) -> (word: String, used: Int)? {
             guard i < t.count else { return nil }
             switch t[i] {
@@ -464,6 +465,13 @@ enum VoiceHolePipeline {
             var who: String, used = 1
             if ["todos", "todas"].contains(t[i]) { who = "DEMAS" }
             else if t[i] == "los", i + 1 < t.count, t[i + 1] == "demas" { who = "DEMAS"; used = 2 }
+            else if t[i] == "los", let n = number(at: i + 1, in: t), (2...9).contains(n.value) {
+                // "Los dos tiramos cinco": son los N que aún no se nombraron en la frase, como "los demás". Si N no coincide con
+                // los que faltan no se sabe cuáles son: no se adivina y decide el modelo, que lo marca como duda.
+                let named = Set(scores.map(\.jugador)).subtracting(["DEMAS"])
+                guard match.players.count - named.count == n.value else { break }
+                who = "DEMAS"; used = 1 + n.used
+            }
             else {
                 let r = resolveSpoken(t[i], match: match, slang: slang)
                 guard r.known, !r.fuzzy else { break }

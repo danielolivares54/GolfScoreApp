@@ -31,6 +31,8 @@ struct WatchContextDTO: Codable, Equatable {
     var lastDone: Int? = nil
     /// El match está configurado en el iPhone (campo y al menos dos jugadores). Si no, el reloj pide configurarlo primero allá.
     var ready: Bool = true
+    /// HCP del hoyo según la tarjeta del campo para el tee de salida elegido (tabla de Damas si el tee la usa). Con el tee sin elegir es el HCP de siempre; nil si el campo no lo trae.
+    var hcp: Int? = nil
 }
 
 /// La tarjeta del hoyo tal como se va a anotar. Todo se calcula en el iPhone.

@@ -190,7 +190,7 @@ struct AcapulcoCoursesTests {
         let courses = CourseCatalog.all
         #expect(courses.map(\.id).count == Set(courses.map(\.id)).count && courses.count == 4)
         for c in courses {
-            #expect(c.holes.count == 18 && c.holes.map(\.par).reduce(0, +) == 72)
+            #expect(c.holes.count == 18 && c.holes.map(\.par).reduce(0, +) == (c.id == "TRESVIDAS" ? 71 : 72))   // Tres Vidas: el 17 es par 3 (71)
             #expect(c.holes.map(\.si).sorted() == Array(1...18))
             #expect(!c.tees.isEmpty && c.tees.allSatisfy { $0.yards.count == 18 && $0.yards.allSatisfy { $0 > 0 } })
             #expect(c.tees.map(\.id).count == Set(c.tees.map(\.id)).count)
@@ -216,5 +216,12 @@ struct AcapulcoCoursesTests {
         let ctx = c.context(course: m.courseName)
         #expect(m.myTeeYardsV2(hole: 6) == 488)                                // el iPhone muestra la misma distancia que el reloj
         #expect(ctx.course == "Turtle Dunes" && ctx.hole == 6 && ctx.par == 5 && ctx.teeDistance == 488)   // hoyo 6 de Turtle Dunes: par 5, 488 desde las rojas
+    }
+}
+
+extension AcapulcoCoursesTests {
+    @Test func tresVidasHoles16To18AreFourThreeFour() {
+        let pars = CourseCatalog.tresVidas.holes.map(\.par)
+        #expect(Array(pars[15...17]) == [4, 3, 4])
     }
 }

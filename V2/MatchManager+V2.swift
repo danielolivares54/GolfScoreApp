@@ -320,4 +320,11 @@ extension MatchManager {
     func myTeeYardsV2(hole: Int) -> Int? {
         CourseCatalog.all.first { $0.id == courseId }?.yards(hole: hole, tee: MyTeeStore.tee(courseId: courseId))
     }
+
+    /// El HCP del hoyo en la tarjeta para el tee de salida del usuario (tabla de Damas si ese tee la usa). Sin tee elegido es el HCP general; nil si el campo no tiene el hoyo.
+    func myTeeHcpV2(hole: Int) -> Int? {
+        guard let course = CourseCatalog.all.first(where: { $0.id == courseId }) else { return nil }
+        let si = course.si(hole: hole, tee: MyTeeStore.tee(courseId: courseId))
+        return si > 0 ? si : nil
+    }
 }

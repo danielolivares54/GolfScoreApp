@@ -428,7 +428,7 @@ enum CourseCatalog {
 
     /// Tres Vidas (Acapulco): par, HCP y distancias por tee de la tarjeta (Tarjetas_de_Golf_Acapulco.xlsx, 27-oct-2026). Un solo HCP para todos los tees.
     static let tresVidas: CourseModel = single(id: "TRESVIDAS", name: "Tres Vidas",
-        pars: [5, 4, 3, 4, 4, 3, 4, 5, 4, 5, 4, 3, 5, 4, 3, 4, 4, 4],
+        pars: [5, 4, 3, 4, 4, 3, 4, 5, 4, 5, 4, 3, 5, 4, 3, 4, 3, 4],
         sis: [5, 3, 7, 17, 1, 13, 15, 9, 11, 10, 2, 18, 6, 14, 16, 4, 8, 12],
         tees: [
             ("negras", "Negras", [528, 439, 193, 383, 454, 190, 412, 550, 425, 555, 472, 215, 540, 418, 180, 445, 426, 434]),

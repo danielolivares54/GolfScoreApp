@@ -44,7 +44,7 @@ private struct HomeView: View {
                 VStack(spacing: 0) {
                     Text(ctx.course.isEmpty ? "ESPERANDO" : ctx.course.uppercased()).font(.wCaps).foregroundStyle(CSW.secondary).lineLimit(1).minimumScaleFactor(0.7)
                     Text("HOYO \(ctx.hole)").font(.system(.title2, weight: .heavy).monospacedDigit()).foregroundStyle(CSW.ink)
-                    Text("PAR \(ctx.par)" + (ctx.teeDistance.map { " · \($0) yd" } ?? "")).font(.wCaps).foregroundStyle(CSW.secondary)
+                    Text("PAR \(ctx.par)" + (ctx.hcp.map { " · HCP \($0)" } ?? "") + (ctx.teeDistance.map { " · \($0) yd" } ?? "")).font(.wCaps).foregroundStyle(CSW.secondary)
                     if let done = ctx.lastDone {
                         Text("ÚLTIMO LISTO · HOYO \(done)").font(.wCaps).foregroundStyle(CSW.green)
                     }
@@ -53,7 +53,7 @@ private struct HomeView: View {
                     }
                 }
                 .accessibilityElement(children: .combine)
-                .accessibilityLabel("Esperando el hoyo \(ctx.hole), par \(ctx.par)" + (ctx.teeDistance.map { ", \($0) de distancia" } ?? ""))
+                .accessibilityLabel("Esperando el hoyo \(ctx.hole), par \(ctx.par)" + (ctx.hcp.map { ", handicap \($0)" } ?? "") + (ctx.teeDistance.map { ", \($0) de distancia" } ?? ""))
             } else {
                 Text("Abre Caddie Score en el iPhone").font(.wBody).foregroundStyle(CSW.secondary).multilineTextAlignment(.center)
             }
@@ -206,6 +206,7 @@ private struct CardView: View {
             VStack(spacing: 6) {
                 HStack {
                     Text("HOYO \(card.hole.map(String.init) ?? "?")" + (card.par.map { " · PAR \($0)" } ?? "")
+                         + (model.context?.hcp.map { " · HCP \($0)" } ?? "")
                          + (model.context?.teeDistance.map { " · \($0) yd" } ?? "")
                          + (model.context?.lastDone.map { " · LISTO \($0)" } ?? "")).font(.wCaps)
                     Spacer()

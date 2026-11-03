@@ -117,6 +117,22 @@ struct WatchCardCoordinatorTests {
         #expect(c.context(course: m.courseName).teeDistance != expected)
     }
 
+    @Test func theWatchGetsTheCardHcpOfTheHoleForTheTeeTheUserLeavesFrom() {
+        let m = DemoFixture.make()
+        let c = make(m, VoiceHoleExtraction())
+        let course = m.courseId
+        defer { MyTeeStore.set(nil, courseId: course) }
+        MyTeeStore.set(nil, courseId: course)
+        let hole = c.context(course: m.courseName).hole
+        #expect(c.context(course: m.courseName).hcp == m.getHole(hole)?.si)       // sin tee: el HCP de siempre
+        MyTeeStore.set("azules-h", courseId: course)
+        #expect(c.context(course: m.courseName).hcp == m.getHole(hole)?.si)       // tee de caballeros: la misma tabla
+        if let damas = CourseCatalog.all.first(where: { $0.id == course })?.damasSI, damas.count == 18 {
+            MyTeeStore.set("rojas-d", courseId: course)
+            #expect(c.context(course: m.courseName).hcp == damas[hole - 1])       // tee de damas: su propia tabla
+        }
+    }
+
     @Test func theStandingsShowEveryNumberOfTheMatchAndTheWatchKnowsTheLastDoneHole() {
         let m = DemoFixture.make()
         let answer = m.watchStandingsV2(alias: nil, opponent: nil)

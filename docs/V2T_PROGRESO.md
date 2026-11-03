@@ -126,3 +126,24 @@
 - **Cuenta de pago:** pendiente de activación; al verse en Xcode, cambiar Team en los dos targets y probar el reloj físico (Series 10).
 - **Sincronía del hoyo:** quien dicta dice el hoyo y el iPhone lo recibe; el siguiente lo decide el iPhone y el reloj lo recibe de él (hecho, probando en campo).
 - **Lo oído no se pierde:** si una dictada falla, el reloj muestra `Oí: «…»` (hecho, sin probar en reloj).
+
+## Tareas por realizar (1-nov-2026)
+
+Prueba con usuarios (TestFlight). El orden importa: sin el servidor intermedio los testers no pueden dictar.
+
+- [ ] **Cuenta de pago de Apple Developer**: confirmar que está activa (arriba figuraba "pendiente de activación"). TestFlight la requiere.
+- [ ] **Servidor intermedio** (Cloudflare Worker o Supabase) con la clave de OpenAI en el servidor y un código por tester. La app deja de leer `OPENAI_API_KEY` del `caddie.env` en los builds de prueba. Alternativa B: campo de clave propia en la app (Keychain).
+- [ ] **Registro de consumo**: guardar `usage` de cada llamada (transcripción `gpt-4o-mini-transcribe` y `gpt-4o-mini`, 3 puntos en `OpenAIService`) por tester; calcular costo por dictado, por ronda de 18 hoyos y por tester con los precios vigentes de OpenAI.
+- [ ] **Botón "Observación" por voz** (iPhone y reloj): guarda texto, hoyo, pantalla, versión del build y tester; lo manda al servidor.
+- [ ] **TestFlight**: crear la app en App Store Connect (bundle `comDOG.Caddy-Score`, reloj `comDOG.Caddy-Score.watchkitapp`), certificado de distribución, subir build, correo de feedback y URL de privacidad (externos), invitar por email. Subir un build con número mayor a 3 si el 3 ya se subió.
+- [ ] **Capacitación**: hoja de una página con frases reales, guion del video de 2 minutos, email de invitación con los 3 pasos, grupo de WhatsApp, check-in a mitad de la prueba.
+- [ ] **Modo de práctica** (3 hoyos de ejemplo que no ensucien una ronda real) y mensajes que enseñan la frase correcta cuando algo no se entiende ("Prueba: «Rob 5»").
+- [ ] **Catálogo único de dudas y errores** y respuestas con formato fijo `title` + `lines` + `spoken`.
+- [ ] (Opcional) Oyes sin decir la palabra "oyes", solo en hoyos par 3.
+- [ ] Decidir si se revierten los cambios del prototipo `~/Documents/Caddie Watch` (frases de grupo, sincronización, HCP del jugador); no sirven en este proyecto.
+
+### Hecho el 1-nov (sin commit)
+- **Índice (HCP) del hoyo por tee en el reloj**: resuelto el pendiente del 26-oct. `WatchContextDTO.hcp` sale de `CourseModel.si(hole:tee:)` (tabla de Damas si el tee la usa); se ve junto al par. La distancia por tee ya estaba.
+- "Los dos / tres / cuatro / cinco tiramos X" en el intérprete del iPhone.
+- Prueba de que oyes se edita con "soy el 1, Rob el 2…", "Rob es primero, segundo Ans…" y mezclas.
+- Archivo de Release verificado (1.0.2 build 3, con el reloj, sin clave de OpenAI dentro).
