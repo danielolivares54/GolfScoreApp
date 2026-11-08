@@ -32,6 +32,7 @@ struct MatchDetailV2: View {
         // Se recalcula en cada cambio del match (los botones escriben en matchManager).
         let resumen = matchManager.matchResumenV2(for: target)
         let refresh = matchManager.refreshStateV2(for: target)
+        let options = matchManager.refreshOptionsV2(for: target)
         ZStack {
             CSV2.background.ignoresSafeArea()
             VStack(spacing: 0) {
@@ -43,7 +44,7 @@ struct MatchDetailV2: View {
                             titleBlock(resumen)
                             strokesBlock(resumen)
                             // Igual que la v1: el refresh de B9 aparece cuando ya se juega el segundo nueve.
-                            if matchManager.currentSegmentV2 == "B9" { refreshBlock(refresh) }
+                            if matchManager.currentSegmentV2 == "B9", options.any { refreshBlock(refresh, options: options) }
                             conceptsCard(resumen)
                             totalCard(resumen)
                             linksBlock(resumen, refresh: refresh)
@@ -146,7 +147,7 @@ struct MatchDetailV2: View {
 
     // MARK: Refresh de B9: Carry / Ajuste 50 / Doble B9 (botones grandes)
 
-    private func refreshBlock(_ state: MatchManager.RefreshStateV2) -> some View {
+    private func refreshBlock(_ state: MatchManager.RefreshStateV2, options: MatchManager.RefreshOptionsV2) -> some View {
         CardV2 {
             VStack(alignment: .leading, spacing: 12) {
                 HStack(spacing: 8) {
@@ -161,22 +162,28 @@ struct MatchDetailV2: View {
                     .fixedSize(horizontal: false, vertical: true)
 
                 HStack(spacing: 10) {
-                    RefreshTileV2(title: "Carry", state: tileState(on: state.carryActive, tied: state.f9Tied),
-                                  isOn: state.carryActive, isDisabled: state.f9Tied) {
-                        matchManager.toggleCarryV2(for: target, requester: carryChoice)
+                    if options.carry {
+                        RefreshTileV2(title: "Carry", state: tileState(on: state.carryActive, tied: state.f9Tied),
+                                      isOn: state.carryActive, isDisabled: state.f9Tied) {
+                            matchManager.toggleCarryV2(for: target, requester: carryChoice)
+                        }
                     }
-                    RefreshTileV2(title: "Ajuste 50", state: tileState(on: state.adjust50Active, tied: state.f9Tied),
-                                  isOn: state.adjust50Active, isDisabled: state.f9Tied) {
-                        matchManager.toggleAdjust50V2(for: target)
+                    if options.adjust50 {
+                        RefreshTileV2(title: "Ajuste 50", state: tileState(on: state.adjust50Active, tied: state.f9Tied),
+                                      isOn: state.adjust50Active, isDisabled: state.f9Tied) {
+                            matchManager.toggleAdjust50V2(for: target)
+                        }
                     }
-                    RefreshTileV2(title: "Doble B9", state: tileState(on: state.doublePressActive, tied: state.f9Tied),
-                                  isOn: state.doublePressActive, isDisabled: state.f9Tied) {
-                        matchManager.toggleDoublePressV2(for: target)
+                    if options.doubleB9 {
+                        RefreshTileV2(title: "Doble B9", state: tileState(on: state.doublePressActive, tied: state.f9Tied),
+                                      isOn: state.doublePressActive, isDisabled: state.f9Tied) {
+                            matchManager.toggleDoublePressV2(for: target)
+                        }
                     }
                 }
 
                 // Solo en pareja hay más de un candidato (los dos compañeros del lado que perdió el F9).
-                if state.candidates.count > 1 { carryPicker(state) }
+                if options.carry, state.candidates.count > 1 { carryPicker(state) }
             }
             .padding(CSV2.s2)
         }

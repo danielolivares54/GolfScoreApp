@@ -95,6 +95,34 @@ struct SetupDraftTests {
         #expect(total == 3.5)
     }
 
+    @Test func changingStrokesKeepsCarryWhereTheSamePlayerStillOwesTheF9() {
+        let m = DemoFixture.make()
+        let pairsBefore = Array(m.pairCarryRequesterByLane.values)   // el id de la pareja cambia al guardar; se compara el valor
+        let startBefore = m.individualCarryStartHoleByOpponent["ROB"]
+        var draft = currentDraft(m)
+        draft.strokesByAlias["ROB"] = -9   // DAN recibe uno más: ROB sigue perdiendo el F9
+        m.applySetupDraft(draft)
+        #expect(m.players.first { $0.alias == "ROB" }?.strokesVsBase == -9)
+        #expect(m.individualCarryRequesterByOpponent["ROB"] == "ROB")
+        #expect(m.individualCarryStartHoleByOpponent["ROB"] == startBefore)
+        #expect(m.individualDoublePressOpponents.contains("ROB"))
+        #expect(Array(m.pairCarryRequesterByLane.values) == pairsBefore)
+    }
+
+    @Test func changingStrokesDropsCarryWhenTheF9FlipsToTheOtherPlayer() {
+        let m = DemoFixture.make()
+        let pairsBefore = Array(m.pairCarryRequesterByLane.values)
+        var draft = currentDraft(m)
+        draft.strokesByAlias["ROB"] = 30   // ROB recibe 30: ahora quien pierde el F9 es DAN, no ROB
+        m.applySetupDraft(draft)
+        #expect(m.individualCarryEligibleRequester(opponentAlias: "ROB") != "ROB")
+        #expect(m.individualCarryRequesterByOpponent["ROB"] == nil)
+        #expect(m.individualCarryStartHoleByOpponent["ROB"] == nil)
+        #expect(!m.isIndividualCarryActive(opponentAlias: "ROB"))
+        // Las parejas no dependen de los strokes de ROB: su Carry no se toca.
+        #expect(Array(m.pairCarryRequesterByLane.values) == pairsBefore)
+    }
+
     @Test func lanesFollowTheBasePair() {
         // Con 5 jugadores y pareja base DAN+FER salen 3 carriles; con 4, uno.
         let five = MatchManager.setupLanes(base: ["DAN", "FER"], allAliases: ["DAN", "FER", "ROB", "RIC", "ANS"])

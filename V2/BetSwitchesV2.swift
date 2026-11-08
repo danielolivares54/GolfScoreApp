@@ -19,6 +19,10 @@ extension MatchBetSwitches {
         ("Match", \.match), ("Oyes", \.oyes), ("Unidades", \.units)
     ]
 
+    /// Las fichas que se muestran. Carry y Ajuste 50 no son interruptores: se activan con los botones del
+    /// Refresh de B9 en Resultados, y solo si la plantilla los ofrece.
+    static let chipItems = items.filter { $0.label != "Carry" && $0.label != "Ajuste 50" }
+
     /// "Vuelta · Presión · Match" — lo que está encendido.
     var onText: String {
         let on = Self.items.filter { self[keyPath: $0.keyPath] }.map(\.label)
@@ -109,7 +113,7 @@ struct BetSwitchChipsV2: View {
     var body: some View {
         let switches = matchManager.betSwitchesV2(for: target)
         FlowChipsV2 {
-            ForEach(MatchBetSwitches.items, id: \.label) { item in
+            ForEach(MatchBetSwitches.chipItems, id: \.label) { item in
                 let blocked = matchManager.catalogBlocksV2(item.label, pair: isPair)
                 let on = switches[keyPath: item.keyPath] && !blocked
                 Button {

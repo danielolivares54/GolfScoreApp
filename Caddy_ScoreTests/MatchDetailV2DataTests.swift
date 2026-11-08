@@ -7,6 +7,7 @@
 //  los botones de la v1. Valores del caso de estudio (los mismos que la pantalla de la v1 en el simulador).
 //
 
+import Foundation
 import Testing
 @testable import Caddy_Score
 
@@ -127,6 +128,46 @@ struct MatchDetailV2DataTests {
         #expect(m.refreshStateV2(for: r.target).carryActive == false)
         m.toggleCarryV2(for: r.target, requester: "RIC")             // lo activa para RIC
         #expect(m.pairCarryRequesterByLane[laneId] == "RIC")
+    }
+
+    // MARK: Botones que ofrece la plantilla
+
+    private func b9Template(carry: Bool, adjust50: Bool, double: Bool) -> BetTemplate {
+        BetTemplate(id: "TESTB9", name: "Prueba B9", vueltaValue: 10, presionValue: 10, matchValue: 10, unitValue: 5,
+                    puttsEnabled: false, puttsBetMode: .hole18, puttsBetUnits: 0,
+                    b9MultiplierAvailable: double, carryB9Available: carry, adjust50Available: adjust50)
+    }
+
+    @Test func refreshButtonsFollowTheTemplateOfTheMatch() {
+        let m = DemoFixture.make()
+        let tpl = b9Template(carry: true, adjust50: false, double: false)
+        BetTemplateStore.shared.upsert(tpl)
+        defer { BetTemplateStore.shared.remove(tpl) }
+        m.setBetTemplateForOpponent("ROB", template: tpl)
+
+        let only = m.refreshOptionsV2(for: .individual("ROB"))
+        #expect(only.carry && !only.adjust50 && !only.doubleB9 && only.any)
+
+        let none = b9Template(carry: false, adjust50: false, double: false)
+        BetTemplateStore.shared.upsert(none)
+        #expect(!m.refreshOptionsV2(for: .individual("ROB")).any)
+    }
+
+    @Test func aMatchWithoutAKnownTemplateOffersAllTheButtons() {
+        let m = DemoFixture.make()
+        #expect(m.refreshOptionsV2(for: .individual("ROB")) == MatchManager.RefreshOptionsV2())
+    }
+
+    @Test func templatesSavedBeforeTheB9ButtonsStillDecodeAsAvailable() throws {
+        let data = try JSONEncoder().encode(b9Template(carry: false, adjust50: false, double: true))
+        var dict = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        dict.removeValue(forKey: "carryB9Available")
+        dict.removeValue(forKey: "adjust50Available")
+        dict.removeValue(forKey: "carryMatchEnabled")
+        let old = try JSONSerialization.data(withJSONObject: dict)
+        let tpl = try JSONDecoder().decode(BetTemplate.self, from: old)
+        #expect(tpl.carryB9Available && tpl.adjust50Available && tpl.carryMatchEnabled)
+        #expect(tpl.b9MultiplierAvailable)
     }
 
     // MARK: Enlaces

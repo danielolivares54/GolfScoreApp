@@ -1517,6 +1517,41 @@ class MatchManager: ObservableObject {
         objectWillChange.send()
     }
 
+    // Cambio de strokes sin mover el F9 de lugar (mismo campo, hoyo de salida, jugadores y parejas):
+    // el F9 se recalcula con los strokes nuevos, así que Carry, Ajuste 50 y Doble Press se
+    // conservan donde el mismo jugador sigue siendo elegible y se quitan solo donde dejó de serlo.
+    func revalidateCarryDependentState() {
+        for opp in Array(individualCarryRequesterByOpponent.keys) where !isIndividualCarryActive(opponentAlias: opp) {
+            individualCarryRequesterByOpponent.removeValue(forKey: opp)
+            individualCarryStartHoleByOpponent.removeValue(forKey: opp)
+        }
+        individualDoublePressOpponents = individualDoublePressOpponents.filter { individualCarryEligibleRequester(opponentAlias: $0) != nil }
+        individualAdjust50Opponents = individualAdjust50Opponents.filter { individualCarryEligibleRequester(opponentAlias: $0) != nil }
+        for laneId in Array(pairCarryRequesterByLane.keys) where !isPairCarryActive(laneId: laneId) {
+            pairCarryRequesterByLane.removeValue(forKey: laneId)
+            pairCarryStartHoleByLane.removeValue(forKey: laneId)
+        }
+        pairDoublePressLanes = pairDoublePressLanes.filter { pairCarryEligibleRequester(laneId: $0) != nil }
+        pairAdjust50Lanes = pairAdjust50Lanes.filter { pairCarryEligibleRequester(laneId: $0) != nil }
+        for laneId in Array(pairAdjust50FlipReceiverByLane.keys) {
+            let stillValid = pairAdjust50Lanes.contains(laneId)
+                && pairAdjust50FlipCandidates(laneId: laneId).contains(pairAdjust50FlipReceiverByLane[laneId] ?? "")
+            if !stillValid { pairAdjust50FlipReceiverByLane.removeValue(forKey: laneId) }
+        }
+        saveBetConfig()
+        objectWillChange.send()
+    }
+
+    // Lo que decide si el F9 "cambió de lugar" (todo se invalida) o solo cambiaron strokes (se revalida).
+    var carryLayoutSignature: String {
+        let aliases = players.map { $0.alias }.joined(separator: ",")
+        let lanePart = lanes
+            .map { "\($0.base.sorted().joined(separator: "+"))>\($0.opp.sorted().joined(separator: "+"))" }
+            .sorted()
+            .joined(separator: ",")
+        return "\(courseId)|\(startHole)|\(aliases)|\(baseTeamAliases.sorted().joined(separator: ","))|\(lanePart)"
+    }
+
     // Cierre de GuidedSetupView.applySetup: un solo guardado con el Setup completo (setCourse no
     // guarda por sí solo) y un refresh para que tarjeta, auditoría y dinero se recalculen.
     func finishSetupApply() {
@@ -4301,6 +4336,7 @@ extension MatchManager {
         // quién carga), el F9 y todo lo que se decidió con él (Carry, Ajuste 50, Doble Press)
         // queda calculado sobre datos viejos — se compara antes/después para invalidarlo.
         let signatureBefore = strokeSetupSignature
+        let layoutBefore = carryLayoutSignature
         if let course = CourseCatalog.all.first(where: { $0.id == draft.courseId }) {
             setCourse(course, resetScores: false)
         }
@@ -4346,7 +4382,10 @@ extension MatchManager {
         } else if let v = Int(draft.vueltaValueText) {
             setVueltaValue(v)
         }
-        if strokeSetupSignature != signatureBefore { clearCarryDependentState() }
+        if strokeSetupSignature != signatureBefore {
+            // Si el F9 cambió de lugar todo se invalida; si solo cambiaron strokes, se revalida con el F9 nuevo.
+            if carryLayoutSignature != layoutBefore { clearCarryDependentState() } else { revalidateCarryDependentState() }
+        }
         // Un solo guardado al final con el Setup completo (setCourse no guarda por sí solo) y un
         // refresh explícito para que tarjeta, auditoría y dinero se recalculen con lo nuevo.
         finishSetupApply()

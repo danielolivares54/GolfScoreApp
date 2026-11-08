@@ -50,6 +50,25 @@ extension MatchManager {
         }
     }
 
+    /// Qué botones del refresh de B9 ofrece la plantilla (tag) de ese match. Sin plantilla conocida, los tres.
+    struct RefreshOptionsV2: Equatable {
+        var carry = true
+        var adjust50 = true
+        var doubleB9 = true
+        var any: Bool { carry || adjust50 || doubleB9 }
+    }
+
+    func refreshOptionsV2(for target: UnitLogTarget) -> RefreshOptionsV2 {
+        let templateId: String?
+        switch target {
+        case .individual(let opp): templateId = betValues(forOpponent: opp).templateId
+        case .pair:                templateId = activeTemplateId
+        }
+        guard let templateId,
+              let tpl = BetTemplateStore.shared.entries.first(where: { $0.id == templateId }) else { return RefreshOptionsV2() }
+        return RefreshOptionsV2(carry: tpl.carryB9Available, adjust50: tpl.adjust50Available, doubleB9: tpl.b9MultiplierAvailable)
+    }
+
     func refreshStateV2(for target: UnitLogTarget) -> RefreshStateV2 {
         switch target {
         case .individual(let opp):

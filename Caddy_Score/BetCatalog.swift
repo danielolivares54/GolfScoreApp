@@ -19,6 +19,34 @@ struct BetTemplate: Identifiable, Codable, Equatable {
     // duelo IND mueve ±1 el strokeVsBase del rival en el directorio para el próximo match.
     // Default true — los casos de "no cambio" son la excepción, no la regla.
     var carryMatchEnabled: Bool = true
+    // Botones del refresh de B9 que la plantilla ofrece en Resultados (Doble B9 = b9MultiplierAvailable).
+    var carryB9Available: Bool = true
+    var adjust50Available: Bool = true
+
+    enum CodingKeys: String, CodingKey {
+        case id, name, vueltaValue, presionValue, matchValue, unitValue, puttsEnabled, puttsBetMode,
+             puttsBetUnits, b9MultiplierAvailable, carryMatchEnabled, carryB9Available, adjust50Available
+    }
+}
+
+extension BetTemplate {
+    // Las plantillas guardadas antes de estos campos no los traen: se leen como "disponible".
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        name = try c.decode(String.self, forKey: .name)
+        vueltaValue = try c.decode(Int.self, forKey: .vueltaValue)
+        presionValue = try c.decode(Int.self, forKey: .presionValue)
+        matchValue = try c.decode(Int.self, forKey: .matchValue)
+        unitValue = try c.decode(Int.self, forKey: .unitValue)
+        puttsEnabled = try c.decode(Bool.self, forKey: .puttsEnabled)
+        puttsBetMode = try c.decode(PuttsBetMode.self, forKey: .puttsBetMode)
+        puttsBetUnits = try c.decode(Int.self, forKey: .puttsBetUnits)
+        b9MultiplierAvailable = try c.decode(Bool.self, forKey: .b9MultiplierAvailable)
+        carryMatchEnabled = try c.decodeIfPresent(Bool.self, forKey: .carryMatchEnabled) ?? true
+        carryB9Available = try c.decodeIfPresent(Bool.self, forKey: .carryB9Available) ?? true
+        adjust50Available = try c.decodeIfPresent(Bool.self, forKey: .adjust50Available) ?? true
+    }
 }
 
 // MARK: - BetTemplateStore
@@ -708,6 +736,8 @@ private struct BetTemplateEditView: View {
     @State private var puttsBetUnitsText = ""
     @State private var b9MultiplierAvailable = true
     @State private var carryMatchEnabled = true
+    @State private var carryB9Available = true
+    @State private var adjust50Available = true
 
     var body: some View {
         NavigationStack {
@@ -730,8 +760,14 @@ private struct BetTemplateEditView: View {
                 }
                 // La apuesta de putts (encendida, precio y alcance F9/B9/18) vive en el tag PUTTS
                 // del Catálogo, no en la plantilla. Los valores guardados aquí se conservan tal cual.
+                Section("Refresh de B9") {
+                    Toggle("Carry", isOn: $carryB9Available)
+                    Toggle("Ajuste 50", isOn: $adjust50Available)
+                    Toggle("Doble B9", isOn: $b9MultiplierAvailable)
+                    Text("Solo los que estén prendidos salen como botón en Resultados, una vez jugado el F9.")
+                        .font(.system(size: 11)).foregroundColor(.secondary)
+                }
                 Section("Otros ajustes") {
-                    Toggle("Multiplicador en B9 disponible", isOn: $b9MultiplierAvailable)
                     Toggle("Ajusta stroke entre rondas", isOn: $carryMatchEnabled)
                     Text("Si se apaga, el ganador del B9 no mueve el stroke del rival para el próximo match.")
                         .font(.system(size: 11)).foregroundColor(.secondary)
@@ -766,6 +802,8 @@ private struct BetTemplateEditView: View {
                     puttsBetUnitsText = "\(template.puttsBetUnits)"
                     b9MultiplierAvailable = template.b9MultiplierAvailable
                     carryMatchEnabled = template.carryMatchEnabled
+                    carryB9Available = template.carryB9Available
+                    adjust50Available = template.adjust50Available
                 }
             }
         }
@@ -784,7 +822,9 @@ private struct BetTemplateEditView: View {
             puttsBetMode: puttsBetMode,
             puttsBetUnits: Int(puttsBetUnitsText) ?? 0,
             b9MultiplierAvailable: b9MultiplierAvailable,
-            carryMatchEnabled: carryMatchEnabled
+            carryMatchEnabled: carryMatchEnabled,
+            carryB9Available: carryB9Available,
+            adjust50Available: adjust50Available
         )
         store.upsert(tpl)
         // Los valores de la plantilla se copian al match al elegirla — sin esto, editar el monto
