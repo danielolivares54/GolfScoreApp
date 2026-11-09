@@ -763,8 +763,7 @@ private struct BetTemplateEditView: View {
                 Section("Refresh de B9") {
                     Toggle("Carry", isOn: $carryB9Available)
                     Toggle("Ajuste 50", isOn: $adjust50Available)
-                    Toggle("Doble B9", isOn: $b9MultiplierAvailable)
-                    Text("Solo los que estén prendidos salen como botón en Resultados, una vez jugado el F9.")
+                    Text("Solo los que estén prendidos salen como botón en Resultados, una vez jugado el F9. Doble B9 siempre está disponible.")
                         .font(.system(size: 11)).foregroundColor(.secondary)
                 }
                 Section("Otros ajustes") {

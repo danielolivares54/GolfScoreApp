@@ -51,6 +51,7 @@ extension MatchManager {
     }
 
     /// Qué botones del refresh de B9 ofrece la plantilla (tag) de ese match. Sin plantilla conocida, los tres.
+    /// Doble B9 es de las apuestas y es común: siempre se ofrece; la plantilla solo decide Carry y Ajuste 50.
     struct RefreshOptionsV2: Equatable {
         var carry = true
         var adjust50 = true
@@ -66,7 +67,7 @@ extension MatchManager {
         }
         guard let templateId,
               let tpl = BetTemplateStore.shared.entries.first(where: { $0.id == templateId }) else { return RefreshOptionsV2() }
-        return RefreshOptionsV2(carry: tpl.carryB9Available, adjust50: tpl.adjust50Available, doubleB9: tpl.b9MultiplierAvailable)
+        return RefreshOptionsV2(carry: tpl.carryB9Available, adjust50: tpl.adjust50Available, doubleB9: true)
     }
 
     func refreshStateV2(for target: UnitLogTarget) -> RefreshStateV2 {

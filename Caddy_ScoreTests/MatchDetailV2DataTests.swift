@@ -146,11 +146,13 @@ struct MatchDetailV2DataTests {
         m.setBetTemplateForOpponent("ROB", template: tpl)
 
         let only = m.refreshOptionsV2(for: .individual("ROB"))
-        #expect(only.carry && !only.adjust50 && !only.doubleB9 && only.any)
+        #expect(only.carry && !only.adjust50 && only.doubleB9)
 
+        // Doble B9 sale siempre, aunque la plantilla traiga b9MultiplierAvailable apagado.
         let none = b9Template(carry: false, adjust50: false, double: false)
         BetTemplateStore.shared.upsert(none)
-        #expect(!m.refreshOptionsV2(for: .individual("ROB")).any)
+        let off = m.refreshOptionsV2(for: .individual("ROB"))
+        #expect(!off.carry && !off.adjust50 && off.doubleB9 && off.any)
     }
 
     @Test func aMatchWithoutAKnownTemplateOffersAllTheButtons() {
