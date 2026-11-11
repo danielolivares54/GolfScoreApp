@@ -4,7 +4,7 @@
 //
 //  Qué cuenta y cuántas unidades vale. Cada cambio se guarda en BetDefinitionStore (el mismo catálogo global de
 //  la v1) y se aplica al match en curso al instante (MatchManager.setupDefaultBets). Reglas:
-//   · Oyes, Oyes Parejas y Match Parejas se pueden apagar de verdad (dejan de contar y de pedirse).
+//   · Oyes se puede apagar de verdad (deja de contar y de pedirse). Oyes Parejas y Match Parejas ya no se muestran.
 //   · El "Vale" de cada unidad se usa (también el de Oyes).
 //   · Las unidades que crea el usuario (Sandy par, Green en regulación…) se pueden renombrar y borrar; las que trae la
 //     app solo se apagan o cambian de valor. Una unidad apagada deja de contar pero sus eventos se conservan.
@@ -25,9 +25,10 @@ struct CatalogoV2: View {
     private var individual: [BetDefinition] {
         store.entries.filter { $0.type == .individual }.sorted { $0.name < $1.name }
     }
-    /// "Match Parejas" no aparece: las parejas cuentan siempre que haya pareja base en el Setup.
+    /// "Match Parejas" y "Oyes Parejas" no aparecen: las parejas cuentan siempre que haya pareja base en el Setup, y sus
+    /// Oyes salen de como se reportaron en la tarjeta (el interruptor "Oyes" de cada pareja sigue en sus fichas).
     private var parejas: [BetDefinition] {
-        store.entries.filter { $0.type == .parejas && $0.tag != "PAIR" }.sorted { $0.name < $1.name }
+        store.entries.filter { $0.type == .parejas && $0.tag != "PAIR" && $0.tag != "OYESP" }.sorted { $0.name < $1.name }
     }
 
     var body: some View {

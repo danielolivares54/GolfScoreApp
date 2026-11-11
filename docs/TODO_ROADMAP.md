@@ -15,9 +15,9 @@
 
 ## Apuestas y catálogo
 
-- [ ] **Oyes acumulados como observación de campo:** declarar al final "pareja X–Y ganan dos" o "Fulana ganó dos" (cantidad de Oyes ganados), sin capturar hoyo por hoyo, y que cuente como apuesta.
+- [ ] **Oyes acumulados como unidad manual (Oyes Acum):** se declara al final "pareja X–Y ganan dos" o "Fulana ganó dos", sin hoyo por hoyo, y espera que se agreguen a mano. Al usarlo en un match, el Oyes por hoyo de ese match queda inhibido. Falta confirmar con Daniel dónde se captura y cómo se activa por match.
 - [ ] **Regla de Oyes:** con un solo puesto capturado hoy el match no cuenta (necesita puesto de los dos lados). Propuesta: quien tiene puesto le gana a quien no; si nadie tiene, queda "pendiente" y editable. No hay empates en par 3.
-- [ ] **Oyes Parejas:** decidir si los Oyes dejan de contar en parejas (y sale la fila del Catálogo) o solo se oculta la fila. Falta la respuesta A/B de Daniel.
+- [x] **Oyes Parejas:** decidido el 2026-11-11: la fila ya no sale en el Catálogo y, si las parejas juegan Oyes, se parte de como se reportaron en la tarjeta (mejor puesto de cada lado). El interruptor "Oyes" de cada pareja sigue. Sin commit ni build todavía.
 - [ ] **Ajuste manual en dinero por match** (rival o pareja, con signo desde el punto de vista de Daniel, nota opcional).
 - [ ] **Unidades editables al final** (hoy "Ver unidades" es solo lectura).
 - [ ] **Unidades nuevas del catálogo visibles en todas las instalaciones**, como Zapato: las unidades que trae la app se agregan solas al catálogo guardado. Confirmar si además deben salir como opción dentro de la plantilla (tag) de cada match.

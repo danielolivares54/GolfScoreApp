@@ -181,7 +181,17 @@ final class BetDefinitionStore: ObservableObject {
         if entries.isEmpty { seedDefaults() }
         ensurePuttsTag()
         ensurePairTagOn()
+        ensureOyesPairOn()
         ensureZapatoTag()
+    }
+
+    // "Oyes Parejas" ya no sale en el catálogo: si las parejas juegan Oyes, se parte de como se reportaron en la tarjeta
+    // (mejor puesto de cada lado). Un catálogo guardado con ese tag apagado se vuelve a encender para que no quede apagado
+    // sin forma de reactivarlo; el interruptor "Oyes" de cada pareja sigue ahí.
+    private func ensureOyesPairOn() {
+        guard let idx = entries.firstIndex(where: { $0.tag == "OYESP" }), !entries[idx].isEnabled else { return }
+        entries[idx].isEnabled = true
+        save()
     }
 
     // Zapato: unidad calculada que se gana al ganar todos los Oyes de la ronda. "Vale" se edita en el catálogo.
