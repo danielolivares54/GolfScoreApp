@@ -41,19 +41,12 @@ enum AppKeys {
 // mismo patrón: la carátula se dibuja con formas de SwiftUI, no con un PNG.
 private struct RootView: View {
     @State private var showSplash = true
-    // UN solo match para las dos vistas: RootView es su dueño (@StateObject) y lo pasa a la v1 y a la
-    // v2. Así cambiar de vista no pierde nada, tampoco lo que solo vive en memoria.
+    // RootView es dueño del match (@StateObject). La app tiene una sola versión: la Vista v2.
     @StateObject private var matchManager = MatchManager()
-    // "v2" (default) = Vista v2 · "v1" = modo Pro (las pantallas anteriores, como opción).
-    @AppStorage(AppKeys.uiVersion) private var uiVersion = AppKeys.uiVersionDefault
 
     var body: some View {
         ZStack {
-            if uiVersion == "v2" {
-                ContentViewV2(matchManager: matchManager)
-            } else {
-                ContentView(matchManager: matchManager)
-            }
+            ContentViewV2(matchManager: matchManager)
             if showSplash {
                 SplashView()
                     .transition(.opacity)

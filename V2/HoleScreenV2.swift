@@ -12,7 +12,6 @@ import SwiftUI
 
 struct HoleScreenV2: View {
     @ObservedObject var matchManager: MatchManager
-    @AppStorage(AppKeys.uiVersion) private var uiVersion = AppKeys.uiVersionDefault
     /// Hoyo actual COMPARTIDO con la v1 (misma clave que ContentView): posición dentro del orden de juego.
     @AppStorage(AppKeys.currentHoleIndex) private var currentHoleIndex = 0
 
@@ -121,7 +120,6 @@ struct HoleScreenV2: View {
                 Text("· Sale en H\(matchManager.startHole)").font(.v2Label).foregroundStyle(CSV2.secondary)
                     .lineLimit(1).fixedSize()
                 Spacer()
-                PrimaryButtonV2(title: "Modo Pro") { uiVersion = "v1" }.fixedSize()
             }
             HStack(spacing: CSV2.s1) {
                 auditButton

@@ -170,8 +170,11 @@ private struct PlayerDirectoryEditView: View {
                             Text(tpl.name).tag(tpl.id)
                         }
                     }
-                    TextField("Stroke anterior", text: $strokeAntText)
-                        .keyboardType(.decimalPad)
+                    HStack {
+                        TextField("Stroke anterior", text: $strokeAntText)
+                            .keyboardType(.decimalPad)
+                        signToggleButton($strokeAntText)
+                    }
                 }
                 Section("Tees") {
                     TextField("Tee de salida (rival)", text: $opponentTee)
@@ -222,18 +225,22 @@ private struct PlayerDirectoryEditView: View {
 
     // .decimalPad no tiene tecla de signo — sin esto no se puede capturar un stroke negativo
     // ("da golpes", convención SSOT: >0 recibe, <0 da) desde el Directorio.
+    // Con el campo vacío pone el "-" para seguir escribiendo el número (antes no hacía nada y parecía roto).
     private func signToggleButton(_ text: Binding<String>) -> some View {
         Button {
             if text.wrappedValue.hasPrefix("-") {
                 text.wrappedValue.removeFirst()
-            } else if !text.wrappedValue.isEmpty, Double(text.wrappedValue) != 0 {
+            } else if text.wrappedValue.isEmpty || Double(text.wrappedValue) != 0 {
                 text.wrappedValue = "-" + text.wrappedValue
             }
         } label: {
-            Image(systemName: "plusminus.circle.fill")
-                .font(.system(size: 20))
+            Text("+/−")
+                .font(.system(size: 15, weight: .bold))
+                .padding(.horizontal, 10).frame(minHeight: 36)
+                .overlay(RoundedRectangle(cornerRadius: 8).stroke(.secondary))
         }
         .buttonStyle(.plain)
+        .accessibilityLabel("Cambiar signo")
     }
 
     private func save() {

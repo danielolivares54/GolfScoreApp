@@ -3198,7 +3198,27 @@ class MatchManager: ObservableObject {
                 out.append(UnitEvent(hole: hole, alias: p.alias, code: "B18", units: unitsForCalculatedTag("B18", fallback: 1), note: "Birdie 18"))
             }
         }
+        if enabled.contains("ZAP"), let award = zapatoAward(), award.hole == hole {
+            out.append(UnitEvent(hole: hole, alias: award.alias, code: "ZAP", units: unitsForCalculatedTag("ZAP", fallback: 1), note: "Zapato"))
+        }
         return out
+    }
+
+    /// Zapato: un jugador gana TODOS los Oyes del campo (puesto 1 en cada par 3; mínimo dos par 3). Se anota en el último par 3
+    /// del orden de juego, que es cuando se completa. Sin Oyes en el catálogo, con algún par 3 sin ganador o con ganadores
+    /// distintos no hay Zapato.
+    func zapatoAward() -> (alias: String, hole: Int)? {
+        guard isOyesEnabled else { return nil }
+        let par3 = playOrder().filter { getHole($0)?.par == 3 }
+        guard par3.count >= 2 else { return nil }
+        var winner: String?
+        for hole in par3 {
+            guard let alias = players.map(\.alias).first(where: { oyesRanksByHole[hole]?[$0] == 1 }) else { return nil }
+            if let winner, winner != alias { return nil }
+            winner = alias
+        }
+        guard let winner, let last = par3.last else { return nil }
+        return (winner, last)
     }
 
     private func oyesIndividualResult(hole: Int, opponentAlias: String) -> Int? {

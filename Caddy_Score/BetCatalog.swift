@@ -181,6 +181,18 @@ final class BetDefinitionStore: ObservableObject {
         if entries.isEmpty { seedDefaults() }
         ensurePuttsTag()
         ensurePairTagOn()
+        ensureZapatoTag()
+    }
+
+    // Zapato: unidad calculada que se gana al ganar todos los Oyes de la ronda. "Vale" se edita en el catálogo.
+    static let zapatoTag = "ZAP"
+
+    // Catálogos guardados antes de existir el tag no lo traen — se agrega (encendido) sin tocar el resto.
+    private func ensureZapatoTag() {
+        guard !entries.contains(where: { $0.tag == Self.zapatoTag }) else { return }
+        entries.append(BetDefinition(tag: Self.zapatoTag, name: "Zapato", type: .individual, mode: .calculado, units: 1,
+                                     description: "Ganar todos los Oyes"))
+        save()
     }
 
     // "Match Parejas" ya no se apaga: un catálogo guardado con ese tag apagado (que hacía que las parejas definidas no contaran)
@@ -259,7 +271,7 @@ final class BetDefinitionStore: ObservableObject {
 
     /// Tags que trae la app: se pueden apagar y cambiar de valor, pero no se borran ni se renombran
     /// (las reglas de cálculo dependen de ellos). Las unidades que crea el usuario sí.
-    static let builtInTags: Set<String> = ["BIRD", "EAG", "ALB", "HIO", "B18", "3P", "HO", "OYES", "PAIR", "OYESP", puttsTag]
+    static let builtInTags: Set<String> = ["BIRD", "EAG", "ALB", "HIO", "B18", "3P", "HO", "OYES", "PAIR", "OYESP", puttsTag, zapatoTag]
 
     func isBuiltIn(_ def: BetDefinition) -> Bool { Self.builtInTags.contains(def.tag.uppercased()) }
 

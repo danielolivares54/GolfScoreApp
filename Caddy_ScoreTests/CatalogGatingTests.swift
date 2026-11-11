@@ -28,6 +28,58 @@ struct CatalogGatingTests {
         m.resultadoRowsV2().first { $0.title == "ROB" }?.unitsNet ?? 0
     }
 
+    // MARK: Zapato (ganar todos los Oyes)
+
+    private func zapatoCatalog(units: Int) -> [BetDefinition] {
+        catalog() + [BetDefinition(tag: "ZAP", name: "Zapato", type: .individual, mode: .calculado, units: units, description: "")]
+    }
+
+    /// Todos los par 3 con Oyes capturado: `winners[i]` gana el i-ésimo par 3 (el otro queda segundo).
+    private func setOyes(_ m: MatchManager, winners: [String]) -> [Int] {
+        let par3 = m.playOrder().filter { m.getHole($0)?.par == 3 }
+        m.oyesRanksByHole = [:]
+        for (i, hole) in par3.enumerated() {
+            let winner = winners[i % winners.count]
+            let other = winner == "DAN" ? "ROB" : "DAN"
+            m.setOyesRanks(hole: hole, ranksByAlias: [winner: 1, other: 2])
+        }
+        return par3
+    }
+
+    @Test func zapatoGoesToWhoWinsEveryOyesAtTheLastPar3() {
+        let m = DemoFixture.make()
+        let par3 = setOyes(m, winners: ["DAN"])
+        #expect(par3.count >= 2)
+        m.betCatalog = catalog()
+        let without = robUnits(m)
+        m.betCatalog = zapatoCatalog(units: 3)
+        let award = m.zapatoAward()
+        #expect(award?.alias == "DAN" && award?.hole == par3.last)
+        #expect(robUnits(m) - without == 3)        // el Zapato vale lo que dice el catálogo
+        m.betCatalog = zapatoCatalog(units: 5)
+        #expect(robUnits(m) - without == 5)
+    }
+
+    @Test func zapatoNeedsTheSamePlayerInEveryOyes() {
+        let m = DemoFixture.make()
+        _ = setOyes(m, winners: ["DAN", "ROB"])    // se reparten los Oyes
+        m.betCatalog = zapatoCatalog(units: 3)
+        #expect(m.zapatoAward() == nil)
+        // Un par 3 sin ganador capturado tampoco cuenta.
+        let par3 = setOyes(m, winners: ["DAN"])
+        m.clearOyeRank(hole: par3[0], alias: "DAN")
+        #expect(m.zapatoAward() == nil)
+    }
+
+    @Test func zapatoIsOffWhenTheCatalogTurnsItOffOrOyesIsOff() {
+        let m = DemoFixture.make()
+        _ = setOyes(m, winners: ["DAN"])
+        m.betCatalog = catalog()                   // sin ZAP en el catálogo activo
+        #expect(!m.unitLogEntriesForZoom().contains { $0.type == "ZAP" })
+        m.betCatalog = zapatoCatalog(units: 3).filter { $0.tag != "OYES" }
+        #expect(m.zapatoAward() == nil)            // sin Oyes no hay Zapato
+    }
+
     @Test func switchingOyesOffRemovesItFromTheCalculation() {
         let m = DemoFixture.make()
         #expect(m.oyesIndividualOutcome(hole: 14, opponentAlias: "ROB") != nil)

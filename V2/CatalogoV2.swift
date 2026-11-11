@@ -99,6 +99,7 @@ struct CatalogoV2: View {
         case "OYES": return "Puesto en los par 3"
         case "OYESP": return "Mejor puesto de cada pareja en los par 3"
         case "PAIR": return "Match de parejas completo"
+        case BetDefinitionStore.zapatoTag: return "Ganar todos los Oyes de la ronda · se anota en el último par 3"
         default: return def.mode == .calculado ? "Calculada · \(def.description)" : "Captura manual"
         }
     }
