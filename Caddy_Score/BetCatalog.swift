@@ -183,6 +183,27 @@ final class BetDefinitionStore: ObservableObject {
         ensurePairTagOn()
         ensureOyesPairOn()
         ensureZapatoTag()
+        ensureMedalAndSkinsTags()
+    }
+
+    // Medal y Skins: apuestas calculadas entre jugadores, en unidades. Nacen APAGADAS (cambian el dinero de toda la ronda
+    // cuando se juegan): se prenden en el catálogo y ahí se les pone cuántas unidades valen.
+    static let medalTag = "MEDAL"
+    static let skinsTag = "SKIN"
+
+    private func ensureMedalAndSkinsTags() {
+        var changed = false
+        if !entries.contains(where: { $0.tag == Self.medalTag }) {
+            entries.append(BetDefinition(tag: Self.medalTag, name: "Medal", type: .individual, mode: .calculado, units: 1,
+                                         description: "Golpes de la vuelta menos strokes: gana el menor neto", isEnabled: false))
+            changed = true
+        }
+        if !entries.contains(where: { $0.tag == Self.skinsTag }) {
+            entries.append(BetDefinition(tag: Self.skinsTag, name: "Skins", type: .individual, mode: .calculado, units: 1,
+                                         description: "Menor neto del hoyo contra todos; si empatan se acumula", isEnabled: false))
+            changed = true
+        }
+        if changed { save() }
     }
 
     // "Oyes Parejas" ya no sale en el catálogo: si las parejas juegan Oyes, se parte de como se reportaron en la tarjeta
@@ -281,7 +302,7 @@ final class BetDefinitionStore: ObservableObject {
 
     /// Tags que trae la app: se pueden apagar y cambiar de valor, pero no se borran ni se renombran
     /// (las reglas de cálculo dependen de ellos). Las unidades que crea el usuario sí.
-    static let builtInTags: Set<String> = ["BIRD", "EAG", "ALB", "HIO", "B18", "3P", "HO", "OYES", "PAIR", "OYESP", puttsTag, zapatoTag]
+    static let builtInTags: Set<String> = ["BIRD", "EAG", "ALB", "HIO", "B18", "3P", "HO", "OYES", "PAIR", "OYESP", puttsTag, zapatoTag, "MEDAL", "SKIN"]
 
     func isBuiltIn(_ def: BetDefinition) -> Bool { Self.builtInTags.contains(def.tag.uppercased()) }
 

@@ -22,6 +22,12 @@
 - [ ] **Unidades editables al final** (hoy "Ver unidades" es solo lectura).
 - [ ] **Unidades nuevas del catálogo visibles en todas las instalaciones**, como Zapato: las unidades que trae la app se agregan solas al catálogo guardado. Confirmar si además deben salir como opción dentro de la plantilla (tag) de cada match.
 
+- [x] **Medal y Skins (2026-11-12):** apuestas del catálogo en unidades (nacen apagadas, "Vale" editable). Medal: golpes de los 18 hoyos menos strokes recibidos contra cada rival, gana el menor neto. Skins: por hoyo gana quien le gana en neto a todos (strokes entre cada dos jugadores = diferencia de sus strokes contra la base), el empate acumula, el que gana después se lleva todos; ventana `SkinsV2` con la tarjeta de netos. Sin commit ni build todavía.
+- [ ] **El tag decide qué apuestas aplican** (Daniel, 2026-11-12): quitar las fichas por match de "Apuestas activas"; la plantilla dice qué apuestas del catálogo aplican a cada match (individual o pareja, igual). Incluye marcar Skins y Medal como activados en el tag. Toca `betSwitchesForIndividual/ForPair` y reescribe `BetSwitchesTests`.
+- [ ] **Simplificar el Refresh de B9:** hoy 3 botones + texto + selector de quién lleva el Carry. Propuesta: un selector Ninguno · Carry · Ajuste 50 (excluyentes) y un interruptor Doble B9 combinable.
+- [ ] **Estadísticas históricas:** en "Mi historial" mostrar para el match los pares, birdies, bogeys, etc. como números junto al promedio histórico, para ver si se mejoró.
+- [ ] **Preguntas por voz (slang):** "dame el acumulado de putts hasta el hoyo X de estos jugadores" como una conversación nueva.
+
 ## Reloj
 
 - [ ] **Cola sin conexión:** hoy abrir la app del reloj cancela los dictados en cola (`WatchModel.init`). Dejarlos, mostrar "pendiente de revisar" y un acuse "Hoyo N listo ✓" cuando el iPhone los resuelva.

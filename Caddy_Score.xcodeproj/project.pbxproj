@@ -58,6 +58,8 @@
 		F82AA8AF304F4871004066B3 /* ScoreManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = F82AA8AE304F4871004066B3 /* ScoreManager.swift */; };
 		F82AA8E0304F5E7B004066B3 /* SiriMatchManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = F82AA8DF304F5E7B004066B3 /* SiriMatchManager.swift */; };
 		F82AA8E2304F6029004066B3 /* GolfScoreRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = F82AA8E1304F6029004066B3 /* GolfScoreRecord.swift */; };
+		F868021F30A676BB00C9A6D7 /* SkinsV2.swift in Sources */ = {isa = PBXBuildFile; fileRef = F868021E30A676BB00C9A6D7 /* SkinsV2.swift */; };
+		F868022030A676BB00C9A6D7 /* SkinsV2.swift in Sources */ = {isa = PBXBuildFile; fileRef = F868021E30A676BB00C9A6D7 /* SkinsV2.swift */; };
 		F87EB6933085278E004EBE88 /* Resumen_CaddyScore_y_Correccion.txt in Resources */ = {isa = PBXBuildFile; fileRef = F87EB6923085278E004EBE88 /* Resumen_CaddyScore_y_Correccion.txt */; };
 		F88434FE3082E0F80079F3EB /* Algorithms in Frameworks */ = {isa = PBXBuildFile; productRef = F88434FD3082E0F80079F3EB /* Algorithms */; };
 		F8A1001A2F43000100A1B2C3 /* Caddy_Score/Caddy_ScoreApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8A100102F43000100A1B2C3 /* Caddy_Score/Caddy_ScoreApp.swift */; };
@@ -141,6 +143,7 @@
 		F82AA8DF304F5E7B004066B3 /* SiriMatchManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SiriMatchManager.swift; sourceTree = "<group>"; };
 		F82AA8E1304F6029004066B3 /* GolfScoreRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GolfScoreRecord.swift; sourceTree = "<group>"; };
 		F8667F592F413A6400F2F850 /* Caddy_Score.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Caddy_Score.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		F868021E30A676BB00C9A6D7 /* SkinsV2.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SkinsV2.swift; sourceTree = "<group>"; };
 		F87EB6923085278E004EBE88 /* Resumen_CaddyScore_y_Correccion.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = Resumen_CaddyScore_y_Correccion.txt; sourceTree = "<group>"; };
 		F8A100102F43000100A1B2C3 /* Caddy_Score/Caddy_ScoreApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Caddy_Score/Caddy_ScoreApp.swift; sourceTree = "<group>"; };
 		F8A100112F43000100A1B2C3 /* Caddy_Score/ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Caddy_Score/ContentView.swift; sourceTree = "<group>"; };
@@ -269,6 +272,7 @@
 				F8057698308C1D2000AE2B4F /* ContrastV2.swift */,
 				F8E6C0023090A0020000AAA1 /* WatchCardCoordinatorV2.swift */,
 				F8E6C0023090A0020000AAA2 /* WatchBridgeV2.swift */,
+				F868021E30A676BB00C9A6D7 /* SkinsV2.swift */,
 			);
 			path = V2;
 			sourceTree = "<group>";
@@ -471,6 +475,7 @@
 				F808CADB30895E9F00CAB58C /* ContentViewV2.swift in Sources */,
 				F808CAFB308981E700CAB58C /* HoleScreenV2.swift in Sources */,
 				F8057696308C0F4100AE2B4F /* PairsNoticeV2.swift in Sources */,
+				F868021F30A676BB00C9A6D7 /* SkinsV2.swift in Sources */,
 				F808CAE63089649000CAB58C /* ResultadoV2.swift in Sources */,
 				F808CB0430898D6200CAB58C /* AuditV2.swift in Sources */,
 				F808CADC30895E9F00CAB58C /* CaddieStyleV2.swift in Sources */,
@@ -513,6 +518,7 @@
 				F808CB113089932400CAB58C /* MyHistoryV2.swift in Sources */,
 				F808CAE33089647F00CAB58C /* MatchManager+V2.swift in Sources */,
 				F8057697308C0F4100AE2B4F /* PairsNoticeV2.swift in Sources */,
+				F868022030A676BB00C9A6D7 /* SkinsV2.swift in Sources */,
 				F8057690308C04D100AE2B4F /* CardReadbackV2.swift in Sources */,
 				F808CB093089905B00CAB58C /* SetupV2.swift in Sources */,
 				F808CAFA308981E700CAB58C /* HoleScreenV2.swift in Sources */,

@@ -25,6 +25,7 @@ struct HoleScreenV2: View {
     @State private var showNota = false
     @State private var showVoice = false
     @State private var showBetSwitches = false
+    @State private var showSkins = false
     /// Última captura por voz, para el banner "Hoyo N actualizado · Deshacer".
     @State private var voiceUndo: (hole: Int, token: VoiceUndoToken)?
 
@@ -83,6 +84,7 @@ struct HoleScreenV2: View {
         .onChange(of: matchManager.startHole) { _, _ in currentHoleIndex = 0 }
         .sheet(isPresented: $showTarjeta) { TarjetaV2(matchManager: matchManager) }
         .sheet(isPresented: $showBetSwitches) { BetSwitchesSheetV2(matchManager: matchManager) }
+        .sheet(isPresented: $showSkins) { SkinsV2(matchManager: matchManager) }
         .sheet(isPresented: $showResultado) { ResultadoV2(matchManager: matchManager) }
         .sheet(isPresented: $showAudit) { AuditV2(matchManager: matchManager) }
         .sheet(isPresented: $showSetup) { SetupV2(matchManager: matchManager) }
@@ -123,6 +125,9 @@ struct HoleScreenV2: View {
             }
             HStack(spacing: CSV2.s1) {
                 auditButton
+                if matchManager.isSkinsEnabled {
+                    iconButton("list.bullet.rectangle", label: "Skins") { showSkins = true }
+                }
                 iconButton("gearshape", label: "Setup") { showSetup = true }
                 iconButton("clock.arrow.circlepath", label: "Historial") { showHistory = true }
                 iconButton("flag.checkered", label: "Cerrar ronda", tint: CSV2.red) { showCloseConfirm = true }

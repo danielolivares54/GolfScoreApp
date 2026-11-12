@@ -28,6 +28,113 @@ struct CatalogGatingTests {
         m.resultadoRowsV2().first { $0.title == "ROB" }?.unitsNet ?? 0
     }
 
+    // MARK: Medal y Skins
+
+    private func medalSkinsCatalog(medal: Int? = nil, skins: Int? = nil) -> [BetDefinition] {
+        var out = catalog()
+        if let medal { out.append(BetDefinition(tag: "MEDAL", name: "Medal", type: .individual, mode: .calculado, units: medal, description: "")) }
+        if let skins { out.append(BetDefinition(tag: "SKIN", name: "Skins", type: .individual, mode: .calculado, units: skins, description: "")) }
+        return out
+    }
+
+    private func zeroStrokes(_ m: MatchManager) {
+        for p in m.players { m.setStrokesVsBase(alias: p.alias, value: 0) }
+    }
+
+    private func setScores(_ m: MatchManager, _ scores: [Int: [String: Int]]) {
+        for (hole, byAlias) in scores {
+            for (alias, gross) in byAlias {
+                if let i = m.players.firstIndex(where: { $0.alias == alias }) { m.players[i].scores[hole] = (gross: gross, putts: nil) }
+            }
+        }
+    }
+
+    private func unitStake(_ m: MatchManager, _ opponent: String) -> Int {
+        m.unitStakeForIndividual(opponentAlias: opponent, segmentOverride: "F9") + m.unitStakeForIndividual(opponentAlias: opponent, segmentOverride: "B9")
+    }
+
+    @Test func skinsAccumulateWhenTheTopIsTiedAndTheNextWinnerTakesThemAll() {
+        let m = DemoFixture.make()
+        zeroStrokes(m)
+        m.skinsParticipantAliases = ["DAN", "ROB", "FER"]
+        setScores(m, [1: ["DAN": 4, "ROB": 4, "FER": 5],     // DAN y ROB empatan arriba: se acumula
+                      2: ["DAN": 5, "ROB": 5, "FER": 4],     // gana FER y se lleva 2 skins
+                      3: ["DAN": 4, "ROB": 5, "FER": 5]])    // gana DAN 1 skin
+        m.betCatalog = medalSkinsCatalog(skins: 2)
+        let holes = m.skinsSummary().holes
+        #expect(holes[0].winner == nil && holes[0].skins == 0 && holes[0].pot == 1)
+        #expect(holes[1].winner == "FER" && holes[1].skins == 2 && holes[1].pot == 2)
+        #expect(holes[2].winner == "DAN" && holes[2].skins == 1 && holes[2].pot == 1)
+        // Cada skin vale 2 unidades y cada perdedor le paga al ganador: DAN vs ROB +2; DAN vs FER −4 (FER, 2 skins) +2 (DAN, 1 skin).
+        #expect(m.skinsStake(opponentAlias: "ROB", holes: [1, 2, 3]) == 2)
+        #expect(m.skinsStake(opponentAlias: "FER", holes: [1, 2, 3]) == -2)
+        // Quien no juega Skins no entra: ANS no cobra ni paga.
+        #expect(m.skinsStake(opponentAlias: "ANS", holes: [1, 2, 3]) == 0)
+    }
+
+    @Test func skinsUseTheStrokesBetweenEachPairOfPlayers() throws {
+        let m = DemoFixture.make()
+        zeroStrokes(m)
+        m.setStrokesVsBase(alias: "ROB", value: -1)          // DAN recibe 1 de ROB
+        m.skinsParticipantAliases = ["DAN", "ROB"]
+        m.betCatalog = medalSkinsCatalog(skins: 1)
+        let total = (1...18).reduce(0.0) { $0 + m.skinsPairStrokes("DAN", "ROB", hole: $1).a }
+        #expect(total == 1)
+        let hole = try #require((1...18).first { m.skinsPairStrokes("DAN", "ROB", hole: $0).a == 1 })
+        setScores(m, [hole: ["DAN": 5, "ROB": 4]])           // neto 4 contra 4: empatan
+        #expect(m.skinsSummary().holes.first { $0.hole == hole }?.winner == nil)
+        setScores(m, [hole: ["DAN": 4, "ROB": 4]])           // neto 3 contra 4: gana DAN
+        #expect(m.skinsSummary().holes.first { $0.hole == hole }?.winner == "DAN")
+    }
+
+    @Test func skinsStrokesBetweenTwoRivalsAreTheDifferenceOfTheirStrokes() {
+        let m = DemoFixture.make()
+        zeroStrokes(m)
+        m.setStrokesVsBase(alias: "FER", value: 3)
+        m.setStrokesVsBase(alias: "ROB", value: 1)
+        let ferRob = (1...18).map { m.skinsPairStrokes("FER", "ROB", hole: $0) }
+        #expect(ferRob.reduce(0.0) { $0 + $1.a } == 2)       // FER recibe 3 − 1 = 2 de ROB
+        #expect(ferRob.reduce(0.0) { $0 + $1.b } == 0)
+        let danFer = (1...18).map { m.skinsPairStrokes("DAN", "FER", hole: $0) }
+        #expect(danFer.reduce(0.0) { $0 + $1.b } == 3)       // contra la base (DAN) FER recibe sus 3
+    }
+
+    @Test func skinsPayInUnitsOnlyWhenTheCatalogTurnsThemOn() {
+        let m = DemoFixture.make()
+        zeroStrokes(m)
+        m.skinsParticipantAliases = ["DAN", "ROB"]
+        m.betCatalog = catalog()
+        let without = unitStake(m, "ROB")
+        #expect(m.skinsSummary().holes.isEmpty)
+        m.betCatalog = medalSkinsCatalog(skins: 2)
+        // Con los scores de la demo y sin strokes DAN gana 9 skins y ROB 8 (el 18 queda acumulado sin ganador): +1 × 2 unidades.
+        #expect(unitStake(m, "ROB") - without == 2)
+        #expect(m.skinsSummary().pending == 1)
+        #expect(m.unitLogEntriesForZoom().contains { $0.type == "SKIN" })
+    }
+
+    @Test func medalPaysTheLowerNetOfTheWholeRound() {
+        let m = DemoFixture.make()
+        zeroStrokes(m)
+        m.betCatalog = catalog()
+        #expect(m.medalOutcome(opponentAlias: "ROB") == nil)  // apagado: no cuenta
+        let without = unitStake(m, "ROB")
+        m.betCatalog = medalSkinsCatalog(medal: 3)
+        // DAN y ROB suman 106 golpes en la demo: sin strokes empatan y no se paga.
+        #expect(m.medalOutcome(opponentAlias: "ROB")?.result == 0)
+        #expect(unitStake(m, "ROB") - without == 0)
+        m.setStrokesVsBase(alias: "ROB", value: -1)           // DAN recibe 1: neto 105 contra 106
+        let win = m.medalOutcome(opponentAlias: "ROB")
+        #expect(win?.result == 1 && win?.yoNet == 105 && win?.oppNet == 106)
+        m.betCatalog = catalog()
+        let withoutStroke = unitStake(m, "ROB")
+        m.betCatalog = medalSkinsCatalog(medal: 3)
+        #expect(unitStake(m, "ROB") - withoutStroke == 3)
+        m.setStrokesVsBase(alias: "ROB", value: 1)            // ROB recibe 1: pierde DAN
+        #expect(m.medalOutcome(opponentAlias: "ROB")?.result == -1)
+        #expect(m.unitLogEntriesForZoom().contains { $0.type == "MEDAL" && $0.units == -3 })
+    }
+
     // MARK: Zapato (ganar todos los Oyes)
 
     private func zapatoCatalog(units: Int) -> [BetDefinition] {

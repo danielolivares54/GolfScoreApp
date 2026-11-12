@@ -515,6 +515,8 @@ class MatchManager: ObservableObject {
     // Historial de valor por hoyo para soportar cambios entre F9/B9.
     @Published var oyesIndividualUnitByHole: [Int: Int] = [:]
     @Published var oyesPairUnitByHole: [Int: Int] = [:]
+    // Quiénes juegan Skins (alias). nil = todos los jugadores. Se guarda con la config de apuestas.
+    @Published var skinsParticipantAliases: [String]? = nil
     // Unidades manuales por hoyo (ej. SANDY PAR, BIRDIE, etc.).
     @Published var unitEventsByHole: [Int: [UnitEvent]] = [:]
     
@@ -935,6 +937,8 @@ class MatchManager: ObservableObject {
         var playerNames: [String] = []
         var courseId: String = ""
         var matchStartHole: Int = 1
+        // Quiénes juegan Skins (nil = todos); archivos guardados antes no lo traen.
+        var skinsParticipants: [String]? = nil
 
         init(activeTemplateId: String?, vueltaValue: Int, presionValue: Int, matchValue: Int, unitValue: Int,
              betValuesByOpponent: [String: OpponentBetValues], baseTeamAliases: [String],
@@ -945,7 +949,9 @@ class MatchManager: ObservableObject {
              pairAdjust50ByOppKey: [String] = [], pairDoublePressByOppKey: [String] = [],
              individualSwitchesByOpponent: [String: MatchBetSwitches] = [:], pairSwitchesByOppKey: [String: MatchBetSwitches] = [:],
              lostHolesByAlias: [String: [Int]] = [:],
-             playerNames: [String] = [], courseId: String = "", matchStartHole: Int = 1) {
+             playerNames: [String] = [], courseId: String = "", matchStartHole: Int = 1,
+             skinsParticipants: [String]? = nil) {
+            self.skinsParticipants = skinsParticipants
             self.activeTemplateId = activeTemplateId
             self.vueltaValue = vueltaValue
             self.presionValue = presionValue
@@ -994,6 +1000,7 @@ class MatchManager: ObservableObject {
             playerNames = try c.decodeIfPresent([String].self, forKey: .playerNames) ?? []
             courseId = try c.decodeIfPresent(String.self, forKey: .courseId) ?? ""
             matchStartHole = try c.decodeIfPresent(Int.self, forKey: .matchStartHole) ?? 1
+            skinsParticipants = try c.decodeIfPresent([String].self, forKey: .skinsParticipants)
         }
     }
 
@@ -1050,7 +1057,8 @@ class MatchManager: ObservableObject {
                 let holes = p.cellOverrides.filter { $0.value == .lostHole }.map(\.key).sorted()
                 return holes.isEmpty ? nil : (p.alias, holes)
             }),
-            playerNames: players.map { $0.name }, courseId: courseId, matchStartHole: startHole
+            playerNames: players.map { $0.name }, courseId: courseId, matchStartHole: startHole,
+            skinsParticipants: skinsParticipantAliases
         )
         do {
             let data = try JSONEncoder().encode(snapshot)
@@ -1081,6 +1089,7 @@ class MatchManager: ObservableObject {
             matchValue = snapshot.matchValue
             unitValue = snapshot.unitValue
             betValuesByOpponent = snapshot.betValuesByOpponent
+            skinsParticipantAliases = snapshot.skinsParticipants
             for (alias, strokes) in snapshot.strokesVsBaseByAlias {
                 setStrokesVsBase(alias: alias, value: strokes)
             }
@@ -1346,6 +1355,29 @@ class MatchManager: ObservableObject {
             }
         }
 
+        if includeIndividual {
+            let opps = players.map(\.alias).filter { $0 != yoAlias }
+            // Skins: lo que cada rival me debe (o le debo) por los skins ganados en estos hoyos.
+            if isSkinsEnabled, skinsPlayerAliases.contains(yoAlias) {
+                for r in skinsSummary().holes where holes.contains(r.hole) && r.skins > 0 {
+                    for opp in opps where skinsPlayerAliases.contains(opp) {
+                        let delta = r.winner == yoAlias ? r.skins * skinUnits : (r.winner == opp ? -r.skins * skinUnits : 0)
+                        guard delta != 0 else { continue }
+                        out.append(UnitLogEntry(hole: r.hole, player: yoAlias, type: "SKIN", scope: .individual, vs: opp, units: delta,
+                                                detail: "\(r.skins) skin\(r.skins == 1 ? "" : "s") · gana \(r.winner ?? "")"))
+                    }
+                }
+            }
+            // Medal: una sola vez, al terminar los 18, en el último hoyo de la vuelta.
+            if segmentOverride != "F9", let last = playOrder().last, holes.contains(last) {
+                for opp in opps {
+                    guard let m = medalOutcome(opponentAlias: opp), m.result != 0 else { continue }
+                    out.append(UnitLogEntry(hole: last, player: yoAlias, type: "MEDAL", scope: .individual, vs: opp, units: m.result * medalUnits,
+                                            detail: "neto \(Self.skinsNumber(m.yoNet)) vs \(Self.skinsNumber(m.oppNet))"))
+                }
+            }
+        }
+
         if includePair {
             // Unidades de campo/calculadas aplicadas por cada lane (base vs opp).
             for e in directEvents where e.units != 0 {
@@ -1429,9 +1461,13 @@ class MatchManager: ObservableObject {
             }
         }
         // OYES (par 3) cuentan como unidades: positivo si yo quedo mejor rankeado que el rival.
-        for hole in zoomHolesForCurrentRound(segmentOverride: segmentOverride) {
+        let segmentHoles = zoomHolesForCurrentRound(segmentOverride: segmentOverride)
+        for hole in segmentHoles {
             total += oyesIndividualResult(hole: hole, opponentAlias: opponentAlias) ?? 0
         }
+        // Skins (por hoyo) y Medal (al terminar los 18, en el segundo nueve): solo si están encendidos en el catálogo.
+        total += skinsStake(opponentAlias: opponentAlias, holes: segmentHoles)
+        if segmentOverride != "F9" { total += medalStake(opponentAlias: opponentAlias) }
         return total
     }
 
@@ -4705,3 +4741,155 @@ extension MatchManager {
             .sorted { (order.firstIndex(of: $0.hole) ?? 99, $0.alias) < (order.firstIndex(of: $1.hole) ?? 99, $1.alias) }
     }
 }
+// MARK: - Medal y Skins (apuestas del catálogo que se pagan en unidades)
+//
+// Las dos nacen apagadas en el catálogo; su "Vale" son unidades y cada unidad vale lo que dice la plantilla del match.
+// Son entre jugadores individuales (yo contra cada rival); las parejas no las usan.
+
+/// Los netos de dos jugadores en un hoyo, con los strokes que se dan entre ellos.
+struct SkinsPairNet: Equatable {
+    let a: String
+    let b: String
+    let netA: Double
+    let netB: Double
+}
+
+struct SkinsHoleResult: Identifiable, Equatable {
+    var id: Int { hole }
+    let hole: Int
+    let grosses: [String: Int]
+    let pairs: [SkinsPairNet]
+    /// Quien le gana en neto a todos los demás; nil si hay empate arriba.
+    let winner: String?
+    /// Skins que se lleva el ganador en este hoyo (los acumulados más el de este hoyo); 0 si nadie ganó.
+    let skins: Int
+    /// Skins en juego en este hoyo (los acumulados más el del hoyo).
+    let pot: Int
+}
+
+struct SkinsSummary: Equatable {
+    let holes: [SkinsHoleResult]
+    /// Skins ganados por jugador.
+    let wins: [String: Int]
+    /// Skins acumulados que siguen sin ganador después del último hoyo completo (no se pagan si la ronda termina así).
+    let pending: Int
+}
+
+extension MatchManager {
+    static let medalTag = "MEDAL"
+    static let skinsTag = "SKIN"
+
+    var isMedalEnabled: Bool { betCatalog.contains { $0.tag.uppercased() == Self.medalTag } }
+    var isSkinsEnabled: Bool { betCatalog.contains { $0.tag.uppercased() == Self.skinsTag } }
+    var medalUnits: Int { catalogUnits(forTag: Self.medalTag) ?? 1 }
+    var skinUnits: Int { catalogUnits(forTag: Self.skinsTag) ?? 1 }
+
+    static func skinsNumber(_ value: Double) -> String {
+        abs(value - value.rounded()) < 0.001 ? String(Int(value.rounded())) : String(format: "%.1f", value)
+    }
+
+    // MARK: Medal
+
+    /// Medal contra un rival: golpes de los 18 hoyos menos los strokes recibidos; gana el menor neto.
+    /// `result`: 1 gana yo, -1 gana el rival, 0 empate. nil si Medal está apagado o falta algún hoyo de los dos.
+    func medalOutcome(opponentAlias: String) -> (result: Int, yoNet: Double, oppNet: Double)? {
+        guard isMedalEnabled, opponentAlias != yoAlias, isMatchComplete(opponentAlias: opponentAlias) else { return nil }
+        var yoNet = 0.0, oppNet = 0.0
+        for hole in 1...18 {
+            let strokes = individualMatchupStrokes(yoAlias: yoAlias, oppAlias: opponentAlias, hole: hole, carryAlias: nil)
+            yoNet += Double(getScore(hole: hole, player: yoAlias)) - strokes.yo
+            oppNet += Double(getScore(hole: hole, player: opponentAlias)) - strokes.opp
+        }
+        let result = abs(yoNet - oppNet) < 0.001 ? 0 : (yoNet < oppNet ? 1 : -1)
+        return (result, yoNet, oppNet)
+    }
+
+    func medalStake(opponentAlias: String) -> Int {
+        (medalOutcome(opponentAlias: opponentAlias)?.result ?? 0) * medalUnits
+    }
+
+    // MARK: Skins
+
+    /// Quiénes juegan Skins: los elegidos que siguen en la ronda (todos si no se eligió). Con menos de dos no hay Skins.
+    var skinsPlayerAliases: [String] {
+        let all = players.map(\.alias)
+        let chosen = skinsParticipantAliases.map { selected in all.filter { selected.contains($0) } } ?? all
+        return chosen.count >= 2 ? chosen : []
+    }
+
+    func setSkinsParticipant(_ alias: String, playing: Bool) {
+        var current = skinsParticipantAliases ?? players.map(\.alias)
+        if playing {
+            if !current.contains(alias) { current.append(alias) }
+        } else {
+            current.removeAll { $0 == alias }
+        }
+        skinsParticipantAliases = current
+        objectWillChange.send()
+        saveBetConfig()
+    }
+
+    /// Strokes que se dan dos jugadores en un hoyo: la diferencia de sus strokes contra la base, repartida por Stroke Index.
+    /// Quien se levantó en el hoyo no recibe strokes ahí (igual que en el match individual).
+    func skinsPairStrokes(_ a: String, _ b: String, hole: Int) -> (a: Double, b: Double) {
+        let diff = playerStrokes(alias: a) - playerStrokes(alias: b)
+        var strokesA = 0.0, strokesB = 0.0
+        if diff > 0 {
+            strokesA = distributedStrokes(total: diff, hole: hole)
+        } else if diff < 0 {
+            strokesB = distributedStrokes(total: -diff, hole: hole)
+        }
+        if cellOverride(alias: a, hole: hole) == .lostHole { strokesA = 0 }
+        if cellOverride(alias: b, hole: hole) == .lostHole { strokesB = 0 }
+        return (strokesA, strokesB)
+    }
+
+    /// Hoyo por hoyo, en orden de juego y hasta el primer hoyo sin todos los scores: gana el skin quien le gana en neto a todos los
+    /// demás (con los strokes de cada pareja de jugadores). Si arriba hay empate, el skin se acumula al siguiente hoyo y quien gane
+    /// después se lleva todos los acumulados.
+    func skinsSummary() -> SkinsSummary {
+        let parts = skinsPlayerAliases
+        guard isSkinsEnabled, parts.count >= 2 else { return SkinsSummary(holes: [], wins: [:], pending: 0) }
+        var results: [SkinsHoleResult] = []
+        var wins: [String: Int] = [:]
+        var pot = 0
+        for hole in playOrder() {
+            let grosses = Dictionary(uniqueKeysWithValues: parts.map { ($0, getScore(hole: hole, player: $0)) })
+            if grosses.values.contains(where: { $0 <= 0 }) { break }
+            pot += 1
+            var pairs: [SkinsPairNet] = []
+            var beaten: [String: Int] = [:]   // a cuántos jugadores le gana cada uno en este hoyo
+            for i in parts.indices {
+                for j in parts.indices where j > i {
+                    let a = parts[i], b = parts[j]
+                    let strokes = skinsPairStrokes(a, b, hole: hole)
+                    let netA = Double(grosses[a] ?? 0) - strokes.a
+                    let netB = Double(grosses[b] ?? 0) - strokes.b
+                    pairs.append(SkinsPairNet(a: a, b: b, netA: netA, netB: netB))
+                    if netA < netB - 0.001 { beaten[a, default: 0] += 1 } else if netB < netA - 0.001 { beaten[b, default: 0] += 1 }
+                }
+            }
+            let winner = parts.first { (beaten[$0] ?? 0) == parts.count - 1 }
+            results.append(SkinsHoleResult(hole: hole, grosses: grosses, pairs: pairs, winner: winner,
+                                           skins: winner == nil ? 0 : pot, pot: pot))
+            if let winner {
+                wins[winner, default: 0] += pot
+                pot = 0
+            }
+        }
+        return SkinsSummary(holes: results, wins: wins, pending: pot)
+    }
+
+    /// Unidades de Skins entre yo y un rival en esos hoyos: cada skin que gano me lo paga cada participante, y al revés.
+    func skinsStake(opponentAlias: String, holes: [Int]) -> Int {
+        let parts = skinsPlayerAliases
+        guard parts.contains(yoAlias), parts.contains(opponentAlias) else { return 0 }
+        var total = 0
+        for r in skinsSummary().holes where holes.contains(r.hole) {
+            if r.winner == yoAlias { total += r.skins * skinUnits }
+            else if r.winner == opponentAlias { total -= r.skins * skinUnits }
+        }
+        return total
+    }
+}
+
