@@ -109,6 +109,9 @@ struct BetDefinition: Identifiable, Codable, Equatable {
     // Solo el tag PUTTS lo usa: alcance de la apuesta (F9 / B9 / 18). Optional con default nil —
     // los catálogos guardados antes de este campo decodifican igual.
     var puttsScope: PuttsBetMode? = nil
+    // Solo Skins: los skins que se ganan en el segundo nueve valen el doble. Optional con default nil —
+    // los catálogos guardados antes de este campo decodifican igual (y significa "no").
+    var doublesOnB9: Bool? = nil
 }
 
 struct ActiveBet: Identifiable {
@@ -1361,10 +1364,11 @@ class MatchManager: ObservableObject {
             if isSkinsEnabled, skinsPlayerAliases.contains(yoAlias) {
                 for r in skinsSummary().holes where holes.contains(r.hole) && r.skins > 0 {
                     for opp in opps where skinsPlayerAliases.contains(opp) {
-                        let delta = r.winner == yoAlias ? r.skins * skinUnits : (r.winner == opp ? -r.skins * skinUnits : 0)
+                        let paid = r.skins * r.weight * skinUnits
+                        let delta = r.winner == yoAlias ? paid : (r.winner == opp ? -paid : 0)
                         guard delta != 0 else { continue }
                         out.append(UnitLogEntry(hole: r.hole, player: yoAlias, type: "SKIN", scope: .individual, vs: opp, units: delta,
-                                                detail: "\(r.skins) skin\(r.skins == 1 ? "" : "s") · gana \(r.winner ?? "")"))
+                                                detail: "\(r.skins) skin\(r.skins == 1 ? "" : "s")\(r.weight > 1 ? " ×\(r.weight) (doble)" : "") · gana \(r.winner ?? "")"))
                     }
                 }
             }
@@ -4765,6 +4769,8 @@ struct SkinsHoleResult: Identifiable, Equatable {
     let skins: Int
     /// Skins en juego en este hoyo (los acumulados más el del hoyo).
     let pot: Int
+    /// Cuánto vale cada skin ganado en este hoyo: 2 en el segundo nueve si el catálogo dobla Skins, si no 1.
+    let weight: Int
 }
 
 struct SkinsSummary: Equatable {
@@ -4783,6 +4789,13 @@ extension MatchManager {
     var isSkinsEnabled: Bool { betCatalog.contains { $0.tag.uppercased() == Self.skinsTag } }
     var medalUnits: Int { catalogUnits(forTag: Self.medalTag) ?? 1 }
     var skinUnits: Int { catalogUnits(forTag: Self.skinsTag) ?? 1 }
+    /// ¿El catálogo dobla los skins del segundo nueve?
+    var skinsDoubleOnB9: Bool { betCatalog.first { $0.tag.uppercased() == Self.skinsTag }?.doublesOnB9 ?? false }
+
+    /// Cuánto vale cada skin ganado en ese hoyo (2 en el segundo nueve con "Doble en B9", si no 1).
+    func skinsWeight(hole: Int) -> Int {
+        skinsDoubleOnB9 && playOrder().suffix(9).contains(hole) ? 2 : 1
+    }
 
     static func skinsNumber(_ value: Double) -> String {
         abs(value - value.rounded()) < 0.001 ? String(Int(value.rounded())) : String(format: "%.1f", value)
@@ -4871,7 +4884,7 @@ extension MatchManager {
             }
             let winner = parts.first { (beaten[$0] ?? 0) == parts.count - 1 }
             results.append(SkinsHoleResult(hole: hole, grosses: grosses, pairs: pairs, winner: winner,
-                                           skins: winner == nil ? 0 : pot, pot: pot))
+                                           skins: winner == nil ? 0 : pot, pot: pot, weight: skinsWeight(hole: hole)))
             if let winner {
                 wins[winner, default: 0] += pot
                 pot = 0
@@ -4886,8 +4899,8 @@ extension MatchManager {
         guard parts.contains(yoAlias), parts.contains(opponentAlias) else { return 0 }
         var total = 0
         for r in skinsSummary().holes where holes.contains(r.hole) {
-            if r.winner == yoAlias { total += r.skins * skinUnits }
-            else if r.winner == opponentAlias { total -= r.skins * skinUnits }
+            if r.winner == yoAlias { total += r.skins * r.weight * skinUnits }
+            else if r.winner == opponentAlias { total -= r.skins * r.weight * skinUnits }
         }
         return total
     }

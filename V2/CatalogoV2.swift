@@ -130,6 +130,15 @@ struct CatalogoV2: View {
                     .accessibilityLabel("Una unidad más")
                 Text(def.units == 1 ? "unidad" : "unidades").font(.v2Label).foregroundStyle(CSV2.secondary)
             }
+            if def.tag == BetDefinitionStore.skinsTag {
+                Toggle(isOn: Binding(get: { def.doublesOnB9 ?? false }, set: { store.setDoublesOnB9(def, $0) })) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Doble en B9").font(.v2Body).foregroundStyle(CSV2.ink)
+                        Text("Los skins que se ganan en el segundo nueve valen el doble").font(.v2Label).foregroundStyle(CSV2.secondary)
+                    }
+                }
+                .tint(CSV2.green)
+            }
             if def.tag == BetDefinitionStore.puttsTag {
                 Picker("Alcance", selection: Binding(get: { def.puttsScope ?? .hole18 }, set: { store.setPuttsScope(def, scope: $0) })) {
                     Text("F9").tag(PuttsBetMode.f9)

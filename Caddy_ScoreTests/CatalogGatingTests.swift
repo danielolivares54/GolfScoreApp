@@ -72,6 +72,30 @@ struct CatalogGatingTests {
         #expect(m.skinsStake(opponentAlias: "ANS", holes: [1, 2, 3]) == 0)
     }
 
+    @Test func skinsOfTheSecondNineAreWorthDoubleWhenTheCatalogSaysSo() {
+        let m = DemoFixture.make()
+        zeroStrokes(m)
+        m.skinsParticipantAliases = ["DAN", "ROB"]
+        // Todos empatan a 4 salvo el hoyo 1 y el 10 (DAN gana con 3): el hoyo 10 se lleva los 9 skins acumulados desde el 2.
+        var scores: [Int: [String: Int]] = [:]
+        for hole in 1...18 { scores[hole] = ["DAN": 4, "ROB": 4] }
+        scores[1] = ["DAN": 3, "ROB": 4]
+        scores[10] = ["DAN": 3, "ROB": 4]
+        setScores(m, scores)
+        m.betCatalog = medalSkinsCatalog(skins: 2)
+        #expect(m.skinsDoubleOnB9 == false)
+        #expect(m.skinsStake(opponentAlias: "ROB", holes: Array(1...18)) == (1 + 9) * 2)
+        var doubled = medalSkinsCatalog(skins: 2)
+        if let i = doubled.firstIndex(where: { $0.tag == "SKIN" }) { doubled[i].doublesOnB9 = true }
+        m.betCatalog = doubled
+        #expect(m.skinsDoubleOnB9)
+        #expect(m.skinsSummary().holes.first { $0.hole == 10 }?.weight == 2)
+        #expect(m.skinsSummary().holes.first { $0.hole == 1 }?.weight == 1)
+        #expect(m.skinsStake(opponentAlias: "ROB", holes: Array(1...18)) == (1 + 9 * 2) * 2)
+        // Los 8 hoyos que quedan empatados al final no se pagan.
+        #expect(m.skinsSummary().pending == 8)
+    }
+
     @Test func skinsUseTheStrokesBetweenEachPairOfPlayers() throws {
         let m = DemoFixture.make()
         zeroStrokes(m)

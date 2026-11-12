@@ -50,7 +50,8 @@ struct SkinsV2: View {
             BackButtonV2 { dismiss() }
             Spacer()
             let units = matchManager.skinUnits
-            Text("Skins · cada uno vale \(units) \(units == 1 ? "unidad" : "unidades")").font(.v2Name).foregroundStyle(CSV2.ink)
+            Text("Skins · cada uno vale \(units) \(units == 1 ? "unidad" : "unidades")" + (matchManager.skinsDoubleOnB9 ? " · doble en B9" : ""))
+                .font(.v2Name).foregroundStyle(CSV2.ink).lineLimit(2).multilineTextAlignment(.trailing)
         }
         .padding(.horizontal, CSV2.s2)
     }
@@ -89,13 +90,20 @@ struct SkinsV2: View {
     /// Skins ganados y unidades netas de cada jugador: cada skin se lo paga cada uno de los demás.
     private func totalsCard(_ summary: SkinsSummary, _ parts: [String]) -> some View {
         let units = matchManager.skinUnits
-        let totalWins = summary.wins.values.reduce(0, +)
+        // Cada skin ganado se lo paga cada uno de los demás (con el doble en B9 si el catálogo lo pide).
+        var netUnits: [String: Int] = [:]
+        for result in summary.holes {
+            guard let winner = result.winner, result.skins > 0 else { continue }
+            let paid = result.skins * result.weight * units
+            netUnits[winner, default: 0] += paid * (parts.count - 1)
+            for other in parts where other != winner { netUnits[other, default: 0] -= paid }
+        }
         return CardV2 {
             VStack(alignment: .leading, spacing: 8) {
                 Text("Skins ganados").capsStyleV2()
                 ForEach(parts, id: \.self) { alias in
                     let wins = summary.wins[alias] ?? 0
-                    let net = (wins * (parts.count - 1) - (totalWins - wins)) * units
+                    let net = netUnits[alias] ?? 0
                     HStack {
                         Text(alias).font(.v2Name).foregroundStyle(CSV2.ink)
                         Spacer()
@@ -191,8 +199,8 @@ struct SkinsV2: View {
 
     @ViewBuilder private func resultLabel(_ result: SkinsHoleResult) -> some View {
         if let winner = result.winner {
-            Text(result.skins > 1 ? "\(winner) ×\(result.skins)" : winner)
-                .font(.v2Label.weight(.bold)).foregroundStyle(CSV2.green)
+            Text((result.skins > 1 ? "\(winner) ×\(result.skins)" : winner) + (result.weight > 1 ? " doble" : ""))
+                .font(.v2Label.weight(.bold)).foregroundStyle(CSV2.green).multilineTextAlignment(.trailing)
         } else {
             Text("se acumula · \(result.pot)").font(.v2Label).foregroundStyle(CSV2.warning)
                 .multilineTextAlignment(.trailing)

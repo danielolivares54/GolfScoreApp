@@ -289,6 +289,13 @@ final class BetDefinitionStore: ObservableObject {
         save()
     }
 
+    /// Skins: los skins del segundo nueve valen el doble.
+    func setDoublesOnB9(_ def: BetDefinition, _ value: Bool) {
+        guard let idx = entries.firstIndex(where: { $0.id == def.id }) else { return }
+        entries[idx].doublesOnB9 = value
+        save()
+    }
+
     func setUnits(_ def: BetDefinition, units: Int) {
         guard let idx = entries.firstIndex(where: { $0.id == def.id }) else { return }
         entries[idx].units = max(1, units)
