@@ -191,6 +191,60 @@ struct CatalogGatingTests {
         #expect(robUnits(m) - without == 5)
     }
 
+    // El Zapato de un jugador cuenta en su pareja cuando el catálogo lo tiene encendido y las apuestas activas de ESA pareja
+    // incluyen Unidades; con Unidades apagado en esa pareja no cuenta.
+    @Test func zapatoCountsInAPairOnlyWhenThatPairsTagHasUnitsOn() throws {
+        let m = DemoFixture.make()
+        _ = setOyes(m, winners: ["DAN"])
+        let lane = try #require(m.lanes.first { $0.base.contains("DAN") })
+        func pairUnits() throws -> Int {
+            try #require(m.walletSnapshot().lines.first { $0.laneId == lane.id }).unitsPoints
+        }
+        m.betCatalog = catalog()
+        let without = try pairUnits()
+        m.betCatalog = zapatoCatalog(units: 3)
+        #expect(try pairUnits() - without == 3)
+
+        var sw = m.betSwitchesForPair(laneId: lane.id)
+        sw.units = false
+        m.setBetSwitchesForPair(laneId: lane.id, switches: sw)
+        #expect(try pairUnits() == 0)
+    }
+
+    // La regla de parejas es de cada unidad: por defecto lo que gana cada jugador cuenta en su pareja; Skins, Putts y Medal son
+    // individuales por su regla, y al definir una unidad nueva se puede marcar que sea solo individual.
+    @Test func eachUnitSaysWhetherItCountsInPairs() throws {
+        #expect(BetDefinition(tag: "HO", name: "Hole Out", type: .individual, mode: .manual, units: 1, description: "").countsInPairs)
+        for tag in ["SKIN", "PUTTS", "MEDAL"] {
+            #expect(!BetDefinition(tag: tag, name: tag, type: .individual, mode: .calculado, units: 1, description: "").countsInPairs)
+        }
+        let custom = BetDefinition(tag: "XTRA", name: "Extra", type: .individual, mode: .manual, units: 1, description: "",
+                                   countsInPairsOverride: false)
+        #expect(!custom.countsInPairs)
+
+        let m = DemoFixture.make()
+        let lane = try #require(m.lanes.first { $0.base.contains("DAN") })
+        func pairUnits() throws -> Int {
+            try #require(m.walletSnapshot().lines.first { $0.laneId == lane.id }).unitsPoints
+        }
+        func robUnits() throws -> Int {
+            try #require(m.walletSnapshot().lines.first { $0.opponentAlias == "ROB" }).unitsPoints
+        }
+        func count(excluded: Bool) throws -> (pair: Int, rob: Int) {
+            var def = BetDefinition(tag: "XTRA", name: "Extra", type: .individual, mode: .manual, units: 1, description: "")
+            if excluded { def.countsInPairsOverride = false }
+            m.betCatalog = catalog() + [def]
+            return (try pairUnits(), try robUnits())
+        }
+        let base = try count(excluded: false)
+        m.addUnitEvent(hole: 3, alias: "DAN", code: "XTRA", units: 2)
+        let counts = try count(excluded: false)
+        #expect(counts.pair - base.pair == 2 && counts.rob - base.rob == 2)         // cuenta en su pareja y contra cada rival
+        let individualOnly = try count(excluded: true)
+        #expect(individualOnly.pair == base.pair)                                   // la excepción la deja fuera de la pareja
+        #expect(individualOnly.rob - base.rob == 2)                                 // y sigue contando en lo individual
+    }
+
     @Test func zapatoNeedsTheSamePlayerInEveryOyes() {
         let m = DemoFixture.make()
         _ = setOyes(m, winners: ["DAN", "ROB"])    // se reparten los Oyes

@@ -148,6 +148,21 @@ struct CatalogoV2: View {
                 }
                 .pickerStyle(.segmented)
             }
+            // Regla de parejas de la unidad: por defecto lo que gana cada jugador cuenta en su pareja; Skins, Putts y Medal son
+            // individuales por su regla. En las unidades que crea el usuario se puede marcar la excepción.
+            if builtIn {
+                if !def.countsInPairs {
+                    Text("Solo individual: no cuenta en parejas").font(.v2Label).foregroundStyle(CSV2.secondary)
+                }
+            } else {
+                Toggle(isOn: Binding(get: { def.countsInPairs }, set: { store.setCountsInPairs(def, $0) })) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Cuenta en parejas").font(.v2Body).foregroundStyle(CSV2.ink)
+                        Text("Lo que gana cada jugador de la pareja suma a su pareja").font(.v2Label).foregroundStyle(CSV2.secondary)
+                    }
+                }
+                .tint(CSV2.green)
+            }
             if !builtIn {
                 HStack(spacing: 12) {
                     Button { renameText = def.name; renaming = def } label: {
@@ -175,6 +190,7 @@ private struct NewUnitSheetV2: View {
     @Environment(\.dismiss) private var dismiss
     @State private var name = ""
     @State private var units = 1
+    @State private var countsInPairs = true
 
     private var cleanName: String { name.trimmingCharacters(in: .whitespacesAndNewlines) }
 
@@ -192,7 +208,8 @@ private struct NewUnitSheetV2: View {
                     Spacer()
                     Button {
                         store.upsert(BetDefinition(tag: store.suggestTag(forName: cleanName), name: cleanName, type: .individual,
-                                                   mode: .manual, units: units, description: "Manual"))
+                                                   mode: .manual, units: units, description: "Manual",
+                                                   countsInPairsOverride: countsInPairs ? nil : false))
                         dismiss()
                     } label: {
                         Text("Guardar").font(.system(.subheadline, weight: .bold)).foregroundStyle(.white)
@@ -213,7 +230,14 @@ private struct NewUnitSheetV2: View {
                     StepButtonV2(symbol: "plus") { units = min(20, units + 1) }
                     Text(units == 1 ? "unidad" : "unidades").font(.v2Label).foregroundStyle(CSV2.secondary)
                 }
-                Text("Las unidades nuevas son individuales y de captura manual: se marcan con un toque en la hoja Unidades de cada hoyo. Las calculadas (birdie, águila…) vienen con la app.")
+                Toggle(isOn: $countsInPairs) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Cuenta en parejas").font(.v2Body).foregroundStyle(CSV2.ink)
+                        Text("Si la apagas, la unidad es solo individual (como Skins y Putts)").font(.v2Label).foregroundStyle(CSV2.secondary)
+                    }
+                }
+                .tint(CSV2.green)
+                Text("Las unidades nuevas son de captura manual: se marcan con un toque en la hoja Unidades de cada hoyo. Las calculadas (birdie, águila…) vienen con la app.")
                     .font(.v2Label).foregroundStyle(CSV2.secondary)
                 Spacer()
             }

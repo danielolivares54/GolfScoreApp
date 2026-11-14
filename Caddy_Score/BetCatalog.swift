@@ -309,6 +309,15 @@ final class BetDefinitionStore: ObservableObject {
 
     /// Tags que trae la app: se pueden apagar y cambiar de valor, pero no se borran ni se renombran
     /// (las reglas de cálculo dependen de ellos). Las unidades que crea el usuario sí.
+    /// Unidades que son solo individuales por su propia regla (no cuentan en las parejas salvo que su definición diga otra cosa).
+    static let individualOnlyTags: Set<String> = [skinsTag, puttsTag, medalTag]
+
+    func setCountsInPairs(_ def: BetDefinition, _ value: Bool) {
+        guard let idx = entries.firstIndex(where: { $0.id == def.id }) else { return }
+        entries[idx].countsInPairsOverride = value
+        save()
+    }
+
     static let builtInTags: Set<String> = ["BIRD", "EAG", "ALB", "HIO", "B18", "3P", "HO", "OYES", "PAIR", "OYESP", puttsTag, zapatoTag, "MEDAL", "SKIN"]
 
     func isBuiltIn(_ def: BetDefinition) -> Bool { Self.builtInTags.contains(def.tag.uppercased()) }

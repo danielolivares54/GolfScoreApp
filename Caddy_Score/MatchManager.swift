@@ -112,6 +112,13 @@ struct BetDefinition: Identifiable, Codable, Equatable {
     // Solo Skins: los skins que se ganan en el segundo nueve valen el doble. Optional con default nil —
     // los catálogos guardados antes de este campo decodifican igual (y significa "no").
     var doublesOnB9: Bool? = nil
+    // Excepción a la regla "lo que gana cada jugador de la pareja cuenta en su pareja (si la unidad está activa)".
+    // nil = la regla por defecto; false = esta unidad es solo individual. Se define al crear la unidad.
+    var countsInPairsOverride: Bool? = nil
+    /// Skins, Putts y Medal son juegos individuales por su propia regla; el resto cuenta en parejas salvo que se marque lo contrario.
+    var countsInPairs: Bool {
+        countsInPairsOverride ?? !BetDefinitionStore.individualOnlyTags.contains(tag.uppercased())
+    }
 }
 
 struct ActiveBet: Identifiable {
@@ -1384,7 +1391,7 @@ class MatchManager: ObservableObject {
 
         if includePair {
             // Unidades de campo/calculadas aplicadas por cada lane (base vs opp).
-            for e in directEvents where e.units != 0 {
+            for e in directEvents where e.units != 0 && unitCodeCountsInPairs(e.code) {
                 for lane in activeLanes.prefix(3) {
                     let inBase = lane.base.contains(e.alias)
                     let inOpp = lane.opp.contains(e.alias)
@@ -1479,7 +1486,7 @@ class MatchManager: ObservableObject {
         guard let lane = lanes.first(where: { $0.id == laneId }) else { return 0 }
         let events = unitEventsForZoom(segmentOverride: segmentOverride)
         var total = 0
-        for e in events {
+        for e in events where unitCodeCountsInPairs(e.code) {
             if lane.base.contains(e.alias) {
                 total += e.units
             } else if lane.opp.contains(e.alias) {
@@ -4708,6 +4715,15 @@ extension MatchManager {
 
     /// ¿Cuenta un evento manual con este código? Una unidad conocida del catálogo que está apagada no cuenta
     /// (sus eventos ya anotados se conservan y vuelven a contar si se reactiva). Notas y códigos desconocidos cuentan.
+    /// ¿La unidad de este código cuenta en las parejas? Sí, salvo que su definición sea solo individual
+    /// (`BetDefinition.countsInPairs`). Códigos que no están en el catálogo cuentan.
+    func unitCodeCountsInPairs(_ code: String) -> Bool {
+        let c = code.uppercased()
+        let def = betCatalog.first { $0.tag.uppercased() == c }
+            ?? BetDefinitionStore.shared.entries.first { $0.tag.uppercased() == c }
+        return def?.countsInPairs ?? true
+    }
+
     func isUnitCodeActive(_ code: String) -> Bool {
         let c = code.uppercased()
         if c == "NOTA" { return true }
