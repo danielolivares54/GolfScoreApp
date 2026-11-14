@@ -3560,7 +3560,8 @@ class MatchManager: ObservableObject {
         }
         // Quien ya lleva el stroke lo sigue llevando. Solo si ese lado no tenía carrier (strokes en
         // 0) el stroke lo lleva quien pidió el carry, no el primero de la lista.
-        let current = lane.strokeCarrier
+        // Sin strokes en el convenio no hay quien los lleve aunque quede un carrier guardado de antes.
+        let current = normal.total > 0.001 ? lane.strokeCarrier : nil
         if signedB9 > 0.001 {
             let fallback = lane.base.contains(requesterAlias) ? requesterAlias : (lane.base.first ?? "")
             let carrier = (current != nil && lane.base.contains(current!)) ? current! : fallback
@@ -3572,6 +3573,22 @@ class MatchManager: ObservableObject {
             return (-signedB9, carrier.isEmpty ? nil : carrier)
         }
         return (0, nil)
+    }
+
+    /// ¿Hay que preguntar cuál de los dos de la pareja que pidió el Carry lleva el stroke? Solo cuando el stroke del
+    /// Carry PASA a esa pareja: ninguno de los dos recibía strokes (en B9 o en total) y el Carry le da uno. Si esa
+    /// pareja ya recibía, sigue recibiendo el mismo jugador; si era la que daba, solo se le quita uno y quien recibe
+    /// no cambia. En esos dos casos no se pregunta nada.
+    func pairCarryNeedsRequesterChoice(laneId: UUID) -> Bool {
+        guard let lane = lanes.first(where: { $0.id == laneId }) else { return false }
+        let team = pairCarryEligibleTeam(laneId: laneId)
+        guard team.count > 1, let first = team.first else { return false }
+        // Si esa pareja ya recibía strokes, los sigue recibiendo el mismo jugador: no se pregunta.
+        let normal = effectiveLaneStrokeProfile(lane: lane, carryRequesterAlias: nil)
+        if normal.total > 0.001, let receiver = normal.carrier, team.contains(receiver) { return false }
+        let profile = laneB9CarryProfile(lane: lane, requesterAlias: first)
+        guard profile.total > 0.001, let carrier = profile.carrier, team.contains(carrier) else { return false }
+        return true
     }
 
     private func laneCarrierStroke(lane: LaneModel, alias: String, hole: Int, carryRequesterAlias: String? = nil) -> Double {

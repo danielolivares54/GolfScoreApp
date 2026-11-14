@@ -182,8 +182,11 @@ struct MatchDetailV2: View {
                     }
                 }
 
-                // Solo en pareja hay más de un candidato (los dos compañeros del lado que perdió el F9).
-                if options.carry, state.candidates.count > 1 { carryPicker(state) }
+                // Solo se pregunta cuál de los dos lleva el stroke cuando el Carry se lo pasa a la pareja que lo pidió
+                // (antes ninguno recibía strokes). Si ya recibían, o eran quienes los daban, no cambia nada y no se
+                // muestra el selector: el Carry se pide y punto (`pairCarryNeedsRequesterChoice`).
+                if options.carry, case .pair(let laneId) = target,
+                   matchManager.pairCarryNeedsRequesterChoice(laneId: laneId) { carryPicker(state) }
             }
             .padding(CSV2.s2)
         }
@@ -196,7 +199,7 @@ struct MatchDetailV2: View {
     private func carryPicker(_ state: MatchManager.RefreshStateV2) -> some View {
         let selected = carryChoice ?? state.carryRequester ?? state.candidates.first
         return VStack(alignment: .leading, spacing: 8) {
-            Text("¿Quién lleva el Carry?").font(.v2Label).foregroundStyle(CSV2.secondary)
+            Text("¿Cuál de los dos lleva el stroke del Carry?").font(.v2Label).foregroundStyle(CSV2.secondary)
             HStack(spacing: 10) {
                 ForEach(state.candidates, id: \.self) { alias in
                     Button {

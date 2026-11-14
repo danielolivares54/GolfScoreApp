@@ -182,4 +182,36 @@ struct MatchDetailV2DataTests {
         #expect(entries.map(\.hole) == entries.map(\.hole).sorted())
         #expect(m.unitLogTitleV2(target) == "Unidades · DAN vs ROB")
     }
+
+    // MARK: Carry de pareja — cuándo se pregunta cuál de los dos lleva el stroke
+
+    private func ricAnsLane(_ m: MatchManager) throws -> LaneModel {
+        try #require(m.lanes.first { Set($0.opp) == Set(["RIC", "ANS"]) })
+    }
+
+    // La pareja que perdió el F9 (RIC+ANS) ya recibe los strokes: sigue recibiéndolos el mismo, no se pregunta.
+    @Test func carryChoiceNotAskedWhenLosersAlreadyReceive() throws {
+        let m = DemoFixture.make()
+        let lane = try ricAnsLane(m)
+        m.setLaneStrokes(id: lane.id, value: 12)
+        m.setLaneCarrier(id: lane.id, carrier: "ANS")
+        #expect(m.pairCarryNeedsRequesterChoice(laneId: lane.id) == false)
+    }
+
+    // La pareja que perdió el F9 es la que da 11 strokes: el Carry solo le quita uno, recibe la misma pareja de siempre.
+    @Test func carryChoiceNotAskedWhenLosersGiveStrokes() throws {
+        let m = DemoFixture.make()
+        let lane = try ricAnsLane(m)
+        m.setLaneStrokes(id: lane.id, value: 11)
+        m.setLaneCarrier(id: lane.id, carrier: "DAN")
+        #expect(m.pairCarryNeedsRequesterChoice(laneId: lane.id) == false)
+    }
+
+    // Sin strokes: el Carry le da uno a la pareja que lo pidió y hay que elegir cuál de los dos lo lleva.
+    @Test func carryChoiceAskedWhenNobodyHadStrokes() throws {
+        let m = DemoFixture.make()
+        let lane = try ricAnsLane(m)
+        m.setLaneStrokes(id: lane.id, value: 0)
+        #expect(m.pairCarryNeedsRequesterChoice(laneId: lane.id) == true)
+    }
 }

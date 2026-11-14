@@ -50,6 +50,64 @@ struct BetSwitchesTests {
         #expect(m.oyesPairOutcome(hole: 14, laneId: m.lanes[1].id) != nil)
     }
 
+    // El "tag" de un match de parejas son sus apuestas activas: las unidades de los jugadores (birdie, hole out, oyes…)
+    // cuentan en esa pareja solo si "Unidades" está encendido en ella; apagado no cuentan, y solo en esa pareja.
+    @Test func pairUnitsCountOnlyWhenThatPairsTagHasUnitsOn() throws {
+        let m = DemoFixture.make()
+        let lane = m.lanes[2]          // RIC+ANS en el demo: tiene unidades
+        let other = m.lanes[0]
+        func line(_ id: UUID) throws -> WalletLine {
+            try #require(m.walletSnapshot().lines.first { $0.laneId == id })
+        }
+        let before = try line(lane.id)
+        let otherBefore = try line(other.id)
+        #expect(before.unitsPoints != 0)
+
+        var sw = m.betSwitchesForPair(laneId: lane.id)
+        sw.units = false
+        m.setBetSwitchesForPair(laneId: lane.id, switches: sw)
+        let off = try line(lane.id)
+        #expect(off.unitsPoints == 0 && off.unitsMoney == 0)
+        #expect(try line(other.id).unitsPoints == otherBefore.unitsPoints)
+
+        sw.units = true
+        m.setBetSwitchesForPair(laneId: lane.id, switches: sw)
+        #expect(try line(lane.id).unitsPoints == before.unitsPoints)
+    }
+
+    // Una unidad ganada por un jugador (el birdie de DAN en el hoyo 5 del demo) cuenta en SU match individual contra cada
+    // rival y en la pareja a la que pertenece, cada uno según sus apuestas activas: apagar Unidades en un match no
+    // cambia el otro.
+    @Test func aPlayersUnitCountsIndividuallyAndInHisPairEachByItsOwnTag() throws {
+        let m = DemoFixture.make()
+        let rob = try #require(m.walletSnapshot().lines.first { $0.opponentAlias == "ROB" })
+        let pair = try #require(m.lanes.first { $0.base.contains("DAN") })   // DAN+FER contra una de las parejas
+        func pairLine() throws -> WalletLine { try #require(m.walletSnapshot().lines.first { $0.laneId == pair.id }) }
+        func robLine() throws -> WalletLine { try #require(m.walletSnapshot().lines.first { $0.opponentAlias == "ROB" }) }
+
+        // El birdie de DAN (H5) está en el log individual y en el de la pareja.
+        let individual = m.unitLogEntriesForZoom(segmentOverride: "F9", includeIndividual: true, includePair: false)
+        #expect(individual.contains { $0.hole == 5 && $0.type == "BIRD" && $0.vs == "ROB" && $0.units == 1 })
+        let pairs = m.unitLogEntriesForZoom(segmentOverride: "F9", includeIndividual: false, includePair: true)
+        #expect(pairs.contains { $0.hole == 5 && $0.type == "BIRD" && $0.player.contains("DAN") && $0.units == 1 })
+
+        // Apagar Unidades en la pareja no toca el match individual…
+        let pairBefore = try pairLine().unitsPoints
+        var sw = m.betSwitchesForPair(laneId: pair.id)
+        sw.units = false
+        m.setBetSwitchesForPair(laneId: pair.id, switches: sw)
+        #expect(try pairLine().unitsPoints == 0)
+        #expect(try robLine().unitsPoints == rob.unitsPoints)
+        // …y al revés: apagarlas en el individual no toca la pareja.
+        sw.units = true
+        m.setBetSwitchesForPair(laneId: pair.id, switches: sw)
+        var rsw = m.betSwitchesForIndividual(opponentAlias: "ROB")
+        rsw.units = false
+        m.setBetSwitchesForIndividual(opponentAlias: "ROB", switches: rsw)
+        #expect(try robLine().unitsPoints == 0)
+        #expect(try pairLine().unitsPoints == pairBefore)
+    }
+
     @Test func switchesOldFilesWithoutOyesStillDecodeAsOn() throws {
         let old = #"{"vuelta":true,"presion":false,"carry":true,"adjust50":true,"match":true,"units":true}"#
         let sw = try JSONDecoder().decode(MatchBetSwitches.self, from: Data(old.utf8))

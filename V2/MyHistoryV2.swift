@@ -1,6 +1,6 @@
 //
 //  MyHistoryV2.swift
-//  Caddie Score — Vista v2, Paso 9: mis estadísticas (Acumulado = promedio ± desviación · Este match = porcentajes)
+//  Caddie Score — Vista v2, Paso 9: mis estadísticas (Acumulado = promedio ± desviación · Este match = número de hoyos)
 //
 //  Mismas cifras que MyHistoryView: salen de MyHistoryData (las fórmulas se movieron tal cual para compartirlas).
 //  Datos: histograma de resultados, golpes (medal, bruto) y putts por nueve, promedio vs par por tipo de hoyo,
@@ -90,13 +90,6 @@ struct MyHistoryV2: View {
         }
     }
 
-    /// "18% ± 6" (la desviación solo con 2 o más rondas) / "—".
-    private func percentText(_ spread: MyHistoryData.Spread?) -> String {
-        guard let spread else { return "—" }
-        let mean = "\(Int(spread.mean.rounded()))%"
-        return spread.std.map { "\(mean) ± \(Int($0.rounded()))" } ?? mean
-    }
-
     /// "40.5 ± 2.1" para golpes y putts.
     private func averageText(_ spread: MyHistoryData.Spread?) -> String {
         guard let spread else { return "—" }
@@ -112,26 +105,25 @@ struct MyHistoryV2: View {
         }
     }
 
-    // MARK: Histograma de resultados (% de hoyos)
+    // MARK: Resultados por hoyo (número de hoyos, no porcentaje)
 
+    /// Acumulado: promedio de hoyos por ronda ± σ. Este match: los hoyos de la última ronda cerrada.
     private func countRow(_ label: String, _ keyPath: KeyPath<MyHistoryData.ScoreCounts, Int>, color: Color) -> some View {
-        let acc = MyHistoryData.percentSpread(rounds: rounds, keyPath)
-        let last = lastFigures.flatMap { MyHistoryData.percent($0.counts, keyPath) }
-        return twoColRow(label, acc: percentText(acc), last: last.map { "\(Int($0.rounded()))%" } ?? "—", color: color)
+        let acc = MyHistoryData.countSpread(rounds: rounds, keyPath)
+        let last = lastFigures.flatMap { $0.counts.total > 0 ? "\($0.counts[keyPath: keyPath])" : nil }
+        return twoColRow(label, acc: averageText(acc), last: last ?? "—", color: color)
     }
 
     private func histogramCard(_ stats: MyHistoryData.Stats) -> some View {
         card {
-            caption("% de hoyos por resultado")
+            caption("Hoyos por resultado")
             columnHeader("Prom. ± σ")
-            countRow("Águila o mejor", \.eagleOrBetter, color: CSV2.green)
-            countRow("Birdie", \.birdie, color: CSV2.green)
+            countRow("Birdie o menos", \.birdieOrLess, color: CSV2.green)
             countRow("Par", \.par, color: CSV2.ink)
             countRow("Bogey", \.bogey, color: CSV2.red)
-            countRow("Doble (+2)", \.double, color: CSV2.red)
-            countRow("Triple (+3)", \.triple, color: CSV2.red)
-            countRow("+4 o más", \.quadOrMore, color: CSV2.red)
-            Text("Acumulado: promedio de tus rondas cerradas ± desviación estándar (con 2 o más rondas). Este match: la última ronda cerrada.")
+            countRow("Doble bogey", \.double, color: CSV2.red)
+            countRow("Triple o más", \.tripleOrMore, color: CSV2.red)
+            Text("Acumulado: promedio de hoyos por ronda ± desviación estándar (con 2 o más rondas cerradas). Este match: los hoyos de la última ronda cerrada.")
                 .font(.v2Label).foregroundStyle(CSV2.secondary)
         }
     }

@@ -308,6 +308,9 @@ enum MyHistoryData {
     struct ScoreCounts {
         var eagleOrBetter = 0, birdie = 0, par = 0, bogey = 0, double = 0, triple = 0, quadOrMore = 0
         var total: Int { eagleOrBetter + birdie + par + bogey + double + triple + quadOrMore }
+        // Las cinco categorías de la estadística del match (Vista v2): birdie o menos, par, bogey, doble, triple o más.
+        var birdieOrLess: Int { eagleOrBetter + birdie }
+        var tripleOrMore: Int { triple + quadOrMore }
 
         mutating func add(diff: Int) {
             switch diff {
@@ -483,6 +486,11 @@ extension MyHistoryData {
     static func percent(_ counts: ScoreCounts, _ keyPath: KeyPath<ScoreCounts, Int>) -> Double? {
         guard counts.total > 0 else { return nil }
         return Double(counts[keyPath: keyPath]) / Double(counts.total) * 100
+    }
+
+    /// Promedio y desviación del NÚMERO de hoyos de ese resultado por ronda (no porcentual).
+    static func countSpread(rounds: [RoundResultFile], _ keyPath: KeyPath<ScoreCounts, Int>) -> Spread? {
+        spread(rounds.compactMap { figures(for: $0) }.filter { $0.counts.total > 0 }.map { Double($0.counts[keyPath: keyPath]) })
     }
 
     /// Promedio y desviación (en %) de ese resultado a lo largo de las rondas.

@@ -410,8 +410,12 @@ struct BetDefinitionEditorView: View {
                 Section("Individual") {
                     ForEach(individualDefs) { def in row(def) }
                 }
-                Section("Parejas") {
-                    ForEach(parejasDefs) { def in row(def) }
+                // El concepto "Parejas" ya no existe en el catálogo: lo que está activo aquí cuenta igual en individual y
+                // en pareja. Esta sección solo aparece si quedaron unidades viejas de ese tipo, para poder apagarlas o borrarlas.
+                if !parejasDefs.isEmpty {
+                    Section("Parejas (anteriores)") {
+                        ForEach(parejasDefs) { def in row(def) }
+                    }
                 }
             }
         }
@@ -487,7 +491,6 @@ private struct BetDefinitionNewView: View {
     @Environment(\.dismiss) private var dismiss
     @ObservedObject private var store = BetDefinitionStore.shared
     @State private var name: String = ""
-    @State private var type: BetType = .individual
     @State private var units: Int = 1
 
     var body: some View {
@@ -496,10 +499,6 @@ private struct BetDefinitionNewView: View {
                 Section("Nueva unidad manual") {
                     TextField("Nombre (ej. Sandy Par)", text: $name)
                         .font(.system(size: 17))
-                    Picker("Tipo", selection: $type) {
-                        Text("Individual").tag(BetType.individual)
-                        Text("Parejas").tag(BetType.parejas)
-                    }
                     Stepper("Vale \(units) \(units == 1 ? "unidad" : "unidades")", value: $units, in: 1...20)
                 }
                 Text("Las unidades nuevas siempre son manuales — se registran con un toque en cancha, no se detectan solas del score.")
@@ -513,7 +512,7 @@ private struct BetDefinitionNewView: View {
                     Button("Guardar") {
                         let cleanName = name.trimmingCharacters(in: .whitespacesAndNewlines)
                         let tag = store.suggestTag(forName: cleanName)
-                        store.upsert(BetDefinition(tag: tag, name: cleanName, type: type, mode: .manual, units: units, description: "Manual"))
+                        store.upsert(BetDefinition(tag: tag, name: cleanName, type: .individual, mode: .manual, units: units, description: "Manual"))
                         dismiss()
                     }
                     .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)

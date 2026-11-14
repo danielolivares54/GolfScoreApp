@@ -48,6 +48,26 @@ struct MyHistoryDataTests {
         #expect(f.counts.par == 9 && f.counts.bogey == 9)
     }
 
+    // Las cinco categorías de la estadística del match, en número de hoyos: birdie o menos, par, bogey, doble, triple o más.
+    @Test func fiveResultCategoriesAreCountedNotPercents() {
+        var c = MyHistoryData.ScoreCounts()
+        for diff in [-3, -2, -1, 0, 0, 1, 2, 3, 4, 6] { c.add(diff: diff) }
+        #expect(c.birdieOrLess == 3)     // albatros, águila y birdie
+        #expect(c.par == 2 && c.bogey == 1 && c.double == 1)
+        #expect(c.tripleOrMore == 3)     // +3, +4 y +6
+        #expect(c.birdieOrLess + c.par + c.bogey + c.double + c.tripleOrMore == c.total)
+    }
+
+    @Test func countSpreadIsTheAverageNumberOfHolesPerRound() {
+        let rounds = [makeRound(), makeRound(startHole: 10)]
+        // En las dos rondas hay 9 pares y 9 bogeys: el promedio es 9 hoyos, sin desviación.
+        let par = MyHistoryData.countSpread(rounds: rounds, \.par)
+        #expect(par?.mean == 9 && par?.std == 0)
+        let bogey = MyHistoryData.countSpread(rounds: rounds, \.bogey)
+        #expect(bogey?.mean == 9)
+        #expect(MyHistoryData.countSpread(rounds: [], \.par) == nil)
+    }
+
     @Test func ninesFollowTheStartHoleOfTheRound() throws {
         // Saliendo en el 10, el primer nueve jugado son los hoyos 10–18 (los bogeys).
         let f = try #require(MyHistoryData.figures(for: makeRound(startHole: 10)))
